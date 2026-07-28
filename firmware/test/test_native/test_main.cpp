@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "battery_model.h"
 #include "crc32.h"
 #include "display_formatter.h"
 #include "page_carousel.h"
@@ -175,6 +176,62 @@ void test_page_carousel_pinned_page() {
   TEST_ASSERT_EQUAL(DisplayPage::kAverage, carousel.currentPage());
 }
 
+
+void test_battery_raw_conversion_and_calibration() {
+  TEST_ASSERT_EQUAL_UINT16(0u, BatteryModel::rawToMillivolts(0, 1000, 0));
+  TEST_ASSERT_EQUAL_UINT16(4000u, BatteryModel::rawToMillivolts(2305, 1000, 0));
+  TEST_ASSERT_EQUAL_UINT16(4050u, BatteryModel::rawToMillivolts(2305, 1010, 10));
+  TEST_ASSERT_EQUAL_UINT16(7106u, BatteryModel::rawToMillivolts(5000, 1000, 0));
+}
+
+void test_battery_soc_table_and_interpolation() {
+  const uint16_t millivolts[] = {3300, 3400, 3500, 3600, 3650, 3700,
+                                 3800, 3900, 4000, 4100, 4200};
+  const uint8_t percent[] = {0, 4, 10, 20, 28, 38, 52, 68, 82, 92, 100};
+  for (uint8_t i = 0; i < 11; ++i) {
+    TEST_ASSERT_EQUAL_UINT8(percent[i], BatteryModel::voltageToPercent(millivolts[i]));
+  }
+  TEST_ASSERT_EQUAL_UINT8(0u, BatteryModel::voltageToPercent(3000));
+  TEST_ASSERT_EQUAL_UINT8(15u, BatteryModel::voltageToPercent(3550));
+  TEST_ASSERT_EQUAL_UINT8(100u, BatteryModel::voltageToPercent(4300));
+}
+
+void test_battery_ema_monotonicity_and_usb_growth() {
+  BatteryModel model;
+  TEST_ASSERT_FALSE(model.addVoltageSample(2000));
+  TEST_ASSERT_FALSE(model.snapshot().valid);
+  TEST_ASSERT_TRUE(model.addVoltageSample(4000));
+  BatterySnapshot snapshot = model.recalculate(false, 20);
+  TEST_ASSERT_EQUAL_UINT16(4000u, snapshot.millivolts);
+  TEST_ASSERT_EQUAL_UINT8(82u, snapshot.percent);
+  TEST_ASSERT_FALSE(snapshot.usb_present);
+  TEST_ASSERT_EQUAL(ChargeStatus::kUnknown, snapshot.charge_status);
+
+  TEST_ASSERT_TRUE(model.addVoltageSample(4200));
+  snapshot = model.recalculate(false, 20);
+  TEST_ASSERT_EQUAL_UINT16(4025u, snapshot.millivolts);
+  TEST_ASSERT_EQUAL_UINT8(82u, snapshot.percent);
+
+  snapshot = model.recalculate(true, 20);
+  TEST_ASSERT_EQUAL_UINT8(85u, snapshot.percent);
+  TEST_ASSERT_TRUE(snapshot.usb_present);
+}
+
+void test_battery_low_threshold_hysteresis() {
+  BatteryModel model;
+  TEST_ASSERT_TRUE(model.addVoltageSample(3600));
+  BatterySnapshot snapshot = model.recalculate(false, 20);
+  TEST_ASSERT_EQUAL_UINT8(20u, snapshot.percent);
+  TEST_ASSERT_TRUE(snapshot.low_battery);
+
+  for (uint8_t i = 0; i < 8; ++i) {
+    TEST_ASSERT_TRUE(model.addVoltageSample(3700));
+  }
+  snapshot = model.recalculate(true, 20);
+  TEST_ASSERT_GREATER_OR_EQUAL_UINT8(23u, snapshot.percent);
+  TEST_ASSERT_FALSE(snapshot.low_battery);
+}
+
 void test_display_formatter_all_pages_and_battery() {
   DisplaySnapshot snapshot;
   snapshot.trip.speed_x100 = 2489;
@@ -235,6 +292,10 @@ int main(int, char**) {
   RUN_TEST(test_page_carousel_default_period_and_wrap);
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);
+  RUN_TEST(test_battery_raw_conversion_and_calibration);
+  RUN_TEST(test_battery_soc_table_and_interpolation);
+  RUN_TEST(test_battery_ema_monotonicity_and_usb_growth);
+  RUN_TEST(test_battery_low_threshold_hysteresis);
   RUN_TEST(test_display_formatter_all_pages_and_battery);
   RUN_TEST(test_display_formatter_battery_and_value_limits);
   return UNITY_END();

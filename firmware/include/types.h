@@ -10,6 +10,12 @@ enum class RideState : uint8_t {
   kPaused = 2,
 };
 
+enum class ChargeStatus : uint8_t {
+  kUnknown = 0,
+  kNotCharging = 1,
+  kCharging = 2,
+};
+
 enum class DisplayPage : uint8_t {
   kTrip = 0,
   kAverage = 1,
@@ -33,6 +39,9 @@ struct BatterySnapshot {
   bool valid = false;
   uint8_t percent = 0;
   uint16_t millivolts = 0;
+  bool usb_present = false;
+  bool low_battery = false;
+  ChargeStatus charge_status = ChargeStatus::kUnknown;
 };
 
 struct DisplaySnapshot {

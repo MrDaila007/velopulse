@@ -13,6 +13,9 @@ constexpr uint8_t kDefaultSmoothingWindow = 3;
 constexpr uint8_t kDisplayPageCount = 5;
 constexpr uint8_t kDefaultEnabledPagesMask = 0x1F;
 constexpr uint8_t kDefaultPageSwitchPeriodS = 4;
+constexpr uint8_t kDefaultLowBatteryPct = 20;
+constexpr uint16_t kDefaultBatteryCalScalePermille = 1000;
+constexpr int16_t kDefaultBatteryCalOffsetMv = 0;
 constexpr uint8_t kPulseBufferSize = 8;
 constexpr uint8_t kDisplayI2cAddress = 0x3C;
 
@@ -29,6 +32,9 @@ struct DeviceConfig {
   uint8_t enabled_pages_mask = kDefaultEnabledPagesMask;
   uint8_t pinned_page = 0;
   uint8_t page_order[kDisplayPageCount] = {0, 1, 2, 3, 4};
+  uint8_t low_battery_pct = kDefaultLowBatteryPct;
+  uint16_t batt_cal_scale_permille = kDefaultBatteryCalScalePermille;
+  int16_t batt_cal_offset_mv = kDefaultBatteryCalOffsetMv;
 };
 
 }  // namespace bike
