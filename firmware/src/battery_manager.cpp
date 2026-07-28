@@ -1,7 +1,5 @@
 #include "battery_manager.h"
 
-#include <Wire.h>
-
 #include "board_pins.h"
 
 namespace bike {
@@ -42,13 +40,6 @@ bool BatteryManager::update(uint32_t now_ms) {
 bool BatteryManager::sample() {
   if (config_ == nullptr) return false;
 
-  // P0.04/D4 is both the OLED SDA line and the lower leg of the battery
-  // divider on Super-nRF52840. Pause TWIM, take the sample, then restore it.
-  Wire.end();
-  pinMode(kBatteryDividerLowPin, OUTPUT);
-  digitalWrite(kBatteryDividerLowPin, LOW);
-  delay(2);
-
   uint16_t minimum = 4095;
   uint16_t maximum = 0;
   uint32_t sum = 0;
@@ -58,12 +49,6 @@ bool BatteryManager::sample() {
     if (raw > maximum) maximum = raw;
     sum += raw;
   }
-
-  digitalWrite(kBatteryDividerLowPin, HIGH);
-  delayMicroseconds(10);
-  pinMode(kBatteryDividerLowPin, INPUT);
-  Wire.begin();
-  Wire.setClock(400000);
 
   last_raw_spread_ = maximum - minimum;
   last_raw_average_ =
