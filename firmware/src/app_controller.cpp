@@ -28,7 +28,7 @@ void AppController::begin() {
   Serial.println("Hall simulator: button D0 -> GND");
 
   wheel_sensor_.begin(kHallPin, FALLING);
-  const bool display_ok = display_.begin();
+  const bool display_ok = display_.begin(config_);
   Serial.print("OLED 0x3C: ");
   Serial.println(display_ok ? "OK" : "NOT FOUND; counting remains active");
   ride_state_.reset(millis());
@@ -93,6 +93,10 @@ void AppController::updateState(uint32_t now_ms) {
   if (ride_state_.state() == RideState::kMoving) trip_computer_.setCurrentSpeed(speed);
 }
 
-void AppController::updateDisplay() { display_.render(trip_computer_.snapshot()); }
+void AppController::updateDisplay() {
+  DisplaySnapshot snapshot;
+  snapshot.trip = trip_computer_.snapshot();
+  display_.render(snapshot);
+}
 
 }  // namespace bike

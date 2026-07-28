@@ -1,17 +1,26 @@
-"""BikeComp 128x32 OLED renderer for u8g2-python-simulator."""
+"""Thin u8g2-python-simulator adapter for the production C++ display renderer."""
 
 import os
+import subprocess
 import time
 from pathlib import Path
 
 from PIL import ImageFont
 
-SCENARIOS = {
-    "idle": {"speed_x100": 0, "trip_distance_mm": 0, "state": "IDLE"},
-    "moving": {"speed_x100": 2480, "trip_distance_mm": 18_420_000, "state": "MOV"},
-    "paused": {"speed_x100": 0, "trip_distance_mm": 18_420_000, "state": "PAUSE"},
-}
-SCENARIO_ORDER = ("idle", "moving", "paused")
+HERE = Path(__file__).resolve().parent
+PROJECT = HERE.parent
+RENDERER = HERE / ".build" / "firmware_renderer"
+RENDERER_SOURCES = (
+    HERE / "firmware_renderer.cpp",
+    PROJECT / "firmware" / "lib" / "domain" / "display_formatter.cpp",
+    PROJECT / "firmware" / "lib" / "domain" / "display_formatter.h",
+    PROJECT / "firmware" / "lib" / "domain" / "display_layout.cpp",
+    PROJECT / "firmware" / "lib" / "domain" / "display_layout.h",
+    PROJECT / "firmware" / "include" / "types.h",
+)
+SCENARIO_ORDER = ("trip", "average", "maximum", "time", "odometer")
+GOLDEN_SCENARIOS = SCENARIO_ORDER + ("idle", "paused", "battery_unknown")
+SCENARIOS = GOLDEN_SCENARIOS + ("moving",)
 
 
 def _set_speed_font(lcd):
@@ -23,30 +32,41 @@ def _set_speed_font(lcd):
     lcd.setFont(None)
 
 
-def _set_small_font(lcd):
-    lcd.setFont("5x8")
+def _ensure_renderer():
+    newest_source = max(path.stat().st_mtime for path in RENDERER_SOURCES)
+    if not RENDERER.is_file() or RENDERER.stat().st_mtime < newest_source:
+        subprocess.run([str(HERE / "build_renderer.sh")], check=True)
 
 
-def format_frame(state):
-    speed_x100 = int(state["speed_x100"])
-    trip_mm = int(state["trip_distance_mm"])
-    speed = f"{speed_x100 // 100}.{(speed_x100 % 100) // 10}"
-    lower = f"{state['state']}  TRIP {trip_mm // 1_000_000}.{(trip_mm // 10_000) % 100:02d}"
-    return speed, lower
+def firmware_commands(scenario):
+    if scenario not in SCENARIOS:
+        raise ValueError(f"Unknown scenario: {scenario}")
+    _ensure_renderer()
+    result = subprocess.run(
+        [str(RENDERER), scenario], check=True, text=True, capture_output=True
+    )
+    return [line.split("\t") for line in result.stdout.splitlines() if line]
+
+
+def _execute_command(lcd, command):
+    operation = command[0]
+    if operation == "FONT":
+        _set_speed_font(lcd) if command[1] == "SPEED" else lcd.setFont("5x8")
+    elif operation == "TEXT":
+        lcd.drawStr(int(command[1]), int(command[2]), command[3])
+    elif operation == "FRAME":
+        lcd.drawFrame(*(int(value) for value in command[1:5]))
+    elif operation == "BOX":
+        lcd.drawBox(*(int(value) for value in command[1:5]))
+    else:
+        raise ValueError(f"Unsupported firmware drawing command: {operation}")
 
 
 def draw_scenario(lcd, scenario):
-    if scenario not in SCENARIOS:
-        raise ValueError(f"Unknown scenario: {scenario}")
-    speed, lower = format_frame(SCENARIOS[scenario])
-
     lcd.clearBuffer()
     lcd.setDrawColor(1)
-    _set_speed_font(lcd)
-    lcd.drawStr(0, 21, speed)
-    _set_small_font(lcd)
-    lcd.drawStr(88, 20, "km/h")
-    lcd.drawStr(0, 31, lower)
+    for command in firmware_commands(scenario):
+        _execute_command(lcd, command)
     lcd.sendBuffer()
 
 

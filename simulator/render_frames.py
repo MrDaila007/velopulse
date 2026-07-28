@@ -13,7 +13,7 @@ U8G2_ROOT = HERE / ".vendor" / "u8g2"
 sys.path.insert(0, str(UPSTREAM))
 
 from u8g2_sim import U8G2SimLCD  # noqa: E402
-from draw_bikecomp import SCENARIO_ORDER, draw_scenario  # noqa: E402
+from draw_bikecomp import SCENARIOS, SCENARIO_ORDER, draw_scenario  # noqa: E402
 
 
 def render_raw(scenario):
@@ -41,7 +41,7 @@ def render_contact_sheet(output, scale):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scenario", choices=SCENARIO_ORDER)
+    parser.add_argument("--scenario", choices=tuple(SCENARIOS))
     parser.add_argument("--output", type=Path, default=HERE / "bikecomp-oled.png")
     parser.add_argument("--scale", type=int, default=6)
     parser.add_argument("--contact-sheet", action="store_true")
@@ -52,7 +52,7 @@ def main():
     if args.contact_sheet:
         render_contact_sheet(args.output, args.scale)
     else:
-        save_scaled(render_raw(args.scenario or "moving"), args.output, args.scale)
+        save_scaled(render_raw(args.scenario or "trip"), args.output, args.scale)
     print(args.output)
 
 

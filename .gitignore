@@ -3,6 +3,7 @@ firmware/.pio/
 firmware/.vscode/
 simulator/.venv/
 simulator/.vendor/
+simulator/.build/
 simulator/fontcache/
 simulator/__pycache__/
 simulator/tests/__pycache__/

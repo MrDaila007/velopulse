@@ -1,18 +1,42 @@
 #include "display_manager.h"
 
-#include <stdio.h>
-
-#include "config.h"
+#include "display_layout.h"
 
 namespace bike {
+namespace {
+
+class U8g2Canvas final : public DisplayCanvas {
+ public:
+  explicit U8g2Canvas(U8G2& display) : display_(display) {}
+
+  void setFont(DisplayFont font) override {
+    display_.setFont(font == DisplayFont::kSpeed ? u8g2_font_logisoso20_tn
+                                                 : u8g2_font_5x8_tf);
+  }
+  void drawText(int16_t x, int16_t y, const char* text) override {
+    display_.drawStr(x, y, text);
+  }
+  void drawFrame(int16_t x, int16_t y, uint8_t width, uint8_t height) override {
+    display_.drawFrame(x, y, width, height);
+  }
+  void drawBox(int16_t x, int16_t y, uint8_t width, uint8_t height) override {
+    display_.drawBox(x, y, width, height);
+  }
+
+ private:
+  U8G2& display_;
+};
+
+}  // namespace
 
 DisplayManager::DisplayManager() : display_(U8G2_R0, U8X8_PIN_NONE) {}
 
-bool DisplayManager::begin() {
+bool DisplayManager::begin(const DeviceConfig& config) {
   Wire.begin();
   Wire.setClock(400000);
   display_.setI2CAddress(kDisplayI2cAddress << 1u);
   display_ok_ = display_.begin();
+  carousel_.configure(config, millis());
   if (display_ok_) {
     display_.setContrast(156);
     display_.clearBuffer();
@@ -24,30 +48,18 @@ bool DisplayManager::begin() {
   return display_ok_;
 }
 
-void DisplayManager::render(const TripSnapshot& snapshot, bool force) {
+void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
   if (!display_ok_) return;
   const uint32_t now = millis();
-  const uint32_t period = snapshot.ride_state == RideState::kMoving ? 250u : 1000u;
-  if (!force && static_cast<uint32_t>(now - last_render_ms_) < period) return;
+  const bool page_changed = carousel_.update(now);
+  const uint32_t period = snapshot.trip.ride_state == RideState::kMoving ? 250u : 1000u;
+  if (!force && !page_changed && static_cast<uint32_t>(now - last_render_ms_) < period) return;
   last_render_ms_ = now;
 
-  char speed[16];
-  char lower[24];
-  snprintf(speed, sizeof(speed), "%u.%u", snapshot.speed_x100 / 100u,
-           (snapshot.speed_x100 % 100u) / 10u);
-  const char* state = snapshot.ride_state == RideState::kMoving
-                          ? "MOV"
-                          : (snapshot.ride_state == RideState::kPaused ? "PAUSE" : "IDLE");
-  snprintf(lower, sizeof(lower), "%s  TRIP %lu.%02lu", state,
-           static_cast<unsigned long>(snapshot.trip_distance_mm / 1000000u),
-           static_cast<unsigned long>((snapshot.trip_distance_mm / 10000u) % 100u));
-
+  const DisplayFrame frame = DisplayFormatter::format(snapshot, carousel_.currentPage());
   display_.clearBuffer();
-  display_.setFont(u8g2_font_logisoso20_tn);
-  display_.drawStr(0, 21, speed);
-  display_.setFont(u8g2_font_5x8_tf);
-  display_.drawStr(88, 20, "km/h");
-  display_.drawStr(0, 31, lower);
+  U8g2Canvas canvas(display_);
+  drawDisplayFrame(canvas, frame);
   display_.sendBuffer();
 }
 
