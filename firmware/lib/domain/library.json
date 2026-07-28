@@ -1,0 +1,8 @@
+{
+  "name": "bike-domain",
+  "version": "0.1.0",
+  "build": {
+    "srcDir": ".",
+    "flags": ["-I include", "-Wall", "-Wextra", "-Werror=return-type"]
+  }
+}

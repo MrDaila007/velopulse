@@ -1,0 +1,10 @@
+.pio/
+firmware/.pio/
+firmware/.vscode/
+simulator/.venv/
+simulator/.vendor/
+simulator/fontcache/
+simulator/__pycache__/
+simulator/tests/__pycache__/
+*.code-workspace
+.DS_Store
