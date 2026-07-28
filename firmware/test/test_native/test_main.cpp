@@ -179,9 +179,9 @@ void test_page_carousel_pinned_page() {
 
 void test_battery_raw_conversion_and_calibration() {
   TEST_ASSERT_EQUAL_UINT16(0u, BatteryModel::rawToMillivolts(0, 1000, 0));
-  TEST_ASSERT_EQUAL_UINT16(4000u, BatteryModel::rawToMillivolts(2305, 1000, 0));
-  TEST_ASSERT_EQUAL_UINT16(4050u, BatteryModel::rawToMillivolts(2305, 1010, 10));
-  TEST_ASSERT_EQUAL_UINT16(7106u, BatteryModel::rawToMillivolts(5000, 1000, 0));
+  TEST_ASSERT_EQUAL_UINT16(4001u, BatteryModel::rawToMillivolts(3413, 1000, 0));
+  TEST_ASSERT_EQUAL_UINT16(4051u, BatteryModel::rawToMillivolts(3413, 1010, 10));
+  TEST_ASSERT_EQUAL_UINT16(4800u, BatteryModel::rawToMillivolts(5000, 1000, 0));
 }
 
 void test_battery_soc_table_and_interpolation() {

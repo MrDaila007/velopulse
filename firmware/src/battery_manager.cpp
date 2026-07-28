@@ -16,6 +16,7 @@ void BatteryManager::begin(const DeviceConfig& config, uint32_t now_ms) {
   config_ = &config;
   analogReference(AR_INTERNAL_2_4);
   analogReadResolution(12);
+  analogSampleTime(40);
   pinMode(kBatteryAdcPin, INPUT);
   sample();
   model_.recalculate(usbPresent(), config.low_battery_pct);

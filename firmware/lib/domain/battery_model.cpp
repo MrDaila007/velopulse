@@ -5,8 +5,8 @@ namespace {
 
 constexpr uint16_t kMinimumValidBatteryMv = 2500;
 constexpr uint16_t kMaximumValidBatteryMv = 4350;
-constexpr uint16_t kDividerNumerator = 1510;
-constexpr uint16_t kDividerDenominator = 510;
+constexpr uint16_t kDividerNumerator = 2;
+constexpr uint16_t kDividerDenominator = 1;
 constexpr uint16_t kAdcReferenceMv = 2400;
 constexpr uint16_t kAdcMaximum = 4095;
 
