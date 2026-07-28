@@ -13,6 +13,7 @@ class U8g2Canvas final : public DisplayCanvas {
     display_.setFont(font == DisplayFont::kSpeed ? u8g2_font_logisoso20_tn
                                                  : u8g2_font_5x8_tf);
   }
+  void setDrawColor(uint8_t color) override { display_.setDrawColor(color); }
   void drawText(int16_t x, int16_t y, const char* text) override {
     display_.drawStr(x, y, text);
   }
@@ -56,7 +57,10 @@ void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
   if (!force && !page_changed && static_cast<uint32_t>(now - last_render_ms_) < period) return;
   last_render_ms_ = now;
 
-  const DisplayFrame frame = DisplayFormatter::format(snapshot, carousel_.currentPage());
+  const bool low_battery_warning =
+      snapshot.battery.low_battery && (now % 4000u) >= 3000u;
+  const DisplayFrame frame = DisplayFormatter::format(
+      snapshot, carousel_.currentPage(), low_battery_warning);
   display_.clearBuffer();
   U8g2Canvas canvas(display_);
   drawDisplayFrame(canvas, frame);

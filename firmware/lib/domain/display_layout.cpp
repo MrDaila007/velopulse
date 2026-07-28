@@ -14,7 +14,14 @@ void drawDisplayFrame(DisplayCanvas& canvas, const DisplayFrame& frame) {
   }
   canvas.drawText(107, 7, frame.battery_percent);
   canvas.drawText(88, 20, frame.units);
-  canvas.drawText(0, 31, frame.lower);
+  if (frame.low_battery_warning) {
+    canvas.drawBox(0, 22, 44, 10);
+    canvas.setDrawColor(0);
+    canvas.drawText(2, 30, frame.lower);
+    canvas.setDrawColor(1);
+  } else {
+    canvas.drawText(0, 31, frame.lower);
+  }
 }
 
 }  // namespace bike

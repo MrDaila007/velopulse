@@ -55,6 +55,7 @@ struct DisplayFrame {
   char lower[32] = {};
   char battery_percent[5] = {};
   uint8_t battery_fill_width = 0;
+  bool low_battery_warning = false;
 };
 
 }  // namespace bike

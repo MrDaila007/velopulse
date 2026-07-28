@@ -30,6 +30,7 @@ golden-тесты всегда проверяют текущий код прош
 ./simulator/run_gui.sh idle
 ./simulator/run_gui.sh paused
 ./simulator/run_gui.sh battery_unknown
+./simulator/run_gui.sh low_battery
 ```
 
 Скорость всегда остаётся в верхней зоне, батарея всегда видна справа сверху, меняется
@@ -44,6 +45,6 @@ upstream-симулятора: `s` — PNG, `g` — запись GIF, `i` — и
 ./simulator/test.sh
 ```
 
-Golden-тесты сверяют пять страниц карусели, состояния IDLE/PAUSE и неизвестный заряд
-пиксель-в-пиксель. В `simulator/firmware_renderer.cpp` находятся только входные тестовые
-состояния; сам интерфейс там не описывается.
+Golden-тесты сверяют пять страниц карусели, состояния IDLE/PAUSE, неизвестный заряд
+и предупреждение `LOW BATT` пиксель-в-пиксель. В `simulator/firmware_renderer.cpp`
+находятся только входные тестовые состояния; сам интерфейс там не описывается.

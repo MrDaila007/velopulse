@@ -16,6 +16,10 @@ class DisplaySimulatorTest(unittest.TestCase):
         self.assertIn(["FRAME", "91", "0", "12", "8"], firmware_commands("trip"))
         unknown_texts = [command[3] for command in firmware_commands("battery_unknown") if command[0] == "TEXT"]
         self.assertIn("--%", unknown_texts)
+        low_commands = firmware_commands("low_battery")
+        self.assertIn(["TEXT", "2", "30", "LOW BATT"], low_commands)
+        self.assertIn(["COLOR", "0"], low_commands)
+        self.assertIn(["COLOR", "1"], low_commands)
 
     def test_all_scenarios_match_golden_pixels(self):
         for scenario in GOLDEN_SCENARIOS:

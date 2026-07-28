@@ -278,6 +278,18 @@ void test_display_formatter_battery_and_value_limits() {
   TEST_ASSERT_EQUAL_UINT8(8u, frame.battery_fill_width);
 }
 
+void test_display_formatter_low_battery_warning() {
+  DisplaySnapshot snapshot;
+  snapshot.battery.valid = true;
+  snapshot.battery.percent = 18;
+  snapshot.battery.low_battery = true;
+  DisplayFrame frame =
+      DisplayFormatter::format(snapshot, DisplayPage::kTrip, true);
+  TEST_ASSERT_EQUAL_STRING("18%", frame.battery_percent);
+  TEST_ASSERT_EQUAL_STRING("LOW BATT", frame.lower);
+  TEST_ASSERT_TRUE(frame.low_battery_warning);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_crc32_standard_vector);
@@ -298,5 +310,6 @@ int main(int, char**) {
   RUN_TEST(test_battery_low_threshold_hysteresis);
   RUN_TEST(test_display_formatter_all_pages_and_battery);
   RUN_TEST(test_display_formatter_battery_and_value_limits);
+  RUN_TEST(test_display_formatter_low_battery_warning);
   return UNITY_END();
 }

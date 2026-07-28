@@ -19,7 +19,7 @@ RENDERER_SOURCES = (
     PROJECT / "firmware" / "include" / "types.h",
 )
 SCENARIO_ORDER = ("trip", "average", "maximum", "time", "odometer")
-GOLDEN_SCENARIOS = SCENARIO_ORDER + ("idle", "paused", "battery_unknown")
+GOLDEN_SCENARIOS = SCENARIO_ORDER + ("idle", "paused", "battery_unknown", "low_battery")
 SCENARIOS = GOLDEN_SCENARIOS + ("moving",)
 
 
@@ -52,6 +52,8 @@ def _execute_command(lcd, command):
     operation = command[0]
     if operation == "FONT":
         _set_speed_font(lcd) if command[1] == "SPEED" else lcd.setFont("5x8")
+    elif operation == "COLOR":
+        lcd.setDrawColor(int(command[1]))
     elif operation == "TEXT":
         lcd.drawStr(int(command[1]), int(command[2]), command[3])
     elif operation == "FRAME":

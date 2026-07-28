@@ -6,7 +6,8 @@ namespace bike {
 
 class DisplayFormatter {
  public:
-  static DisplayFrame format(const DisplaySnapshot& snapshot, DisplayPage page);
+  static DisplayFrame format(const DisplaySnapshot& snapshot, DisplayPage page,
+                             bool low_battery_warning = false);
 };
 
 }  // namespace bike

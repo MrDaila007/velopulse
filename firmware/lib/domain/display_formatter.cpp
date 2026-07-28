@@ -18,7 +18,9 @@ const char* stateLabel(RideState state) {
 }
 }  // namespace
 
-DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot, DisplayPage page) {
+DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot,
+                                      DisplayPage page,
+                                      bool low_battery_warning) {
   DisplayFrame frame;
   const TripSnapshot& trip = snapshot.trip;
   snprintf(frame.speed, sizeof(frame.speed), "%u.%u", trip.speed_x100 / 100u,
@@ -70,6 +72,10 @@ DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot, DisplayPa
     frame.battery_fill_width = static_cast<uint8_t>((percent * 8u) / 100u);
   } else {
     snprintf(frame.battery_percent, sizeof(frame.battery_percent), "--%%");
+  }
+  if (low_battery_warning) {
+    snprintf(frame.lower, sizeof(frame.lower), "LOW BATT");
+    frame.low_battery_warning = true;
   }
   return frame;
 }

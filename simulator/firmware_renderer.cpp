@@ -12,6 +12,9 @@ class CommandCanvas final : public DisplayCanvas {
   void setFont(DisplayFont font) override {
     std::cout << "FONT\t" << (font == DisplayFont::kSpeed ? "SPEED" : "SMALL") << '\n';
   }
+  void setDrawColor(uint8_t color) override {
+    std::cout << "COLOR\t" << static_cast<unsigned>(color) << '\n';
+  }
   void drawText(int16_t x, int16_t y, const char* text) override {
     std::cout << "TEXT\t" << x << '\t' << y << '\t' << text << '\n';
   }
@@ -59,6 +62,10 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot, DisplayPag
   } else if (name == "battery_unknown") {
     page = DisplayPage::kTrip;
     snapshot.battery.valid = false;
+  } else if (name == "low_battery") {
+    page = DisplayPage::kTrip;
+    snapshot.battery.percent = 18;
+    snapshot.battery.low_battery = true;
   } else {
     return false;
   }
@@ -78,7 +85,9 @@ int main(int argc, char** argv) {
     std::cerr << "unknown scenario: " << argv[1] << '\n';
     return 2;
   }
-  const bike::DisplayFrame frame = bike::DisplayFormatter::format(snapshot, page);
+  const bool low_battery_warning = std::string(argv[1]) == "low_battery";
+  const bike::DisplayFrame frame =
+      bike::DisplayFormatter::format(snapshot, page, low_battery_warning);
   CommandCanvas canvas;
   bike::drawDisplayFrame(canvas, frame);
   return 0;
