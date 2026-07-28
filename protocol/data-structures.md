@@ -130,16 +130,17 @@
 | 8 | u16 | `deep_sleep_timeout_s` | 60…3600, `0` = выкл | 900 | §10.2 |
 | 10 | u8 | `brightness_pct` | 1…100 | 60 | §7.4 |
 | 11 | u8 | `page_switch_period_s` | 1…60 | 4 | §6.2 |
-| 12 | u8 | `enabled_pages_mask` | биты 0…5, ≥1 бит | `0x3F` | §6.3 |
+| 12 | u8 | `enabled_pages_mask` | биты 0…4, ≥1 бит | `0x1F` | §6.3 |
 | 13 | u8 | `low_battery_pct` | 5…50 | 20 | §8.3 |
 | 14 | u16 | `odometer_save_interval_m` | 100…5000 | 500 | §9.2 |
 | 16 | u8 | `smoothing_window` | 2…5 | 3 | §4.5 |
 | 17 | u8 | `debounce_ms` | 0…50 | 3 | §24 |
 | 18 | u8 | `active_edge` | 0=FALLING, 1=RISING, 2=CHANGE | 0 | §24 |
-| 19 | u8 | `pinned_page` | 0…5 (используется при выкл. карусели) | 0 | §6.3 |
+| 19 | u8 | `pinned_page` | 0…4 (используется при выкл. карусели) | 0 | §6.3 |
 | 20 | u16 | `batt_cal_scale_permille` | 800…1200 | 1000 | §2.5 |
 | 22 | i16 | `batt_cal_offset_mv` | −500…+500 | 0 | §2.5 |
-| 24 | u8[6] | `page_order` | перестановка 0…5 | `{0,1,2,3,4,5}` | §6.3 |
+| 24 | u8[5] | `page_order` | перестановка 0…4 | `{0,1,2,3,4}` | §6.3 |
+| 29 | u8 | `reserved_page` | `0` | `0` | — |
 | 30 | char[16] | `device_name` | ASCII 3…15, `[A-Za-z0-9-_ ]` | `"BikeComp-XXXX"` | §15 |
 | 46 | u16 | `reserved` | `0` | `0` | — |
 

@@ -267,7 +267,7 @@ class ConfigValidator {
   static const debounceMs         = IntRange(0, 50);
   // device_name: 3..15 символов, [A-Za-z0-9-_ ]
   // enabled_pages_mask: минимум одна страница
-  // page_order: перестановка 0..5 без повторов
+  // page_order: перестановка 0..4 без повторов
 }
 ```
 
