@@ -3,6 +3,8 @@
 #include <stdint.h>
 
 #include "crc32.h"
+#include "display_formatter.h"
+#include "page_carousel.h"
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
@@ -121,6 +123,104 @@ void test_scheduler_period_and_wrap() {
   TEST_ASSERT_EQUAL_UINT32(2u, callback_count);
 }
 
+
+void test_page_carousel_default_period_and_wrap() {
+  DeviceConfig config;
+  PageCarousel carousel;
+  carousel.configure(config, 0xFFFFFF00u);
+
+  TEST_ASSERT_EQUAL(DisplayPage::kTrip, carousel.currentPage());
+  TEST_ASSERT_EQUAL_UINT8(5u, carousel.pageCount());
+  TEST_ASSERT_FALSE(carousel.update(0x00000E9Fu));
+  TEST_ASSERT_TRUE(carousel.update(0x00000EA0u));
+  TEST_ASSERT_EQUAL(DisplayPage::kAverage, carousel.currentPage());
+  TEST_ASSERT_TRUE(carousel.update(0x00002DE0u));
+  TEST_ASSERT_EQUAL(DisplayPage::kMovingTime, carousel.currentPage());
+}
+
+void test_page_carousel_mask_order_and_fallback() {
+  DeviceConfig config;
+  config.enabled_pages_mask = 0x15u;
+  config.page_order[0] = 4;
+  config.page_order[1] = 2;
+  config.page_order[2] = 0;
+  config.page_order[3] = 4;
+  config.page_order[4] = 9;
+
+  PageCarousel carousel;
+  carousel.configure(config, 0);
+  TEST_ASSERT_EQUAL_UINT8(3u, carousel.pageCount());
+  TEST_ASSERT_EQUAL(DisplayPage::kOdometer, carousel.currentPage());
+  TEST_ASSERT_TRUE(carousel.update(4000));
+  TEST_ASSERT_EQUAL(DisplayPage::kMaximum, carousel.currentPage());
+
+  config.enabled_pages_mask = 0;
+  carousel.configure(config, 5000);
+  TEST_ASSERT_EQUAL_UINT8(1u, carousel.pageCount());
+  TEST_ASSERT_EQUAL(DisplayPage::kTrip, carousel.currentPage());
+}
+
+void test_page_carousel_pinned_page() {
+  DeviceConfig config;
+  config.auto_page_switch = false;
+  config.enabled_pages_mask = 0x06u;
+  config.pinned_page = 2;
+  PageCarousel carousel;
+  carousel.configure(config, 0);
+  TEST_ASSERT_EQUAL(DisplayPage::kMaximum, carousel.currentPage());
+  TEST_ASSERT_FALSE(carousel.update(10000));
+
+  config.pinned_page = 4;
+  carousel.configure(config, 10000);
+  TEST_ASSERT_EQUAL(DisplayPage::kAverage, carousel.currentPage());
+}
+
+void test_display_formatter_all_pages_and_battery() {
+  DisplaySnapshot snapshot;
+  snapshot.trip.speed_x100 = 2489;
+  snapshot.trip.trip_distance_mm = 18420000u;
+  snapshot.trip.average_speed_x100 = 1975;
+  snapshot.trip.max_speed_x100 = 4239;
+  snapshot.trip.moving_time_ms = 4356000u;
+  snapshot.trip.odometer_mm = 1234500000ull;
+  snapshot.trip.ride_state = RideState::kMoving;
+  snapshot.battery.valid = true;
+  snapshot.battery.percent = 82;
+
+  DisplayFrame frame = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
+  TEST_ASSERT_EQUAL_STRING("24.8", frame.speed);
+  TEST_ASSERT_EQUAL_STRING("km/h", frame.units);
+  TEST_ASSERT_EQUAL_STRING("MOV TRIP 18.42 km", frame.lower);
+  TEST_ASSERT_EQUAL_STRING("82%", frame.battery_percent);
+  TEST_ASSERT_EQUAL_UINT8(6u, frame.battery_fill_width);
+
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kAverage);
+  TEST_ASSERT_EQUAL_STRING("MOV AVG 19.7 km/h", frame.lower);
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kMaximum);
+  TEST_ASSERT_EQUAL_STRING("MOV MAX 42.3 km/h", frame.lower);
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kMovingTime);
+  TEST_ASSERT_EQUAL_STRING("MOV TIME 1:12:36", frame.lower);
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kOdometer);
+  TEST_ASSERT_EQUAL_STRING("MOV ODO 1234.5 km", frame.lower);
+}
+
+void test_display_formatter_battery_and_value_limits() {
+  DisplaySnapshot snapshot;
+  snapshot.trip.ride_state = RideState::kPaused;
+  snapshot.trip.odometer_mm = 100000000000ull;
+
+  DisplayFrame frame = DisplayFormatter::format(snapshot, DisplayPage::kOdometer);
+  TEST_ASSERT_EQUAL_STRING("PAUSE ODO 99999+ km", frame.lower);
+  TEST_ASSERT_EQUAL_STRING("--%", frame.battery_percent);
+  TEST_ASSERT_EQUAL_UINT8(0u, frame.battery_fill_width);
+
+  snapshot.battery.valid = true;
+  snapshot.battery.percent = 255;
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
+  TEST_ASSERT_EQUAL_STRING("100%", frame.battery_percent);
+  TEST_ASSERT_EQUAL_UINT8(8u, frame.battery_fill_width);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_crc32_standard_vector);
@@ -132,5 +232,10 @@ int main(int, char**) {
   RUN_TEST(test_trip_accumulation_average_and_reset);
   RUN_TEST(test_ride_state_transitions_and_paused_time);
   RUN_TEST(test_scheduler_period_and_wrap);
+  RUN_TEST(test_page_carousel_default_period_and_wrap);
+  RUN_TEST(test_page_carousel_mask_order_and_fallback);
+  RUN_TEST(test_page_carousel_pinned_page);
+  RUN_TEST(test_display_formatter_all_pages_and_battery);
+  RUN_TEST(test_display_formatter_battery_and_value_limits);
   return UNITY_END();
 }

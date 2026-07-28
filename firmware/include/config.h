@@ -10,6 +10,9 @@ constexpr uint8_t kDefaultDebounceMs = 3;
 constexpr uint8_t kDefaultStopTimeoutS = 3;
 constexpr uint16_t kDefaultDisplayTimeoutS = 60;
 constexpr uint8_t kDefaultSmoothingWindow = 3;
+constexpr uint8_t kDisplayPageCount = 5;
+constexpr uint8_t kDefaultEnabledPagesMask = 0x1F;
+constexpr uint8_t kDefaultPageSwitchPeriodS = 4;
 constexpr uint8_t kPulseBufferSize = 8;
 constexpr uint8_t kDisplayI2cAddress = 0x3C;
 
@@ -21,6 +24,11 @@ struct DeviceConfig {
   uint16_t display_timeout_s = kDefaultDisplayTimeoutS;
   bool smoothing_enabled = true;
   uint8_t smoothing_window = kDefaultSmoothingWindow;
+  bool auto_page_switch = true;
+  uint8_t page_switch_period_s = kDefaultPageSwitchPeriodS;
+  uint8_t enabled_pages_mask = kDefaultEnabledPagesMask;
+  uint8_t pinned_page = 0;
+  uint8_t page_order[kDisplayPageCount] = {0, 1, 2, 3, 4};
 };
 
 }  // namespace bike
