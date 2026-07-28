@@ -5,6 +5,7 @@
 #include "battery_model.h"
 #include "crc32.h"
 #include "display_formatter.h"
+#include "display_power.h"
 #include "page_carousel.h"
 #include "pulse_filter.h"
 #include "ride_state.h"
@@ -177,6 +178,36 @@ void test_page_carousel_pinned_page() {
 }
 
 
+void test_display_power_dim_off_wake_disable_and_wrap() {
+  DisplayPower power;
+  power.configure(60, 1000);
+  TEST_ASSERT_EQUAL(DisplayPowerState::kBright, power.state());
+  TEST_ASSERT_FALSE(power.update(30999));
+  TEST_ASSERT_TRUE(power.update(31000));
+  TEST_ASSERT_EQUAL(DisplayPowerState::kDim, power.state());
+  TEST_ASSERT_FALSE(power.update(60999));
+  TEST_ASSERT_TRUE(power.update(61000));
+  TEST_ASSERT_EQUAL(DisplayPowerState::kOff, power.state());
+  TEST_ASSERT_TRUE(power.noteActivity(62000));
+  TEST_ASSERT_EQUAL(DisplayPowerState::kBright, power.state());
+
+  TEST_ASSERT_FALSE(power.noteActivity(63000));
+  TEST_ASSERT_FALSE(power.update(92999));
+  TEST_ASSERT_TRUE(power.update(93000));
+  TEST_ASSERT_EQUAL(DisplayPowerState::kDim, power.state());
+
+  power.configure(0, 0);
+  TEST_ASSERT_FALSE(power.update(0xFFFFFFFFu));
+  TEST_ASSERT_EQUAL(DisplayPowerState::kBright, power.state());
+
+  power.configure(2, 0xFFFFFF00u);
+  TEST_ASSERT_FALSE(power.update(0x000002E7u));
+  TEST_ASSERT_TRUE(power.update(0x000002E8u));
+  TEST_ASSERT_EQUAL(DisplayPowerState::kDim, power.state());
+  TEST_ASSERT_TRUE(power.update(0x000006D0u));
+  TEST_ASSERT_EQUAL(DisplayPowerState::kOff, power.state());
+}
+
 void test_battery_raw_conversion_and_calibration() {
   TEST_ASSERT_EQUAL_UINT16(0u, BatteryModel::rawToMillivolts(0, 1000, 0));
   TEST_ASSERT_EQUAL_UINT16(4001u, BatteryModel::rawToMillivolts(3413, 1000, 0));
@@ -304,6 +335,7 @@ int main(int, char**) {
   RUN_TEST(test_page_carousel_default_period_and_wrap);
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);
+  RUN_TEST(test_display_power_dim_off_wake_disable_and_wrap);
   RUN_TEST(test_battery_raw_conversion_and_calibration);
   RUN_TEST(test_battery_soc_table_and_interpolation);
   RUN_TEST(test_battery_ema_monotonicity_and_usb_growth);
