@@ -123,6 +123,54 @@ void AppController::begin() {
   ride_state_.reset(millis());
   odometer_save_.noteRideState(ride_state_.state(), millis());
   odometer_save_.noteDisplayPower(display_.powerState());
+
+  selftest_mask_ = 0;
+  if (display_ok) selftest_mask_ |= kSelftestDisplayOk;
+  selftest_mask_ |= kSelftestHallPinOk;
+  if (battery_.snapshot().valid) selftest_mask_ |= kSelftestAdcOk;
+  if (fs_ok) selftest_mask_ |= kSelftestFsOk;
+  if (config_ok && config_info.source != StorageSource::kDefaults) {
+    selftest_mask_ |= kSelftestConfigValid;
+  }
+  printDiagnostics();
+}
+
+DiagnosticSnapshot AppController::diagnosticSnapshot() const {
+  return buildDiagnosticSnapshot(makeDiagnosticSources(
+      storage_.counters(), pulse_filter_.counters(),
+      wheel_sensor_.rawPulseCount(), wheel_sensor_.overflowCount(),
+      /*free_heap_bytes=*/0u,
+      display_.isOk() ? 0u : 1u, selftest_mask_));
+}
+
+void AppController::printDiagnostics() const {
+  const DiagnosticSnapshot diag = diagnosticSnapshot();
+  uint8_t payload[kDiagnosticPayloadSize];
+  encodeDiagnosticPayload(diag, payload);
+
+  Serial.print("Diagnostics: pulses=");
+  Serial.print(diag.raw_pulse_count);
+  Serial.print(", debounce=");
+  Serial.print(diag.rejected_debounce);
+  Serial.print(", overspeed=");
+  Serial.print(diag.rejected_overspeed);
+  Serial.print(", isr_ovf=");
+  Serial.print(diag.isr_overflow);
+  Serial.print(", flash_writes=");
+  Serial.print(diag.flash_write_count);
+  Serial.print(", heap/16=");
+  Serial.print(diag.free_heap_units);
+  Serial.print(", i2c_err=");
+  Serial.print(diag.i2c_error_count);
+  Serial.print(", selftest=0x");
+  if (diag.selftest_mask < 0x10u) Serial.print('0');
+  Serial.print(diag.selftest_mask, HEX);
+  Serial.print(", payload=");
+  for (size_t i = 0; i < kDiagnosticPayloadSize; ++i) {
+    if (payload[i] < 0x10u) Serial.print('0');
+    Serial.print(payload[i], HEX);
+  }
+  Serial.println();
 }
 
 void AppController::loop() {

@@ -41,6 +41,8 @@
 ## Остаток Э3
 
 - [x] 3.6 Добавить и протестировать migration hook v1 → v2.
-- [ ] Персистировать/экспортировать storage counters в diagnostics.
+- [x] Экспортировать storage counters в diagnostics snapshot
+  (`diagnostics.{h,cpp}`, Serial dump, payload stub для GET_DIAGNOSTIC §6.1).
+  Персист counters между reboot — ещё нет.
 - [x] Проверить полный record и config migration на старых fixtures.
 - [ ] Обновить `STATUS.md` и закрыть milestone M3 (после DoD 3.5 на железе).

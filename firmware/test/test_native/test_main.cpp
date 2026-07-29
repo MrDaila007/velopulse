@@ -11,6 +11,7 @@
 #include "config_codec.h"
 #include "config_validator.h"
 #include "crc32.h"
+#include "diagnostics.h"
 #include "display_formatter.h"
 #include "display_power.h"
 #include "odometer_save_policy.h"
@@ -964,6 +965,77 @@ void test_odometer_save_flash_error_keeps_distance_retry() {
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(500000u, 0));
 }
 
+void test_diagnostic_snapshot_maps_storage_and_pulse_counters() {
+  StorageCounters storage{};
+  storage.writes = 42u;
+  storage.skipped_writes = 7u;
+  PulseFilterCounters pulses{};
+  pulses.rejected_debounce = 3u;
+  pulses.rejected_overspeed = 5u;
+  pulses.accepted = 100u;
+
+  const DiagnosticSources sources = makeDiagnosticSources(
+      storage, pulses, /*raw_pulse_count=*/1234u, /*isr_overflow=*/9u,
+      /*free_heap_bytes=*/1600u, /*i2c_error_count=*/2u,
+      static_cast<uint8_t>(kSelftestDisplayOk | kSelftestFsOk |
+                           kSelftestConfigValid));
+  const DiagnosticSnapshot snap = buildDiagnosticSnapshot(sources);
+
+  TEST_ASSERT_EQUAL_UINT32(1234u, snap.raw_pulse_count);
+  TEST_ASSERT_EQUAL_UINT16(3u, snap.rejected_debounce);
+  TEST_ASSERT_EQUAL_UINT16(5u, snap.rejected_overspeed);
+  TEST_ASSERT_EQUAL_UINT16(9u, snap.isr_overflow);
+  TEST_ASSERT_EQUAL_UINT16(42u, snap.flash_write_count);
+  TEST_ASSERT_EQUAL_UINT16(100u, snap.free_heap_units);
+  TEST_ASSERT_EQUAL_UINT8(2u, snap.i2c_error_count);
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<uint8_t>(kSelftestDisplayOk | kSelftestFsOk |
+                           kSelftestConfigValid),
+      snap.selftest_mask);
+}
+
+void test_diagnostic_payload_little_endian_layout() {
+  DiagnosticSnapshot snap;
+  snap.raw_pulse_count = 0x01020304u;
+  snap.rejected_debounce = 0x0506u;
+  snap.rejected_overspeed = 0x0708u;
+  snap.isr_overflow = 0x090Au;
+  snap.flash_write_count = 0x0B0Cu;
+  snap.free_heap_units = 0x0D0Eu;
+  snap.i2c_error_count = 0x0Fu;
+  snap.selftest_mask = 0x1Fu;
+
+  uint8_t payload[kDiagnosticPayloadSize];
+  encodeDiagnosticPayload(snap, payload);
+
+  const uint8_t expected[kDiagnosticPayloadSize] = {
+      0x04, 0x03, 0x02, 0x01, 0x06, 0x05, 0x08, 0x07,
+      0x0A, 0x09, 0x0C, 0x0B, 0x0E, 0x0D, 0x0F, 0x1F};
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, payload, kDiagnosticPayloadSize);
+  TEST_ASSERT_EQUAL(16u, kDiagnosticPayloadSize);
+}
+
+void test_diagnostic_saturates_narrow_fields() {
+  DiagnosticSources sources;
+  sources.raw_pulse_count = 0xFFFFFFFFu;
+  sources.rejected_debounce = 0x10000u;
+  sources.rejected_overspeed = 0x12345u;
+  sources.isr_overflow = 0xFFFFFFFFu;
+  sources.flash_write_count = 0x10001u;
+  sources.free_heap_bytes = 0xFFFFFFF0u;
+  sources.i2c_error_count = 0xFFu;
+  sources.selftest_mask = 0xAAu;
+
+  const DiagnosticSnapshot snap = buildDiagnosticSnapshot(sources);
+  TEST_ASSERT_EQUAL_UINT32(0xFFFFFFFFu, snap.raw_pulse_count);
+  TEST_ASSERT_EQUAL_UINT16(0xFFFFu, snap.rejected_debounce);
+  TEST_ASSERT_EQUAL_UINT16(0xFFFFu, snap.rejected_overspeed);
+  TEST_ASSERT_EQUAL_UINT16(0xFFFFu, snap.isr_overflow);
+  TEST_ASSERT_EQUAL_UINT16(0xFFFFu, snap.flash_write_count);
+  TEST_ASSERT_EQUAL_UINT16(0xFFFFu, snap.free_heap_units);
+  TEST_ASSERT_EQUAL_UINT8(0xFFu, snap.i2c_error_count);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_crc32_standard_vector);
@@ -1006,5 +1078,8 @@ int main(int, char**) {
   RUN_TEST(test_odometer_save_critical_battery_once_and_usb_reboot);
   RUN_TEST(test_odometer_save_unchanged_skips_sequence_growth);
   RUN_TEST(test_odometer_save_flash_error_keeps_distance_retry);
+  RUN_TEST(test_diagnostic_snapshot_maps_storage_and_pulse_counters);
+  RUN_TEST(test_diagnostic_payload_little_endian_layout);
+  RUN_TEST(test_diagnostic_saturates_narrow_fields);
   return UNITY_END();
 }

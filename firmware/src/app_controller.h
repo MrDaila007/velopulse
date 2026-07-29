@@ -2,6 +2,7 @@
 
 #include "battery_manager.h"
 #include "config.h"
+#include "diagnostics.h"
 #include "display_manager.h"
 #include "internal_fs_backend.h"
 #include "odometer_save_policy.h"
@@ -21,6 +22,9 @@ class AppController {
   void begin();
   void loop();
 
+  // Snapshot for Serial dump / future GET_DIAGNOSTIC (§6.1).
+  DiagnosticSnapshot diagnosticSnapshot() const;
+
  private:
   static void pulseTask(void* context, uint32_t now_ms);
   static void stateTask(void* context, uint32_t now_ms);
@@ -33,6 +37,7 @@ class AppController {
   void updateBattery(uint32_t now_ms);
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
   void maybePersistOdometer(uint32_t now_ms);
+  void printDiagnostics() const;
 
   DeviceConfig config_;
   InternalFsBackend storage_backend_;
@@ -47,6 +52,7 @@ class AppController {
   DisplayManager display_;
   ScheduledTask tasks_[4];
   Scheduler scheduler_;
+  uint8_t selftest_mask_ = 0;
 };
 
 }  // namespace bike
