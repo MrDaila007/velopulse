@@ -1,8 +1,11 @@
 #include <unity.h>
 
 #include <stdint.h>
+#include <string.h>
 
 #include "battery_model.h"
+#include "config_codec.h"
+#include "config_validator.h"
 #include "crc32.h"
 #include "display_formatter.h"
 #include "display_power.h"
@@ -22,6 +25,159 @@ void test_crc32_standard_vector() {
   const uint8_t input[] = "123456789";
   TEST_ASSERT_EQUAL_HEX32(0xCBF43926u, crc32(input, 9));
   TEST_ASSERT_EQUAL_HEX32(0u, crc32(input, 0));
+}
+
+void test_config_codec_exact_48_byte_round_trip() {
+  const uint8_t expected[kDeviceConfigPayloadSize] = {
+      0x01, 0x0F, 0x34, 0x08, 0x64, 0x03, 0x3C, 0x00,
+      0x84, 0x03, 0x3C, 0x04, 0x1F, 0x14, 0xF4, 0x01,
+      0x03, 0x03, 0x00, 0x00, 0xE8, 0x03, 0x00, 0x00,
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x00, 'B',  'i',
+      'k',  'e',  'C',  'o',  'm',  'p',  '-',  'X',
+      'X',  'X',  'X',  0x00, 0x00, 0x00, 0x00, 0x00};
+  DeviceConfig defaults;
+  uint8_t encoded[kDeviceConfigPayloadSize];
+  encodeDeviceConfig(defaults, encoded);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(expected, encoded, kDeviceConfigPayloadSize);
+
+  DeviceConfig decoded;
+  TEST_ASSERT_TRUE(decodeDeviceConfig(encoded, sizeof(encoded), decoded));
+  TEST_ASSERT_TRUE(deviceConfigsEqual(defaults, decoded));
+}
+
+void test_config_validator_accepts_all_boundaries() {
+  DeviceConfig minimum;
+  minimum.wheel_circumference_mm = 500;
+  minimum.max_speed_kmh = 20;
+  minimum.stop_timeout_s = 1;
+  minimum.display_timeout_s = 0;
+  minimum.deep_sleep_timeout_s = 0;
+  minimum.brightness_pct = 1;
+  minimum.page_switch_period_s = 1;
+  minimum.enabled_pages_mask = 1;
+  minimum.low_battery_pct = 5;
+  minimum.odometer_save_interval_m = 100;
+  minimum.smoothing_window = 2;
+  minimum.debounce_ms = 0;
+  minimum.active_edge = 0;
+  minimum.pinned_page = 0;
+  minimum.batt_cal_scale_permille = 800;
+  minimum.batt_cal_offset_mv = -500;
+  memset(minimum.device_name, 0, sizeof(minimum.device_name));
+  memcpy(minimum.device_name, "Ab3", 3);
+  TEST_ASSERT_EQUAL(ConfigValidationError::kNone,
+                    ConfigValidator::validate(minimum));
+
+  DeviceConfig maximum;
+  maximum.wheel_circumference_mm = 3000;
+  maximum.max_speed_kmh = 200;
+  maximum.stop_timeout_s = 30;
+  maximum.display_timeout_s = 600;
+  maximum.deep_sleep_timeout_s = 3600;
+  maximum.brightness_pct = 100;
+  maximum.page_switch_period_s = 60;
+  maximum.enabled_pages_mask = 0x1F;
+  maximum.low_battery_pct = 50;
+  maximum.odometer_save_interval_m = 5000;
+  maximum.smoothing_window = 5;
+  maximum.debounce_ms = 50;
+  maximum.active_edge = 2;
+  maximum.pinned_page = 4;
+  maximum.batt_cal_scale_permille = 1200;
+  maximum.batt_cal_offset_mv = 500;
+  memcpy(maximum.device_name, "123456789012345", 16);
+  TEST_ASSERT_EQUAL(ConfigValidationError::kNone,
+                    ConfigValidator::validate(maximum));
+}
+
+void test_config_validator_rejects_ranges_mask_order_and_name() {
+  DeviceConfig config;
+  config.wheel_circumference_mm = 499;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kWheelCircumference,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.max_speed_kmh = 201;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kMaxSpeed,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.stop_timeout_s = 0;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kStopTimeout,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.display_timeout_s = 9;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kDisplayTimeout,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.deep_sleep_timeout_s = 59;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kDeepSleepTimeout,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.brightness_pct = 0;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kBrightness,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.page_switch_period_s = 61;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kPageSwitchPeriod,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.enabled_pages_mask = 0x20;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kEnabledPagesMask,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.low_battery_pct = 4;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kLowBattery,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.odometer_save_interval_m = 99;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kOdometerSaveInterval,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.smoothing_window = 1;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kSmoothingWindow,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.debounce_ms = 51;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kDebounce,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.active_edge = 3;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kActiveEdge,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.pinned_page = 5;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kPinnedPage,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.batt_cal_scale_permille = 799;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kBatteryScale,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.batt_cal_offset_mv = 501;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kBatteryOffset,
+                    ConfigValidator::validate(config));
+  config = {};
+  config.page_order[4] = 3;
+  TEST_ASSERT_EQUAL(ConfigValidationError::kPageOrder,
+                    ConfigValidator::validate(config));
+  config = {};
+  memcpy(config.device_name, "Bad!", 5);
+  TEST_ASSERT_EQUAL(ConfigValidationError::kDeviceName,
+                    ConfigValidator::validate(config));
+}
+
+void test_config_codec_rejects_version_length_reserved_and_invalid_payload() {
+  uint8_t encoded[kDeviceConfigPayloadSize];
+  encodeDeviceConfig(DeviceConfig{}, encoded);
+  DeviceConfig decoded;
+  TEST_ASSERT_FALSE(decodeDeviceConfig(encoded, sizeof(encoded) - 1, decoded));
+  encoded[0] = 2;
+  TEST_ASSERT_FALSE(decodeDeviceConfig(encoded, sizeof(encoded), decoded));
+  encodeDeviceConfig(DeviceConfig{}, encoded);
+  encoded[29] = 1;
+  TEST_ASSERT_FALSE(decodeDeviceConfig(encoded, sizeof(encoded), decoded));
+  encodeDeviceConfig(DeviceConfig{}, encoded);
+  encoded[12] = 0;
+  TEST_ASSERT_FALSE(decodeDeviceConfig(encoded, sizeof(encoded), decoded));
 }
 
 void test_pulse_filter_first_debounce_and_overspeed() {
@@ -324,6 +480,10 @@ void test_display_formatter_low_battery_warning() {
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_crc32_standard_vector);
+  RUN_TEST(test_config_codec_exact_48_byte_round_trip);
+  RUN_TEST(test_config_validator_accepts_all_boundaries);
+  RUN_TEST(test_config_validator_rejects_ranges_mask_order_and_name);
+  RUN_TEST(test_config_codec_rejects_version_length_reserved_and_invalid_payload);
   RUN_TEST(test_pulse_filter_first_debounce_and_overspeed);
   RUN_TEST(test_pulse_filter_stuck_and_micros_wrap);
   RUN_TEST(test_speed_fixed_point_smoothing_and_timeout);
