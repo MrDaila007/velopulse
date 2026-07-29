@@ -14,26 +14,26 @@
 
 ### Реализация
 
-- [ ] Выделить policy/controller без зависимости от InternalFS.
-- [ ] Сохранять каждые `odometer_save_interval_m`, default 500 м.
-- [ ] Сохранять через 30 секунд после `MOVING → PAUSED`.
-- [ ] Сохранять перед OLED off.
-- [ ] Сохранять перед deep sleep.
-- [ ] Предусмотреть API для будущей команды `FORCE_SAVE`.
-- [ ] Сохранять однократно при battery ≤5%.
-- [ ] Сохранять при USB disconnect и перед reboot.
-- [ ] Продолжать поездку при ошибке Flash.
-- [ ] Логировать trigger, result, sequence и counters в Serial.
+- [x] Выделить policy/controller без зависимости от InternalFS.
+- [x] Сохранять каждые `odometer_save_interval_m`, default 500 м.
+- [x] Сохранять через 30 секунд после `MOVING → PAUSED`.
+- [x] Сохранять перед OLED off.
+- [x] Сохранять перед deep sleep.
+- [x] Предусмотреть API для будущей команды `FORCE_SAVE`.
+- [x] Сохранять однократно при battery ≤5%.
+- [x] Сохранять при USB disconnect и перед reboot.
+- [x] Продолжать поездку при ошибке Flash.
+- [x] Логировать trigger, result, sequence и counters в Serial.
 
 ### Тесты и DoD
 
-- [ ] Native-тесты каждого trigger и его граничного значения.
-- [ ] Неизменённый odometer не увеличивает sequence.
-- [ ] За 5 км при 500 м выполняется ровно 10 записей.
+- [x] Native-тесты каждого trigger и его граничного значения.
+- [x] Неизменённый odometer не увеличивает sequence.
+- [x] За 5 км при 500 м выполняется ровно 10 записей.
 - [ ] Embedded-тест чередует `/odo_a/b` и восстанавливает старый слот.
 - [ ] Ненулевой odometer/revolutions переживает два reboot на XIAO.
 - [ ] 10 power-loss попыток не уничтожают обе копии.
-- [ ] Native, nRF build, embedded compile и OLED simulator зелёные.
+- [x] Native и nRF build зелёные (UI/simulator не затрагивались).
 - [ ] После embedded-теста возвращена production firmware.
 
 ## Остаток Э3

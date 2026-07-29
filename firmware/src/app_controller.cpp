@@ -72,9 +72,9 @@ void AppController::begin() {
   StorageLoadInfo odometer_info;
   bool config_ok = false;
   bool odometer_ok = false;
+  OdometerData odometer;
   if (fs_ok) {
     config_ok = storage_.loadConfig(config_, config_info);
-    OdometerData odometer;
     odometer_ok = storage_.loadOdometer(odometer, odometer_info);
     if (odometer_ok) {
       trip_computer_.restorePersistentTotals(
@@ -88,6 +88,9 @@ void AppController::begin() {
   Serial.print(" mm, total revolutions: ");
   printUint64(trip_computer_.totalRevolutions());
   Serial.println();
+
+  odometer_save_.configure(config_.odometer_save_interval_m);
+  odometer_save_.markSaved(trip_computer_.snapshot().odometer_mm);
 
   pulse_filter_.configure(PulseFilterConfig{
       config_.wheel_circumference_mm, config_.max_speed_kmh,
@@ -106,7 +109,12 @@ void AppController::begin() {
   Serial.print(" mV, ");
   Serial.print(battery_.snapshot().percent);
   Serial.println("%");
+  odometer_save_.noteUsbPresent(battery_.snapshot().usb_present);
+  odometer_save_.noteBatteryPercent(battery_.snapshot().percent,
+                                    battery_.snapshot().valid);
   ride_state_.reset(millis());
+  odometer_save_.noteRideState(ride_state_.state(), millis());
+  odometer_save_.noteDisplayPower(display_.powerState());
 }
 
 void AppController::loop() {
@@ -123,18 +131,46 @@ void AppController::stateTask(void* context, uint32_t now_ms) {
   static_cast<AppController*>(context)->updateState(now_ms);
 }
 
-void AppController::displayTask(void* context, uint32_t) {
-  static_cast<AppController*>(context)->updateDisplay();
+void AppController::displayTask(void* context, uint32_t now_ms) {
+  static_cast<AppController*>(context)->updateDisplay(now_ms);
 }
 
 void AppController::batteryTask(void* context, uint32_t now_ms) {
   static_cast<AppController*>(context)->updateBattery(now_ms);
 }
 
-void AppController::applyRideUpdate(const RideUpdate& update) {
+void AppController::applyRideUpdate(const RideUpdate& update, uint32_t now_ms) {
   if (update.moving_delta_ms != 0) trip_computer_.addMovingTime(update.moving_delta_ms);
   trip_computer_.setRideState(update.state);
   if (update.state != RideState::kMoving) trip_computer_.setCurrentSpeed(0);
+  odometer_save_.noteRideState(update.state, now_ms);
+}
+
+void AppController::maybePersistOdometer(uint32_t now_ms) {
+  const uint64_t odometer_mm = trip_computer_.snapshot().odometer_mm;
+  const OdometerSaveTrigger trigger =
+      odometer_save_.evaluate(odometer_mm, now_ms);
+  if (trigger == OdometerSaveTrigger::kNone) return;
+
+  OdometerData data;
+  data.odometer_mm = odometer_mm;
+  data.total_revolutions = trip_computer_.totalRevolutions();
+  const bool ok = storage_.mounted() && storage_.saveOdometer(data);
+  if (ok) odometer_save_.markSaved(odometer_mm);
+  odometer_save_.acknowledge(trigger);
+
+  Serial.print("Odo save: trigger=");
+  Serial.print(odometerSaveTriggerName(trigger));
+  Serial.print(", result=");
+  Serial.print(ok ? "OK" : "ERROR");
+  Serial.print(", sequence=");
+  Serial.print(storage_.lastOdometerSequence());
+  Serial.print(", writes=");
+  Serial.print(storage_.counters().writes);
+  Serial.print(", skipped=");
+  Serial.print(storage_.counters().skipped_writes);
+  Serial.print(", write_errors=");
+  Serial.println(storage_.counters().write_errors);
 }
 
 void AppController::processPulses(uint32_t now_ms) {
@@ -148,7 +184,8 @@ void AppController::processPulses(uint32_t now_ms) {
     }
 
     display_.noteActivity(now_ms);
-    applyRideUpdate(ride_state_.onPulse(now_ms));
+    odometer_save_.noteDisplayPower(display_.powerState());
+    applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
     uint16_t speed = 0;
     if (!decision.first_pulse) {
       speed = speed_calculator_.onInterval(config_.wheel_circumference_mm,
@@ -158,6 +195,7 @@ void AppController::processPulses(uint32_t now_ms) {
                                            config_.smoothing_window);
     }
     trip_computer_.onRevolution(config_.wheel_circumference_mm, speed);
+    maybePersistOdometer(now_ms);
 
     Serial.print("Revolution ");
     Serial.print(trip_computer_.snapshot().revolutions);
@@ -167,13 +205,19 @@ void AppController::processPulses(uint32_t now_ms) {
 }
 
 void AppController::updateState(uint32_t now_ms) {
-  applyRideUpdate(ride_state_.update(now_ms));
+  applyRideUpdate(ride_state_.update(now_ms), now_ms);
   const uint16_t speed = speed_calculator_.updateForTimeout(
       micros(), static_cast<uint32_t>(config_.stop_timeout_s) * 1000000u);
   if (ride_state_.state() == RideState::kMoving) trip_computer_.setCurrentSpeed(speed);
+  maybePersistOdometer(now_ms);
 }
 
-void AppController::updateDisplay() {
+void AppController::updateDisplay(uint32_t now_ms) {
+  if (display_.updatePower(now_ms)) {
+    odometer_save_.noteDisplayPower(display_.powerState());
+  }
+  maybePersistOdometer(now_ms);
+
   DisplaySnapshot snapshot;
   snapshot.trip = trip_computer_.snapshot();
   snapshot.battery = battery_.snapshot();
@@ -183,6 +227,9 @@ void AppController::updateDisplay() {
 void AppController::updateBattery(uint32_t now_ms) {
   if (!battery_.update(now_ms)) return;
   const BatterySnapshot& snapshot = battery_.snapshot();
+  odometer_save_.noteUsbPresent(snapshot.usb_present);
+  odometer_save_.noteBatteryPercent(snapshot.percent, snapshot.valid);
+  maybePersistOdometer(now_ms);
   Serial.print("Battery raw=");
   Serial.print(battery_.lastRawAverage());
   Serial.print(", spread=");

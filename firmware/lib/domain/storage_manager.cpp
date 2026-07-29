@@ -293,6 +293,7 @@ bool StorageManager::loadOdometer(OdometerData& odometer,
     }
     info.source = selected == &a ? StorageSource::kSlotA : StorageSource::kSlotB;
     info.sequence = selected->sequence;
+    last_odometer_sequence_ = selected->sequence;
     info.recovered = selected == &a ? (b.present && !b.valid)
                                     : (a.present && !a.valid);
     if (info.recovered) ++counters_.odometer_slot_recoveries;
@@ -308,14 +309,25 @@ bool StorageManager::loadOdometer(OdometerData& odometer,
   info.defaults_written = writeSlot(paths_.odometer_a, payload,
                                     sizeof(payload), kOdometerRecordVersion, 1);
   info.sequence = info.defaults_written ? 1 : 0;
+  if (info.defaults_written) last_odometer_sequence_ = 1;
   return info.defaults_written;
 }
 
 bool StorageManager::saveOdometer(const OdometerData& odometer) {
+  const uint32_t writes_before = counters_.writes;
+  const uint32_t skipped_before = counters_.skipped_writes;
   uint8_t payload[kOdometerPayloadSize];
   encodeOdometer(odometer, payload);
-  return savePayload(paths_.odometer_a, paths_.odometer_b, payload,
-                     sizeof(payload), kOdometerRecordVersion, false);
+  const bool ok = savePayload(paths_.odometer_a, paths_.odometer_b, payload,
+                              sizeof(payload), kOdometerRecordVersion, false);
+  if (!ok) return false;
+  if (counters_.writes > writes_before) {
+    last_odometer_sequence_ += 1u;
+    if (last_odometer_sequence_ == 0u) last_odometer_sequence_ = 1u;
+  } else if (counters_.skipped_writes == skipped_before) {
+    // No skip and no write should not happen on success, but keep sequence.
+  }
+  return true;
 }
 
 const char* storageSourceName(StorageSource source) {

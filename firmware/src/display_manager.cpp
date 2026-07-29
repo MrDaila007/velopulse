@@ -56,20 +56,31 @@ bool DisplayManager::begin(const DeviceConfig& config) {
 
 void DisplayManager::noteActivity(uint32_t now_ms) {
   if (!power_.noteActivity(now_ms) || !display_ok_) return;
-  display_.setPowerSave(0);
-  display_.setContrast(kBrightContrast);
+  applyPowerHardware();
   last_render_ms_ = 0;
+}
+
+bool DisplayManager::updatePower(uint32_t now_ms) {
+  if (!power_.update(now_ms)) return false;
+  applyPowerHardware();
+  return true;
+}
+
+void DisplayManager::applyPowerHardware() {
+  if (!display_ok_) return;
+  if (power_.state() == DisplayPowerState::kBright) {
+    display_.setPowerSave(0);
+    display_.setContrast(kBrightContrast);
+  } else if (power_.state() == DisplayPowerState::kDim) {
+    display_.setPowerSave(0);
+    display_.setContrast(kDimContrast);
+  } else {
+    display_.setPowerSave(1);
+  }
 }
 
 void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
   const uint32_t now = millis();
-  if (power_.update(now) && display_ok_) {
-    if (power_.state() == DisplayPowerState::kDim) {
-      display_.setContrast(kDimContrast);
-    } else if (power_.state() == DisplayPowerState::kOff) {
-      display_.setPowerSave(1);
-    }
-  }
   if (!display_ok_ || power_.state() == DisplayPowerState::kOff) return;
   const bool page_changed = carousel_.update(now);
   const uint32_t period = snapshot.trip.ride_state == RideState::kMoving ? 250u : 1000u;

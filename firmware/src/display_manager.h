@@ -17,10 +17,14 @@ class DisplayManager {
   DisplayManager();
   bool begin(const DeviceConfig& config);
   void noteActivity(uint32_t now_ms);
+  bool updatePower(uint32_t now_ms);
   void render(const DisplaySnapshot& snapshot, bool force = false);
   bool isOk() const { return display_ok_; }
+  DisplayPowerState powerState() const { return power_.state(); }
 
  private:
+  void applyPowerHardware();
+
   U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C display_;
   PageCarousel carousel_;
   DisplayPower power_;

@@ -4,6 +4,7 @@
 #include "config.h"
 #include "display_manager.h"
 #include "internal_fs_backend.h"
+#include "odometer_save_policy.h"
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
@@ -28,13 +29,15 @@ class AppController {
 
   void processPulses(uint32_t now_ms);
   void updateState(uint32_t now_ms);
-  void updateDisplay();
+  void updateDisplay(uint32_t now_ms);
   void updateBattery(uint32_t now_ms);
-  void applyRideUpdate(const RideUpdate& update);
+  void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
+  void maybePersistOdometer(uint32_t now_ms);
 
   DeviceConfig config_;
   InternalFsBackend storage_backend_;
   StorageManager storage_;
+  OdometerSavePolicy odometer_save_;
   WheelSensor wheel_sensor_;
   PulseFilter pulse_filter_;
   SpeedCalculator speed_calculator_;

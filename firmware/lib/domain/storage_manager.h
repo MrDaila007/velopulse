@@ -113,6 +113,7 @@ class StorageManager {
 
   bool mounted() const { return mounted_; }
   const StorageCounters& counters() const { return counters_; }
+  uint32_t lastOdometerSequence() const { return last_odometer_sequence_; }
 
  private:
   struct Slot;
@@ -138,6 +139,7 @@ class StorageManager {
   StoragePaths paths_;
   bool mounted_ = false;
   StorageCounters counters_;
+  uint32_t last_odometer_sequence_ = 0;
 };
 
 const char* storageSourceName(StorageSource source);
