@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <map>
+#include <string>
+#include <vector>
+
 #include "battery_model.h"
 #include "config_codec.h"
 #include "config_validator.h"
@@ -14,12 +18,59 @@
 #include "ride_state.h"
 #include "scheduler.h"
 #include "speed_calculator.h"
+#include "storage_manager.h"
 #include "trip_computer.h"
 
 using namespace bike;
 
 void setUp() {}
 void tearDown() {}
+
+namespace {
+
+class MemoryStorageBackend final : public StorageBackend {
+ public:
+  bool begin() override { return begin_ok; }
+
+  StorageIoResult read(const char* path,
+                       uint8_t* output,
+                       size_t capacity,
+                       size_t& length) override {
+    const auto found = files.find(path);
+    if (found == files.end()) return StorageIoResult::kNotFound;
+    if (found->second.size() > capacity) return StorageIoResult::kError;
+    memcpy(output, found->second.data(), found->second.size());
+    length = found->second.size();
+    return StorageIoResult::kOk;
+  }
+
+  bool write(const char* path, const uint8_t* data, size_t length) override {
+    if (!write_ok) return false;
+    files[path] = std::vector<uint8_t>(data, data + length);
+    return true;
+  }
+
+  void corrupt(const char* path, size_t offset) { files[path][offset] ^= 0x80u; }
+
+  bool begin_ok = true;
+  bool write_ok = true;
+  std::map<std::string, std::vector<uint8_t>> files;
+};
+
+void putConfigRecord(MemoryStorageBackend& backend,
+                     const char* path,
+                     const DeviceConfig& config,
+                     uint32_t sequence) {
+  uint8_t payload[kDeviceConfigPayloadSize];
+  uint8_t record[kMaximumRecordSize];
+  encodeDeviceConfig(config, payload);
+  const size_t length = encodeRecord(payload, sizeof(payload),
+                                     kConfigRecordVersion, sequence,
+                                     record, sizeof(record));
+  backend.write(path, record, length);
+}
+
+}  // namespace
 
 void test_crc32_standard_vector() {
   const uint8_t input[] = "123456789";
@@ -178,6 +229,164 @@ void test_config_codec_rejects_version_length_reserved_and_invalid_payload() {
   encodeDeviceConfig(DeviceConfig{}, encoded);
   encoded[12] = 0;
   TEST_ASSERT_FALSE(decodeDeviceConfig(encoded, sizeof(encoded), decoded));
+}
+
+void test_record_header_crc_and_metadata_validation() {
+  const uint8_t payload[] = {1, 2, 3, 4};
+  uint8_t record[32];
+  const size_t length =
+      encodeRecord(payload, sizeof(payload), 7, 42, record, sizeof(record));
+  TEST_ASSERT_EQUAL_UINT32(20u, length);
+  TEST_ASSERT_EQUAL_HEX8('B', record[0]);
+  TEST_ASSERT_EQUAL_HEX8('K', record[1]);
+  TEST_ASSERT_EQUAL_HEX8('C', record[2]);
+  TEST_ASSERT_EQUAL_HEX8('P', record[3]);
+
+  DecodedRecord decoded;
+  TEST_ASSERT_TRUE(decodeRecord(record, length, 7, sizeof(payload), decoded));
+  TEST_ASSERT_EQUAL_UINT32(42u, decoded.header.sequence);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(payload, decoded.payload, sizeof(payload));
+
+  uint8_t damaged[sizeof(record)];
+  memcpy(damaged, record, length);
+  damaged[0] ^= 1;
+  TEST_ASSERT_FALSE(decodeRecord(damaged, length, 7, sizeof(payload), decoded));
+  memcpy(damaged, record, length);
+  damaged[4] = 8;
+  TEST_ASSERT_FALSE(decodeRecord(damaged, length, 7, sizeof(payload), decoded));
+  memcpy(damaged, record, length);
+  damaged[6] = 5;
+  TEST_ASSERT_FALSE(decodeRecord(damaged, length, 7, sizeof(payload), decoded));
+  memcpy(damaged, record, length);
+  damaged[kRecordHeaderSize] ^= 1;
+  TEST_ASSERT_FALSE(decodeRecord(damaged, length, 7, sizeof(payload), decoded));
+}
+
+void test_storage_selects_newest_slot_alternates_and_skips_unchanged() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  DeviceConfig loaded;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadConfig(loaded, info));
+  TEST_ASSERT_EQUAL(StorageSource::kDefaults, info.source);
+  TEST_ASSERT_TRUE(info.defaults_written);
+  TEST_ASSERT_EQUAL_UINT32(1u, info.sequence);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().writes);
+
+  TEST_ASSERT_TRUE(storage.saveConfig(loaded));
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().writes);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().skipped_writes);
+
+  loaded.brightness_pct = 61;
+  TEST_ASSERT_TRUE(storage.saveConfig(loaded));
+  TEST_ASSERT_TRUE(backend.files.count("/cfg_b") != 0);
+
+  StorageManager reloaded(backend);
+  TEST_ASSERT_TRUE(reloaded.begin());
+  DeviceConfig from_flash;
+  TEST_ASSERT_TRUE(reloaded.loadConfig(from_flash, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotB, info.source);
+  TEST_ASSERT_EQUAL_UINT32(2u, info.sequence);
+  TEST_ASSERT_EQUAL_UINT8(61u, from_flash.brightness_pct);
+
+  from_flash.brightness_pct = 62;
+  TEST_ASSERT_TRUE(reloaded.saveConfig(from_flash));
+  StorageManager third_boot(backend);
+  TEST_ASSERT_TRUE(third_boot.begin());
+  TEST_ASSERT_TRUE(third_boot.loadConfig(from_flash, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
+  TEST_ASSERT_EQUAL_UINT32(3u, info.sequence);
+  TEST_ASSERT_EQUAL_UINT8(62u, from_flash.brightness_pct);
+}
+
+void test_storage_falls_back_from_corrupt_or_invalid_newest_slot() {
+  MemoryStorageBackend backend;
+  DeviceConfig older;
+  older.brightness_pct = 40;
+  DeviceConfig newer;
+  newer.brightness_pct = 70;
+  putConfigRecord(backend, "/cfg_a", older, 10);
+  putConfigRecord(backend, "/cfg_b", newer, 11);
+  backend.corrupt("/cfg_b", kRecordHeaderSize + 10);
+
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+  DeviceConfig loaded;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadConfig(loaded, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
+  TEST_ASSERT_EQUAL_UINT32(10u, info.sequence);
+  TEST_ASSERT_EQUAL_UINT8(40u, loaded.brightness_pct);
+  TEST_ASSERT_TRUE(info.recovered);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().config_slot_recoveries);
+
+  uint8_t invalid_payload[kDeviceConfigPayloadSize];
+  encodeDeviceConfig(newer, invalid_payload);
+  invalid_payload[12] = 0;
+  uint8_t invalid_record[kMaximumRecordSize];
+  const size_t invalid_length = encodeRecord(
+      invalid_payload, sizeof(invalid_payload), kConfigRecordVersion, 12,
+      invalid_record, sizeof(invalid_record));
+  backend.write("/cfg_b", invalid_record, invalid_length);
+  StorageManager validation_fallback(backend);
+  TEST_ASSERT_TRUE(validation_fallback.begin());
+  TEST_ASSERT_TRUE(validation_fallback.loadConfig(loaded, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
+}
+
+void test_storage_restores_defaults_when_both_slots_are_corrupt() {
+  MemoryStorageBackend backend;
+  backend.files["/cfg_a"] = {1, 2, 3};
+  backend.files["/cfg_b"] = {4, 5, 6};
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+  DeviceConfig config;
+  config.brightness_pct = 99;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadConfig(config, info));
+  TEST_ASSERT_EQUAL(StorageSource::kDefaults, info.source);
+  TEST_ASSERT_TRUE(info.recovered);
+  TEST_ASSERT_TRUE(info.defaults_written);
+  TEST_ASSERT_EQUAL_UINT8(kDefaultBrightnessPct, config.brightness_pct);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().config_defaults_restored);
+
+  StorageManager next_boot(backend);
+  TEST_ASSERT_TRUE(next_boot.begin());
+  TEST_ASSERT_TRUE(next_boot.loadConfig(config, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
+  TEST_ASSERT_EQUAL_UINT32(1u, info.sequence);
+}
+
+void test_odometer_alternates_and_recovers_older_slot() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+  OdometerData odometer;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadOdometer(odometer, info));
+  TEST_ASSERT_EQUAL(StorageSource::kDefaults, info.source);
+  odometer.odometer_mm = 123456789012ull;
+  odometer.total_revolutions = 9876543210ull;
+  TEST_ASSERT_TRUE(storage.saveOdometer(odometer));
+
+  StorageManager reloaded(backend);
+  TEST_ASSERT_TRUE(reloaded.begin());
+  OdometerData restored;
+  TEST_ASSERT_TRUE(reloaded.loadOdometer(restored, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotB, info.source);
+  TEST_ASSERT_EQUAL_UINT64(odometer.odometer_mm, restored.odometer_mm);
+  TEST_ASSERT_EQUAL_UINT64(odometer.total_revolutions,
+                           restored.total_revolutions);
+
+  backend.corrupt("/odo_b", kRecordHeaderSize);
+  StorageManager fallback(backend);
+  TEST_ASSERT_TRUE(fallback.begin());
+  TEST_ASSERT_TRUE(fallback.loadOdometer(restored, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
+  TEST_ASSERT_EQUAL_UINT64(0u, restored.odometer_mm);
+  TEST_ASSERT_TRUE(info.recovered);
 }
 
 void test_pulse_filter_first_debounce_and_overspeed() {
@@ -484,6 +693,11 @@ int main(int, char**) {
   RUN_TEST(test_config_validator_accepts_all_boundaries);
   RUN_TEST(test_config_validator_rejects_ranges_mask_order_and_name);
   RUN_TEST(test_config_codec_rejects_version_length_reserved_and_invalid_payload);
+  RUN_TEST(test_record_header_crc_and_metadata_validation);
+  RUN_TEST(test_storage_selects_newest_slot_alternates_and_skips_unchanged);
+  RUN_TEST(test_storage_falls_back_from_corrupt_or_invalid_newest_slot);
+  RUN_TEST(test_storage_restores_defaults_when_both_slots_are_corrupt);
+  RUN_TEST(test_odometer_alternates_and_recovers_older_slot);
   RUN_TEST(test_pulse_filter_first_debounce_and_overspeed);
   RUN_TEST(test_pulse_filter_stuck_and_micros_wrap);
   RUN_TEST(test_speed_fixed_point_smoothing_and_timeout);
