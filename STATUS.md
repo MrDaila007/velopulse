@@ -5,7 +5,7 @@
 ## Текущий этап
 
 Э3 — хранение данных. Реализованы A/B-хранилище, экономное автосохранение
-одометра и migration hook flash-записей v1 → v2.
+одометра, migration hook flash-записей v1 → v2 и экспорт counters в diagnostics.
 
 ## Готово
 
@@ -43,15 +43,27 @@
   при неизменном payload); `RecordHeader.version` = 2. При load запись v1
   мигрируется, перезаписывается как v2 (force write); будущая version отвергается.
   Счётчики `config_migrations` / `odometer_migrations`.
+- `diagnostics`: snapshot §6.1 (`raw_pulse_count`, debounce/overspeed rejects,
+  `isr_overflow`, `flash_write_count` ← `StorageCounters::writes`, heap/16 stub,
+  i2c/selftest). Little-endian 16-byte payload для будущего `GET_DIAGNOSTIC`.
+  Serial dump при старте; `AppController::diagnosticSnapshot()`.
+- BLE Э4.1–4.3: `ble_protocol.h` (packed structs + `static_assert`), domain
+  `protocol_codec` (Config через существующий `config_codec`/`DeviceConfig`),
+  `protocol/fixtures/*.hex|*.json` и native golden-тесты.
 
 ## Проверки
 
-- `pio test -e native`: 40 тестов проходят.
+- `pio test -e native`: 49 тестов проходят.
 - `pio run -e xiao_ble_sense`: сборка проходит.
 - Embedded A/B-тест прошёл на XIAO: mount, A/B-чередование, чтение и fallback после
   повреждения свежего слота; `/test_storage_a/b` удалены после теста.
-- Production-прошивка повторно загружена; два старта подряд прочитали config/odometer
-  из слота A с `sequence=1`, без роста sequence и лишней записи.
+- Embedded odometer A/B на `/test_odo_a/b`: чередование и fallback после повреждения
+  свежего слота; тестовые файлы удалены после теста (`pio test -e xiao_ble_sense`).
+- DoD Э3.5 reboot на `/dev/ttyACM0`: seed 424242 mm / 77 rev переживает два reboot
+  production (`Odometer: source=A, sequence=3`, те же значения оба раза).
+- Production восстановлена после embedded-тестов (`pio run -e xiao_ble_sense -t upload`).
+- Ранее: два старта подряд прочитали config/odometer из слота A с `sequence=1`,
+  без роста sequence и лишней записи.
 - Прошивка загружалась на XIAO; OLED и импульсы кнопки подтверждены пользователем.
 - Сборка `424fbc7` с общей C++-разметкой загружена на XIAO через `/dev/ttyACM0`.
 - Сборка `4335e65` с энергосбережением OLED загружена через `/dev/ttyACM0`.
@@ -65,16 +77,17 @@
 
 - Реальный датчик Холла и повторяемый стенд импульсов ещё не проверены.
 - Штатные NPR-позиции делителя не используются; внешний делитель P0.31 подтверждён.
-- Автосохранение одометра реализовано в domain/AppController и покрыто native-тестами,
-  но аппаратное подтверждение ненулевого odometer после reboot / power-loss на XIAO
-  ещё не выполнено (плата не подключена в этой сессии).
-- BLE пока не реализован. Deep sleep и `FORCE_SAVE` имеют API policy, но runtime
-  deep sleep / BLE-команды ещё не подключены.
+- Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
+  ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
+  (чтобы не уничтожить обе копии `/odo_a|b`).
+- BLE стек не подключён (Э4.1–4.3: structs/codecs/fixtures готовы; GATT с Э4.4).
+  Deep sleep и `FORCE_SAVE` имеют API policy, но runtime deep sleep / BLE-команды
+  ещё не подключены.
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 
 ## Следующий шаг
 
-При наличии XIAO: закрыть DoD Э3.5 (ненулевой odometer, A/B, reboot, power-loss).
-Иначе: персист/экспорт storage counters в diagnostics, либо начать BLE Э4.1
-(`ble_protocol.h` + static_assert размеров).
+Остаток DoD Э3.5: 10× power-loss вручную (хотя бы один слот `/odo_a|b` жив),
+затем закрыть M3. Параллельно: BLE Э4.4 (`BleManager` GATT) или персист
+diagnostics counters / free_heap.

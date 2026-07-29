@@ -32,11 +32,14 @@
 - [x] Native-тесты каждого trigger и его граничного значения.
 - [x] Неизменённый odometer не увеличивает sequence.
 - [x] За 5 км при 500 м выполняется ровно 10 записей.
-- [ ] Embedded-тест чередует `/odo_a/b` и восстанавливает старый слот.
-- [ ] Ненулевой odometer/revolutions переживает два reboot на XIAO.
-- [ ] 10 power-loss попыток не уничтожают обе копии.
+- [x] Embedded-тест чередует `/test_odo_a/b` и восстанавливает старый слот
+  (аналог `/odo_a/b` на изолированных путях).
+- [x] Ненулевой odometer/revolutions переживает два reboot на XIAO
+  (seed 424242 mm / 77 rev → production load source=A sequence=3).
+- [ ] 10 power-loss попыток не уничтожают обе копии
+  (нужно физическое снятие питания; не автоматизировано).
 - [x] Native и nRF build зелёные (UI/simulator не затрагивались).
-- [ ] После embedded-теста возвращена production firmware.
+- [x] После embedded-теста возвращена production firmware.
 
 ## Остаток Э3
 
@@ -45,4 +48,4 @@
   (`diagnostics.{h,cpp}`, Serial dump, payload stub для GET_DIAGNOSTIC §6.1).
   Персист counters между reboot — ещё нет.
 - [x] Проверить полный record и config migration на старых fixtures.
-- [ ] Обновить `STATUS.md` и закрыть milestone M3 (после DoD 3.5 на железе).
+- [ ] Обновить `STATUS.md` и закрыть milestone M3 (DoD 3.5 почти закрыт; остаётся 10× power-loss вручную).

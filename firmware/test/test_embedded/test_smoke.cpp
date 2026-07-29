@@ -11,15 +11,15 @@ namespace {
 
 constexpr const char* kTestSlotA = "/test_storage_a";
 constexpr const char* kTestSlotB = "/test_storage_b";
-constexpr const char* kUnusedOdometerA = "/test_odo_a";
-constexpr const char* kUnusedOdometerB = "/test_odo_b";
+constexpr const char* kTestOdoA = "/test_odo_a";
+constexpr const char* kTestOdoB = "/test_odo_b";
 bike::InternalFsBackend backend;
 
 void removeTestFiles() {
   if (InternalFS.exists(kTestSlotA)) InternalFS.remove(kTestSlotA);
   if (InternalFS.exists(kTestSlotB)) InternalFS.remove(kTestSlotB);
-  if (InternalFS.exists(kUnusedOdometerA)) InternalFS.remove(kUnusedOdometerA);
-  if (InternalFS.exists(kUnusedOdometerB)) InternalFS.remove(kUnusedOdometerB);
+  if (InternalFS.exists(kTestOdoA)) InternalFS.remove(kTestOdoA);
+  if (InternalFS.exists(kTestOdoB)) InternalFS.remove(kTestOdoB);
 }
 
 }  // namespace
@@ -34,8 +34,7 @@ void test_display_is_present() {
 }
 
 void test_internal_fs_ab_write_read_and_corrupt_fallback() {
-  const bike::StoragePaths paths{kTestSlotA, kTestSlotB,
-                                 kUnusedOdometerA, kUnusedOdometerB};
+  const bike::StoragePaths paths{kTestSlotA, kTestSlotB, kTestOdoA, kTestOdoB};
   bike::StorageManager storage(backend, paths);
   TEST_ASSERT_TRUE(storage.begin());
   bike::DeviceConfig config;
@@ -74,12 +73,53 @@ void test_internal_fs_ab_write_read_and_corrupt_fallback() {
   TEST_ASSERT_TRUE(info.recovered);
 }
 
+void test_odometer_ab_write_read_and_corrupt_fallback() {
+  // Config slots unused; exercise /test_odo_a/b like production /odo_a/b.
+  const bike::StoragePaths paths{kTestSlotA, kTestSlotB, kTestOdoA, kTestOdoB};
+  bike::StorageManager storage(backend, paths);
+  TEST_ASSERT_TRUE(storage.begin());
+  bike::OdometerData odometer;
+  bike::StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadOdometer(odometer, info));
+  TEST_ASSERT_EQUAL(bike::StorageSource::kDefaults, info.source);
+  TEST_ASSERT_TRUE(InternalFS.exists(kTestOdoA));
+
+  odometer.odometer_mm = 123456789012ull;
+  odometer.total_revolutions = 9876543210ull;
+  TEST_ASSERT_TRUE(storage.saveOdometer(odometer));
+  TEST_ASSERT_TRUE(InternalFS.exists(kTestOdoB));
+
+  bike::StorageManager reloaded(backend, paths);
+  TEST_ASSERT_TRUE(reloaded.begin());
+  bike::OdometerData restored;
+  TEST_ASSERT_TRUE(reloaded.loadOdometer(restored, info));
+  TEST_ASSERT_EQUAL(bike::StorageSource::kSlotB, info.source);
+  TEST_ASSERT_TRUE(restored.odometer_mm == 123456789012ull);
+  TEST_ASSERT_TRUE(restored.total_revolutions == 9876543210ull);
+
+  uint8_t record[bike::kMaximumRecordSize];
+  size_t length = 0;
+  TEST_ASSERT_EQUAL(bike::StorageIoResult::kOk,
+                    backend.read(kTestOdoB, record, sizeof(record), length));
+  record[bike::kRecordHeaderSize] ^= 0x80u;
+  TEST_ASSERT_TRUE(backend.write(kTestOdoB, record, length));
+
+  bike::StorageManager fallback(backend, paths);
+  TEST_ASSERT_TRUE(fallback.begin());
+  TEST_ASSERT_TRUE(fallback.loadOdometer(restored, info));
+  TEST_ASSERT_EQUAL(bike::StorageSource::kSlotA, info.source);
+  TEST_ASSERT_TRUE(restored.odometer_mm == 0ull);
+  TEST_ASSERT_TRUE(restored.total_revolutions == 0ull);
+  TEST_ASSERT_TRUE(info.recovered);
+}
+
 void setup() {
   delay(1500);
   backend.begin();
   UNITY_BEGIN();
   RUN_TEST(test_display_is_present);
   RUN_TEST(test_internal_fs_ab_write_read_and_corrupt_fallback);
+  RUN_TEST(test_odometer_ab_write_read_and_corrupt_fallback);
   UNITY_END();
 }
 
