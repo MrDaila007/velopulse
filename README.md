@@ -1,97 +1,145 @@
-# Велокомпьютер на Super-nRF52840 + мобильный конфигуратор
+# VeloPulse
 
-Компактный автономный велокомпьютер (скорость, дистанция, средняя/максимальная скорость,
-время движения, одометр) на OLED SSD1306 128×32 с настройкой через BLE из Android-приложения.
+[English](README.md) | [Русский](README.ru.md)
 
-Исходное техническое задание: [`bike-tz.md`](bike-tz.md).
+VeloPulse is an open-source, battery-powered bicycle computer built around the
+Super-nRF52840 board and a 128×32 SSD1306 OLED display. It measures speed, trip
+distance, average and maximum speed, moving time, wheel revolutions, and the
+total odometer. Configuration and diagnostics through an Android BLE application
+are planned for v1.0.
 
----
+The original product requirements are available in [`bike-tz.md`](bike-tz.md)
+(Russian).
 
-## Документация
+## Project status
 
-### Проектирование и планирование
+The current firmware provides wheel-pulse processing, fixed-point trip metrics,
+the OLED interface, battery monitoring, display power saving, and redundant
+InternalFS storage with A/B slots, CRC32, record versions, and corruption recovery.
 
-| Документ | Содержание |
+- Native domain tests: 30 passing.
+- nRF52840 production build: passing and verified on hardware.
+- OLED simulator and pixel-golden tests: passing.
+- Storage fallback and reboot recovery: verified on a XIAO-compatible board.
+- Next milestone: wear-aware odometer autosaving during a ride.
+- BLE firmware and the Flutter application are not implemented yet.
+
+See [`STATUS.md`](STATUS.md) for verified progress and [`TODO.md`](TODO.md) for the
+project roadmap.
+
+## Repository layout
+
+```text
+.
+├── firmware/    PlatformIO firmware, domain library, and tests
+├── simulator/   Headless/GUI OLED simulator and golden frames
+├── protocol/    Firmware-to-application BLE contract
+├── docs/        Architecture, hardware, planning, and acceptance documents
+└── tasks/       Structured backlog grouped by subsystem
+```
+
+## Documentation
+
+### Design and planning
+
+| Document | Contents |
 | --- | --- |
-| [docs/01-project-overview.md](docs/01-project-overview.md) | Обзор системы, границы v1.0, ключевые решения, единицы измерения, глоссарий, структура репозитория, определение готовности |
-| [docs/02-development-plan.md](docs/02-development-plan.md) | План работ: 8 этапов, задачи с оценками (~62 ч.-д.), DoD каждого этапа, порядок для 1 и 2 разработчиков, управление изменениями протокола |
-| [docs/07-decisions-and-risks.md](docs/07-decisions-and-risks.md) | 13 архитектурных решений (ADR) с обоснованием и 20 рисков с мерами снижения |
+| [Project overview](docs/01-project-overview.md) | System scope, v1.0 boundaries, core decisions, units, glossary, repository structure, and release definition |
+| [Development plan](docs/02-development-plan.md) | Eight development stages, estimates, dependencies, milestones, and Definition of Done |
+| [Decisions and risks](docs/07-decisions-and-risks.md) | Architecture decision records and the project risk register |
 
-### Архитектура
+### Architecture and hardware
 
-| Документ | Содержание |
+| Document | Contents |
 | --- | --- |
-| [docs/03-firmware-architecture.md](docs/03-firmware-architecture.md) | Слои и модули прошивки, кооперативный планировщик, ISR и фильтрация импульсов, целочисленная математика скорости и дистанции, два конечных автомата (поездка и питание), дисплей и карусель страниц, батарея, хранение A/B + CRC, BLE-менеджер, диагностика, бюджет ресурсов |
-| [docs/04-mobile-app-architecture.md](docs/04-mobile-app-architecture.md) | Стек Flutter/Riverpod, слои и каталоги, FSM подключения и переподключение, репозиторий устройства, черновик конфигурации и write-then-verify, 10 экранов, разрешения Android, таблица ошибок, тестирование через `FakeBleTransport` |
-| [docs/05-hardware-design.md](docs/05-hardware-design.md) | BOM, схема соединений, распиновка, измерение и калибровка батареи, зарядка, механика установки магнита и датчика, энергетический бюджет, аппаратные проверки и риски |
+| [Firmware architecture](docs/03-firmware-architecture.md) | Firmware layers, cooperative scheduler, ISR pulse processing, fixed-point calculations, ride and power state machines, display, storage, BLE, and diagnostics |
+| [Mobile application architecture](docs/04-mobile-app-architecture.md) | Planned Flutter/Riverpod stack, connection state machine, repository layer, configuration drafts, screens, permissions, and testing strategy |
+| [Hardware design](docs/05-hardware-design.md) | BOM, wiring, pinout, battery measurement and calibration, charging, mechanical installation, power budget, and hardware checks |
 
-### Контракт прошивка ⇄ приложение
+### Firmware ↔ application contract
 
-| Документ | Содержание |
+| Document | Contents |
 | --- | --- |
-| [protocol/ble-protocol.md](protocol/ble-protocol.md) | GATT-сервис и 7 характеристик, версионирование `major.minor`, реклама, параметры соединения, сценарии обмена, безопасность и bonding, контракт обработки ошибок |
-| [protocol/uuids.md](protocol/uuids.md) | Реестр всех UUID, свойства характеристик, состав рекламного пакета, правила изменения |
-| [protocol/data-structures.md](protocol/data-structures.md) | Побайтовые раскладки всех структур (Device Info 48 B, Telemetry 36 B, Config 48 B, Command, Command Result, Error Log), перечисления, коды команд и статусов, протокол подтверждения опасных команд, фикстуры |
+| [BLE protocol](protocol/ble-protocol.md) | GATT service, characteristics, versioning, advertising, connection behavior, security, bonding, and error handling |
+| [UUID registry](protocol/uuids.md) | UUIDs, characteristic properties, advertising data, and change rules |
+| [Binary structures](protocol/data-structures.md) | Byte-level layouts, enumerations, command/status codes, dangerous-command confirmation, and fixtures |
 
-### Верификация
+### Verification
 
-| Документ | Содержание |
+| Document | Contents |
 | --- | --- |
-| [docs/06-testing-and-acceptance.md](docs/06-testing-and-acceptance.md) | Пирамида тестирования, host- и embedded-тесты, испытательные стенды, методики измерений (погрешность скорости, регистрация оборотов, автономность), трассировка всех 32 критериев приёмки ТЗ на конкретные проверки, полевые испытания, инструменты |
+| [Testing and acceptance](docs/06-testing-and-acceptance.md) | Native and embedded tests, test rigs, measurement procedures, 32 acceptance criteria, field testing, and release regression |
 
----
+Most detailed design documents are currently written in Russian. The source code,
+binary protocol names, and repository identifiers use English.
 
-## Быстрый старт для разработчика
+## Firmware quick start
 
-### Прошивка
-
-Схема подключения OLED и кнопки: [`firmware/README.md`](firmware/README.md).
-
-Симулятор OLED: [`simulator/README.md`](simulator/README.md).
+The tested environment uses PlatformIO and the Seeed XIAO-compatible Adafruit nRF52
+Arduino core.
 
 ```bash
 cd firmware
-pio run -e xiao_ble_sense            # сборка
-pio run -e xiao_ble_sense -t upload  # прошивка (двойной сброс → режим bootloader)
-pio test -e native                   # тесты доменной логики на хосте
-pio device monitor                   # Serial-консоль (115200)
+
+# Run host-side domain tests
+pio test -e native
+
+# Build production firmware
+pio run -e xiao_ble_sense
+
+# Upload to a connected board
+pio run -e xiao_ble_sense -t upload
+
+# Open the 115200 baud serial monitor
+pio device monitor -b 115200
 ```
 
-### Приложение
+Wiring and device behavior are described in
+[`firmware/README.md`](firmware/README.md). The firmware README is currently in
+Russian.
+
+## OLED simulator
+
+The simulator renders the same domain formatting and layout code used by the
+firmware.
 
 ```bash
-cd mobile-app
-flutter pub get
-flutter run                          # на подключённом Android-устройстве
-flutter test                         # unit + golden-тесты кодеков
-flutter build apk --release
+cd simulator
+./test.sh
 ```
 
-Приложение можно разрабатывать **без железа**: `FakeBleTransport` эмулирует устройство,
-включая телеметрию, валидацию и ошибки.
+Additional setup and GUI commands are documented in
+[`simulator/README.md`](simulator/README.md).
 
----
+## Mobile application
 
-## Порядок чтения документов
+The Android Flutter application is part of the v1.0 roadmap but has not been
+scaffolded yet. Its architecture and task list are available in:
 
-**Начинаете проект:** 01 → 02 → 05 (закупка и сборка стенда) → 03 → protocol/*.
+- [`docs/04-mobile-app-architecture.md`](docs/04-mobile-app-architecture.md)
+- [`tasks/mobile/README.md`](tasks/mobile/README.md)
 
-**Пишете прошивку:** 03 → protocol/data-structures.md → 06 (методики) → 02 (задачи этапа).
+## Protocol change policy
 
-**Пишете приложение:** 04 → protocol/ble-protocol.md → protocol/data-structures.md → 06.
+The `protocol/` directory is the single source of truth shared by firmware and
+the mobile application. Protocol changes must follow this order:
 
-**Принимаете работу:** 06 (трассировка критериев) → 01 §9 (определение готовности).
+1. Update the tables and version in `protocol/` and add or update fixtures.
+2. Update firmware and mobile codecs against the same fixtures.
+3. Run golden tests on both sides before merging.
 
----
+Changing implementation code before updating the protocol contract is considered
+a process defect. See the
+[protocol change procedure](docs/02-development-plan.md#3-управление-изменениями-протокола).
 
-## Правило работы с протоколом
+## Roadmap
 
-`protocol/` — единственный контракт между прошивкой и приложением. Любое изменение
-структур или UUID выполняется в порядке:
+The structured roadmap is split by subsystem:
 
-1. PR в `protocol/` с обновлёнными таблицами, инкрементом версии и новыми фикстурами.
-2. Синхронные PR в `firmware/` и `mobile-app/`.
-3. Golden-тесты обеих сторон на общих фикстурах из `protocol/fixtures/` должны проходить.
-
-Правка кода до документа считается дефектом процесса (см.
-[docs/02 §3](docs/02-development-plan.md#3-управление-изменениями-протокола)).
+- [Firmware](tasks/firmware/README.md)
+- [Storage](tasks/firmware/storage.md)
+- [BLE](tasks/firmware/ble.md)
+- [Hardware](tasks/hardware/README.md)
+- [Mobile](tasks/mobile/README.md)
+- [Verification and release](tasks/verification/README.md)
+- [Post-v1.0 ideas](tasks/future/README.md)
