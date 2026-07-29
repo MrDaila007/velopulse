@@ -4,6 +4,7 @@ namespace bike {
 
 void TripComputer::onRevolution(uint16_t circumference_mm, uint16_t speed_x100) {
   ++snapshot_.revolutions;
+  ++total_revolutions_;
   snapshot_.trip_distance_mm += circumference_mm;
   snapshot_.odometer_mm += circumference_mm;
   snapshot_.speed_x100 = speed_x100;
@@ -35,6 +36,12 @@ void TripComputer::resetTrip() {
   const uint64_t odometer = snapshot_.odometer_mm;
   snapshot_ = {};
   snapshot_.odometer_mm = odometer;
+}
+
+void TripComputer::restorePersistentTotals(uint64_t odometer_mm,
+                                           uint64_t total_revolutions) {
+  snapshot_.odometer_mm = odometer_mm;
+  total_revolutions_ = total_revolutions;
 }
 
 }  // namespace bike

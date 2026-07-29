@@ -5,9 +5,46 @@
 #include "board_pins.h"
 
 namespace bike {
+namespace {
+
+int interruptMode(uint8_t active_edge) {
+  if (active_edge == 1) return RISING;
+  if (active_edge == 2) return CHANGE;
+  return FALLING;
+}
+
+void printUint64(uint64_t value) {
+  char buffer[21];
+  char* cursor = buffer + sizeof(buffer);
+  *--cursor = '\0';
+  do {
+    *--cursor = static_cast<char>('0' + value % 10u);
+    value /= 10u;
+  } while (value != 0);
+  Serial.print(cursor);
+}
+
+void printLoadInfo(const char* label,
+                   const StorageLoadInfo& info,
+                   bool load_ok) {
+  Serial.print(label);
+  Serial.print(": source=");
+  Serial.print(storageSourceName(info.source));
+  Serial.print(", sequence=");
+  Serial.print(info.sequence);
+  Serial.print(", recovered=");
+  Serial.print(info.recovered ? "yes" : "no");
+  Serial.print(", defaults_restored=");
+  Serial.print(info.source == StorageSource::kDefaults ? "yes" : "no");
+  Serial.print(", status=");
+  Serial.println(load_ok ? "OK" : "ERROR");
+}
+
+}  // namespace
 
 AppController::AppController()
-    : pulse_filter_(PulseFilterConfig{config_.wheel_circumference_mm,
+    : storage_(storage_backend_),
+      pulse_filter_(PulseFilterConfig{config_.wheel_circumference_mm,
                                       config_.max_speed_kmh,
                                       config_.debounce_ms,
                                       500}),
@@ -26,9 +63,40 @@ void AppController::begin() {
   Serial.println();
   Serial.print("BikeComp FW ");
   Serial.println(FW_VERSION);
-  Serial.println("Hall simulator: button D0 -> GND");
 
-  wheel_sensor_.begin(kHallPin, FALLING);
+  const bool fs_ok = storage_.begin();
+  Serial.print("Flash FS: ");
+  Serial.println(fs_ok ? "OK" : "MOUNT FAILED");
+
+  StorageLoadInfo config_info;
+  StorageLoadInfo odometer_info;
+  bool config_ok = false;
+  bool odometer_ok = false;
+  if (fs_ok) {
+    config_ok = storage_.loadConfig(config_, config_info);
+    OdometerData odometer;
+    odometer_ok = storage_.loadOdometer(odometer, odometer_info);
+    if (odometer_ok) {
+      trip_computer_.restorePersistentTotals(
+          odometer.odometer_mm, odometer.total_revolutions);
+    }
+  }
+  printLoadInfo("Config", config_info, config_ok);
+  printLoadInfo("Odometer", odometer_info, odometer_ok);
+  Serial.print("Odometer value: ");
+  printUint64(trip_computer_.snapshot().odometer_mm);
+  Serial.print(" mm, total revolutions: ");
+  printUint64(trip_computer_.totalRevolutions());
+  Serial.println();
+
+  pulse_filter_.configure(PulseFilterConfig{
+      config_.wheel_circumference_mm, config_.max_speed_kmh,
+      config_.debounce_ms, 500});
+  ride_state_ = RideStateMachine(
+      static_cast<uint32_t>(config_.stop_timeout_s) * 1000u);
+
+  Serial.println("Hall simulator: button D0 -> GND");
+  wheel_sensor_.begin(kHallPin, interruptMode(config_.active_edge));
   const bool display_ok = display_.begin(config_);
   Serial.print("OLED 0x3C: ");
   Serial.println(display_ok ? "OK" : "NOT FOUND; counting remains active");

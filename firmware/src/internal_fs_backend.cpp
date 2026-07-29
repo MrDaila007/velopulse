@@ -7,7 +7,11 @@ using namespace Adafruit_LittleFS_Namespace;
 
 namespace bike {
 
-bool InternalFsBackend::begin() { return InternalFS.begin(); }
+bool InternalFsBackend::begin() {
+  if (mounted_) return true;
+  mounted_ = InternalFS.begin();
+  return mounted_;
+}
 
 StorageIoResult InternalFsBackend::read(const char* path,
                                         uint8_t* output,

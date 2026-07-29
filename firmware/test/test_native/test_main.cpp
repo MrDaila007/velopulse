@@ -457,6 +457,19 @@ void test_trip_accumulation_average_and_reset() {
   TEST_ASSERT_EQUAL_UINT32(0u, trip.snapshot().trip_distance_mm);
   TEST_ASSERT_EQUAL_UINT32(0u, trip.snapshot().revolutions);
   TEST_ASSERT_EQUAL_UINT64(2100000000ull, trip.snapshot().odometer_mm);
+  TEST_ASSERT_EQUAL_UINT64(1000000ull, trip.totalRevolutions());
+}
+
+void test_trip_restores_only_persistent_totals() {
+  TripComputer trip;
+  trip.restorePersistentTotals(123456789012ull, 9876543210ull);
+  TEST_ASSERT_EQUAL_UINT64(123456789012ull, trip.snapshot().odometer_mm);
+  TEST_ASSERT_EQUAL_UINT64(9876543210ull, trip.totalRevolutions());
+  TEST_ASSERT_EQUAL_UINT32(0u, trip.snapshot().trip_distance_mm);
+  TEST_ASSERT_EQUAL_UINT32(0u, trip.snapshot().revolutions);
+  trip.onRevolution(2100, 1000);
+  TEST_ASSERT_EQUAL_UINT64(123456791112ull, trip.snapshot().odometer_mm);
+  TEST_ASSERT_EQUAL_UINT64(9876543211ull, trip.totalRevolutions());
 }
 
 void test_ride_state_transitions_and_paused_time() {
@@ -704,6 +717,7 @@ int main(int, char**) {
   RUN_TEST(test_speed_smoothing_windows_two_and_five);
   RUN_TEST(test_speed_boundary_circumferences);
   RUN_TEST(test_trip_accumulation_average_and_reset);
+  RUN_TEST(test_trip_restores_only_persistent_totals);
   RUN_TEST(test_ride_state_transitions_and_paused_time);
   RUN_TEST(test_scheduler_period_and_wrap);
   RUN_TEST(test_page_carousel_default_period_and_wrap);

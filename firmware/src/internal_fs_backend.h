@@ -17,6 +17,9 @@ class InternalFsBackend final : public StorageBackend {
   bool write(const char* path,
              const uint8_t* data,
              size_t length) override;
+
+ private:
+  bool mounted_ = false;
 };
 
 }  // namespace bike

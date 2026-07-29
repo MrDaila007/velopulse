@@ -3,10 +3,12 @@
 #include "battery_manager.h"
 #include "config.h"
 #include "display_manager.h"
+#include "internal_fs_backend.h"
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
 #include "speed_calculator.h"
+#include "storage_manager.h"
 #include "trip_computer.h"
 #include "wheel_sensor.h"
 
@@ -31,6 +33,8 @@ class AppController {
   void applyRideUpdate(const RideUpdate& update);
 
   DeviceConfig config_;
+  InternalFsBackend storage_backend_;
+  StorageManager storage_;
   WheelSensor wheel_sensor_;
   PulseFilter pulse_filter_;
   SpeedCalculator speed_calculator_;
