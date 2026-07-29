@@ -6,7 +6,9 @@
 - [x] 3.2 Canonical 48-byte DeviceConfig, defaults и validator.
 - [x] 3.3 InternalFS, RecordHeader, version, CRC и A/B slots.
 - [x] 3.4 Startup load, newest sequence, fallback и defaults.
-- [x] 3.7 Counters записей, пропусков, ошибок и recovery.
+- [x] 3.6 Migration hook v1 → v2: `migrateConfigV1ToV2` /
+  `migrateOdometerV1ToV2`, load+rewrite, future-version reject.
+- [x] 3.7 Counters записей, пропусков, ошибок, recovery и migrations.
 - [x] Embedded corruption/fallback тест на XIAO.
 - [x] Два startup без лишней записи: config/odo sequence остаётся 1.
 
@@ -38,7 +40,7 @@
 
 ## Остаток Э3
 
-- [ ] 3.6 Добавить и протестировать migration hook v1 → v2.
+- [x] 3.6 Добавить и протестировать migration hook v1 → v2.
 - [ ] Персистировать/экспортировать storage counters в diagnostics.
-- [ ] Проверить полный record и config migration на старых fixtures.
-- [ ] Обновить `STATUS.md` и закрыть milestone M3.
+- [x] Проверить полный record и config migration на старых fixtures.
+- [ ] Обновить `STATUS.md` и закрыть milestone M3 (после DoD 3.5 на железе).

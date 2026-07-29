@@ -1,12 +1,11 @@
 # Статус проекта
 
-Обновлено: 2026-07-29
+Обновлено: 2026-07-30
 
 ## Текущий этап
 
-Э3 — хранение данных. Реализованы A/B-хранилище и экономное автосохранение
-одометра по независимой policy (дистанция, пауза, OLED off, батарея, USB,
-FORCE_SAVE / deep sleep / reboot API).
+Э3 — хранение данных. Реализованы A/B-хранилище, экономное автосохранение
+одометра и migration hook flash-записей v1 → v2.
 
 ## Готово
 
@@ -34,16 +33,20 @@ FORCE_SAVE / deep sleep / reboot API).
   CRC32, выбор свежего слота, чередование записей и пропуск неизменённых данных.
 - При повреждении одного слота используется второй; при повреждении обоих defaults
   записываются в слот A. Одометр и общее число оборотов восстанавливаются при старте.
-- Serial при старте показывает mount status, source, sequence, recovery/defaults и
-  восстановленное значение одометра.
+- Serial при старте показывает mount status, source, sequence, version, recovery/
+  defaults, migration и восстановленное значение одометра.
 - `OdometerSavePolicy`: независимые триггеры дистанции (`odometer_save_interval_m`),
   settle 30 с после `MOVING→PAUSED`, OLED off, deep sleep, `FORCE_SAVE`, critical
   battery ≤5% (однократно), USB disconnect и reboot; ошибка Flash не останавливает
   поездку. `AppController` пишет одометр и логирует trigger/result/sequence/counters.
+- `storage_migration`: `migrateConfigV1ToV2` / `migrateOdometerV1ToV2` (identity stub
+  при неизменном payload); `RecordHeader.version` = 2. При load запись v1
+  мигрируется, перезаписывается как v2 (force write); будущая version отвергается.
+  Счётчики `config_migrations` / `odometer_migrations`.
 
 ## Проверки
 
-- `pio test -e native`: 36 тестов проходят.
+- `pio test -e native`: 40 тестов проходят.
 - `pio run -e xiao_ble_sense`: сборка проходит.
 - Embedded A/B-тест прошёл на XIAO: mount, A/B-чередование, чтение и fallback после
   повреждения свежего слота; `/test_storage_a/b` удалены после теста.
@@ -67,9 +70,11 @@ FORCE_SAVE / deep sleep / reboot API).
   ещё не выполнено (плата не подключена в этой сессии).
 - BLE пока не реализован. Deep sleep и `FORCE_SAVE` имеют API policy, но runtime
   deep sleep / BLE-команды ещё не подключены.
+- Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
+  обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 
 ## Следующий шаг
 
-На XIAO: загрузить production firmware, накрутить ненулевой одометр (кнопка D0),
-убедиться в A/B-записи и сохранении после двух reboot; затем закрыть остаток DoD Э3.5
-и перейти к migration hook 3.6 / BLE Э4.
+При наличии XIAO: закрыть DoD Э3.5 (ненулевой odometer, A/B, reboot, power-loss).
+Иначе: персист/экспорт storage counters в diagnostics, либо начать BLE Э4.1
+(`ble_protocol.h` + static_assert размеров).

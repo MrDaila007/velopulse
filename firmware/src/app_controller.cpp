@@ -32,10 +32,18 @@ void printLoadInfo(const char* label,
   Serial.print(storageSourceName(info.source));
   Serial.print(", sequence=");
   Serial.print(info.sequence);
+  Serial.print(", version=");
+  Serial.print(info.from_version);
   Serial.print(", recovered=");
   Serial.print(info.recovered ? "yes" : "no");
   Serial.print(", defaults_restored=");
   Serial.print(info.source == StorageSource::kDefaults ? "yes" : "no");
+  Serial.print(", migrated=");
+  Serial.print(info.migrated ? "yes" : "no");
+  if (info.migrated) {
+    Serial.print(", migration_written=");
+    Serial.print(info.migration_written ? "yes" : "no");
+  }
   Serial.print(", status=");
   Serial.println(load_ok ? "OK" : "ERROR");
 }

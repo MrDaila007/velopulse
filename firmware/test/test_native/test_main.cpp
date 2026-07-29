@@ -20,6 +20,7 @@
 #include "scheduler.h"
 #include "speed_calculator.h"
 #include "storage_manager.h"
+#include "storage_migration.h"
 #include "trip_computer.h"
 
 using namespace bike;
@@ -61,13 +62,26 @@ class MemoryStorageBackend final : public StorageBackend {
 void putConfigRecord(MemoryStorageBackend& backend,
                      const char* path,
                      const DeviceConfig& config,
-                     uint32_t sequence) {
+                     uint32_t sequence,
+                     uint16_t version = kConfigRecordVersion) {
   uint8_t payload[kDeviceConfigPayloadSize];
   uint8_t record[kMaximumRecordSize];
   encodeDeviceConfig(config, payload);
-  const size_t length = encodeRecord(payload, sizeof(payload),
-                                     kConfigRecordVersion, sequence,
-                                     record, sizeof(record));
+  const size_t length = encodeRecord(payload, sizeof(payload), version,
+                                     sequence, record, sizeof(record));
+  backend.write(path, record, length);
+}
+
+void putOdometerRecord(MemoryStorageBackend& backend,
+                       const char* path,
+                       const OdometerData& odometer,
+                       uint32_t sequence,
+                       uint16_t version = kOdometerRecordVersion) {
+  uint8_t payload[kOdometerPayloadSize];
+  uint8_t record[kMaximumRecordSize];
+  encodeOdometer(odometer, payload);
+  const size_t length = encodeRecord(payload, sizeof(payload), version,
+                                     sequence, record, sizeof(record));
   backend.write(path, record, length);
 }
 
@@ -388,6 +402,114 @@ void test_odometer_alternates_and_recovers_older_slot() {
   TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
   TEST_ASSERT_EQUAL_UINT64(0u, restored.odometer_mm);
   TEST_ASSERT_TRUE(info.recovered);
+}
+
+void test_migrate_config_v1_to_v2_preserves_fields() {
+  DeviceConfig original;
+  original.brightness_pct = 55;
+  original.wheel_circumference_mm = 2155;
+  original.odometer_save_interval_m = 250;
+  memcpy(original.device_name, "BikeComp-V1", 12);
+
+  uint8_t payload_v1[kDeviceConfigPayloadSize];
+  encodeDeviceConfig(original, payload_v1);
+
+  DeviceConfig migrated;
+  TEST_ASSERT_TRUE(migrateConfigV1ToV2(payload_v1, sizeof(payload_v1), migrated));
+  TEST_ASSERT_TRUE(deviceConfigsEqual(original, migrated));
+  TEST_ASSERT_TRUE(migrateConfigToCurrent(kConfigRecordVersionV1, payload_v1,
+                                          sizeof(payload_v1), migrated));
+  TEST_ASSERT_FALSE(migrateConfigToCurrent(99, payload_v1, sizeof(payload_v1),
+                                           migrated));
+  TEST_ASSERT_EQUAL_UINT32(kDeviceConfigPayloadSize,
+                           configPayloadLengthForVersion(kConfigRecordVersionV1));
+  TEST_ASSERT_EQUAL_UINT32(0u, configPayloadLengthForVersion(99));
+}
+
+void test_migrate_odometer_v1_to_v2_preserves_totals() {
+  OdometerData original{9876543210ull, 123456789ull};
+  uint8_t payload_v1[kOdometerPayloadSize];
+  encodeOdometer(original, payload_v1);
+
+  OdometerData migrated;
+  TEST_ASSERT_TRUE(
+      migrateOdometerV1ToV2(payload_v1, sizeof(payload_v1), migrated));
+  TEST_ASSERT_EQUAL_UINT64(original.odometer_mm, migrated.odometer_mm);
+  TEST_ASSERT_EQUAL_UINT64(original.total_revolutions,
+                           migrated.total_revolutions);
+  TEST_ASSERT_TRUE(migrateOdometerToCurrent(kOdometerRecordVersionV1, payload_v1,
+                                            sizeof(payload_v1), migrated));
+  TEST_ASSERT_FALSE(migrateOdometerToCurrent(99, payload_v1, sizeof(payload_v1),
+                                             migrated));
+}
+
+void test_storage_migrates_config_v1_fixture_and_rewrites_v2() {
+  MemoryStorageBackend backend;
+  DeviceConfig v1_config;
+  v1_config.brightness_pct = 44;
+  v1_config.low_battery_pct = 15;
+  putConfigRecord(backend, "/cfg_a", v1_config, 7, kConfigRecordVersionV1);
+
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+  DeviceConfig loaded;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadConfig(loaded, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
+  TEST_ASSERT_TRUE(info.migrated);
+  TEST_ASSERT_TRUE(info.migration_written);
+  TEST_ASSERT_EQUAL_UINT16(kConfigRecordVersionV1, info.from_version);
+  TEST_ASSERT_EQUAL_UINT32(8u, info.sequence);
+  TEST_ASSERT_EQUAL_UINT8(44u, loaded.brightness_pct);
+  TEST_ASSERT_EQUAL_UINT8(15u, loaded.low_battery_pct);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().config_migrations);
+
+  uint8_t record[kMaximumRecordSize];
+  size_t length = 0;
+  TEST_ASSERT_EQUAL(StorageIoResult::kOk,
+                    backend.read("/cfg_b", record, sizeof(record), length));
+  DecodedRecord decoded;
+  TEST_ASSERT_TRUE(inspectRecord(record, length, decoded));
+  TEST_ASSERT_EQUAL_UINT16(kConfigRecordVersion, decoded.header.version);
+  TEST_ASSERT_EQUAL_UINT32(8u, decoded.header.sequence);
+
+  StorageManager next_boot(backend);
+  TEST_ASSERT_TRUE(next_boot.begin());
+  TEST_ASSERT_TRUE(next_boot.loadConfig(loaded, info));
+  TEST_ASSERT_FALSE(info.migrated);
+  TEST_ASSERT_EQUAL_UINT16(kConfigRecordVersion, info.from_version);
+  TEST_ASSERT_EQUAL_UINT32(8u, info.sequence);
+  TEST_ASSERT_EQUAL_UINT32(0u, next_boot.counters().config_migrations);
+}
+
+void test_storage_migrates_odometer_v1_and_rejects_future_version() {
+  MemoryStorageBackend backend;
+  OdometerData v1_odo{555000u, 42u};
+  putOdometerRecord(backend, "/odo_a", v1_odo, 3, kOdometerRecordVersionV1);
+
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+  OdometerData loaded;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadOdometer(loaded, info));
+  TEST_ASSERT_TRUE(info.migrated);
+  TEST_ASSERT_TRUE(info.migration_written);
+  TEST_ASSERT_EQUAL_UINT32(4u, info.sequence);
+  TEST_ASSERT_EQUAL_UINT64(555000u, loaded.odometer_mm);
+  TEST_ASSERT_EQUAL_UINT64(42u, loaded.total_revolutions);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().odometer_migrations);
+  TEST_ASSERT_EQUAL_UINT32(4u, storage.lastOdometerSequence());
+
+  // Future record version must be ignored; fall back to migrated v2 slot.
+  OdometerData future{999u, 1u};
+  putOdometerRecord(backend, "/odo_a", future, 99, 3);
+  StorageManager reload(backend);
+  TEST_ASSERT_TRUE(reload.begin());
+  TEST_ASSERT_TRUE(reload.loadOdometer(loaded, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotB, info.source);
+  TEST_ASSERT_TRUE(info.recovered);
+  TEST_ASSERT_EQUAL_UINT64(555000u, loaded.odometer_mm);
+  TEST_ASSERT_FALSE(info.migrated);
 }
 
 void test_pulse_filter_first_debounce_and_overspeed() {
@@ -854,6 +976,10 @@ int main(int, char**) {
   RUN_TEST(test_storage_falls_back_from_corrupt_or_invalid_newest_slot);
   RUN_TEST(test_storage_restores_defaults_when_both_slots_are_corrupt);
   RUN_TEST(test_odometer_alternates_and_recovers_older_slot);
+  RUN_TEST(test_migrate_config_v1_to_v2_preserves_fields);
+  RUN_TEST(test_migrate_odometer_v1_to_v2_preserves_totals);
+  RUN_TEST(test_storage_migrates_config_v1_fixture_and_rewrites_v2);
+  RUN_TEST(test_storage_migrates_odometer_v1_and_rejects_future_version);
   RUN_TEST(test_pulse_filter_first_debounce_and_overspeed);
   RUN_TEST(test_pulse_filter_stuck_and_micros_wrap);
   RUN_TEST(test_speed_fixed_point_smoothing_and_timeout);

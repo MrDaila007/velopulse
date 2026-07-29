@@ -5,6 +5,7 @@
 #include "config_codec.h"
 #include "config_validator.h"
 #include "crc32.h"
+#include "storage_migration.h"
 
 namespace bike {
 namespace {
@@ -73,11 +74,9 @@ size_t encodeRecord(const uint8_t* payload,
   return kRecordHeaderSize + payload_length;
 }
 
-bool decodeRecord(const uint8_t* record,
-                  size_t record_length,
-                  uint16_t expected_version,
-                  size_t expected_payload_length,
-                  DecodedRecord& decoded) {
+bool inspectRecord(const uint8_t* record,
+                   size_t record_length,
+                   DecodedRecord& decoded) {
   if (record == nullptr || record_length < kRecordHeaderSize) return false;
   RecordHeader header;
   header.magic = readU32(record);
@@ -85,16 +84,23 @@ bool decodeRecord(const uint8_t* record,
   header.payload_len = readU16(record + 6);
   header.sequence = readU32(record + 8);
   header.crc32 = readU32(record + 12);
-  if (header.magic != kRecordMagic || header.version != expected_version ||
-      header.payload_len != expected_payload_length ||
-      record_length != kRecordHeaderSize + expected_payload_length) {
-    return false;
-  }
+  if (header.magic != kRecordMagic) return false;
+  if (record_length != kRecordHeaderSize + header.payload_len) return false;
   const uint8_t* payload = record + kRecordHeaderSize;
-  if (crc32(payload, expected_payload_length) != header.crc32) return false;
+  if (crc32(payload, header.payload_len) != header.crc32) return false;
   decoded.header = header;
   decoded.payload = payload;
   return true;
+}
+
+bool decodeRecord(const uint8_t* record,
+                  size_t record_length,
+                  uint16_t expected_version,
+                  size_t expected_payload_length,
+                  DecodedRecord& decoded) {
+  if (!inspectRecord(record, record_length, decoded)) return false;
+  return decoded.header.version == expected_version &&
+         decoded.header.payload_len == expected_payload_length;
 }
 
 void encodeOdometer(const OdometerData& odometer,
@@ -115,6 +121,8 @@ bool decodeOdometer(const uint8_t* input,
 struct StorageManager::Slot {
   bool present = false;
   bool valid = false;
+  bool needs_migration = false;
+  uint16_t version = 0;
   uint32_t sequence = 0;
   uint8_t payload[kDeviceConfigPayloadSize] = {};
 };
@@ -129,11 +137,7 @@ bool StorageManager::begin() {
   return mounted_;
 }
 
-void StorageManager::readSlot(const char* path,
-                              uint16_t version,
-                              size_t payload_length,
-                              bool config_payload,
-                              Slot& slot) {
+void StorageManager::readConfigSlot(const char* path, Slot& slot) {
   slot = Slot{};
   uint8_t record[kMaximumRecordSize];
   size_t record_length = 0;
@@ -147,19 +151,69 @@ void StorageManager::readSlot(const char* path,
   }
 
   DecodedRecord decoded;
-  if (!decodeRecord(record, record_length, version, payload_length, decoded)) {
+  if (!inspectRecord(record, record_length, decoded)) {
     ++counters_.read_errors;
     return;
   }
-  if (config_payload) {
-    DeviceConfig config;
-    if (!decodeDeviceConfig(decoded.payload, payload_length, config)) {
-      ++counters_.read_errors;
-      return;
-    }
+  if (decoded.header.version > kConfigRecordVersion ||
+      decoded.header.payload_len !=
+          configPayloadLengthForVersion(decoded.header.version)) {
+    ++counters_.read_errors;
+    return;
   }
-  memcpy(slot.payload, decoded.payload, payload_length);
+
+  DeviceConfig config;
+  if (!migrateConfigToCurrent(decoded.header.version, decoded.payload,
+                              decoded.header.payload_len, config)) {
+    ++counters_.read_errors;
+    return;
+  }
+  if (ConfigValidator::validate(config) != ConfigValidationError::kNone) {
+    ++counters_.read_errors;
+    return;
+  }
+  encodeDeviceConfig(config, slot.payload);
   slot.sequence = decoded.header.sequence;
+  slot.version = decoded.header.version;
+  slot.needs_migration = decoded.header.version < kConfigRecordVersion;
+  slot.valid = true;
+}
+
+void StorageManager::readOdometerSlot(const char* path, Slot& slot) {
+  slot = Slot{};
+  uint8_t record[kMaximumRecordSize];
+  size_t record_length = 0;
+  const StorageIoResult result =
+      backend_.read(path, record, sizeof(record), record_length);
+  if (result == StorageIoResult::kNotFound) return;
+  slot.present = true;
+  if (result != StorageIoResult::kOk) {
+    ++counters_.read_errors;
+    return;
+  }
+
+  DecodedRecord decoded;
+  if (!inspectRecord(record, record_length, decoded)) {
+    ++counters_.read_errors;
+    return;
+  }
+  if (decoded.header.version > kOdometerRecordVersion ||
+      decoded.header.payload_len !=
+          odometerPayloadLengthForVersion(decoded.header.version)) {
+    ++counters_.read_errors;
+    return;
+  }
+
+  OdometerData odometer;
+  if (!migrateOdometerToCurrent(decoded.header.version, decoded.payload,
+                                decoded.header.payload_len, odometer)) {
+    ++counters_.read_errors;
+    return;
+  }
+  encodeOdometer(odometer, slot.payload);
+  slot.sequence = decoded.header.sequence;
+  slot.version = decoded.header.version;
+  slot.needs_migration = decoded.header.version < kOdometerRecordVersion;
   slot.valid = true;
 }
 
@@ -184,12 +238,18 @@ bool StorageManager::savePayload(const char* path_a,
                                  const uint8_t* payload,
                                  size_t payload_length,
                                  uint16_t version,
-                                 bool config_payload) {
+                                 bool config_payload,
+                                 bool force_write) {
   if (!mounted_) return false;
   Slot a;
   Slot b;
-  readSlot(path_a, version, payload_length, config_payload, a);
-  readSlot(path_b, version, payload_length, config_payload, b);
+  if (config_payload) {
+    readConfigSlot(path_a, a);
+    readConfigSlot(path_b, b);
+  } else {
+    readOdometerSlot(path_a, a);
+    readOdometerSlot(path_b, b);
+  }
 
   const Slot* newest = nullptr;
   if (a.valid && b.valid) {
@@ -199,8 +259,9 @@ bool StorageManager::savePayload(const char* path_a,
   } else if (b.valid) {
     newest = &b;
   }
-  if (newest != nullptr &&
-      memcmp(newest->payload, payload, payload_length) == 0) {
+  if (!force_write && newest != nullptr &&
+      memcmp(newest->payload, payload, payload_length) == 0 &&
+      !newest->needs_migration) {
     ++counters_.skipped_writes;
     return true;
   }
@@ -223,10 +284,8 @@ bool StorageManager::loadConfig(DeviceConfig& config, StorageLoadInfo& info) {
   if (!mounted_) return false;
   Slot a;
   Slot b;
-  readSlot(paths_.config_a, kConfigRecordVersion,
-           kDeviceConfigPayloadSize, true, a);
-  readSlot(paths_.config_b, kConfigRecordVersion,
-           kDeviceConfigPayloadSize, true, b);
+  readConfigSlot(paths_.config_a, a);
+  readConfigSlot(paths_.config_b, b);
   const Slot* selected = nullptr;
   if (a.valid && b.valid) {
     selected = isNewer(b.sequence, a.sequence) ? &b : &a;
@@ -236,14 +295,28 @@ bool StorageManager::loadConfig(DeviceConfig& config, StorageLoadInfo& info) {
     selected = &b;
   }
   if (selected != nullptr) {
-    if (!decodeDeviceConfig(selected->payload, kDeviceConfigPayloadSize, config)) {
+    if (!decodeDeviceConfig(selected->payload, kDeviceConfigPayloadSize,
+                            config)) {
       return false;
     }
     info.source = selected == &a ? StorageSource::kSlotA : StorageSource::kSlotB;
     info.sequence = selected->sequence;
+    info.from_version = selected->version;
     info.recovered = selected == &a ? (b.present && !b.valid)
                                     : (a.present && !a.valid);
     if (info.recovered) ++counters_.config_slot_recoveries;
+    if (selected->needs_migration) {
+      ++counters_.config_migrations;
+      info.migrated = true;
+      info.migration_written =
+          savePayload(paths_.config_a, paths_.config_b, selected->payload,
+                      kDeviceConfigPayloadSize, kConfigRecordVersion, true,
+                      true);
+      if (info.migration_written) {
+        info.sequence = selected->sequence + 1u;
+        info.from_version = selected->version;
+      }
+    }
     return true;
   }
 
@@ -256,6 +329,7 @@ bool StorageManager::loadConfig(DeviceConfig& config, StorageLoadInfo& info) {
   info.defaults_written = writeSlot(paths_.config_a, payload,
                                     sizeof(payload), kConfigRecordVersion, 1);
   info.sequence = info.defaults_written ? 1 : 0;
+  info.from_version = kConfigRecordVersion;
   return info.defaults_written;
 }
 
@@ -266,7 +340,7 @@ bool StorageManager::saveConfig(const DeviceConfig& config) {
   uint8_t payload[kDeviceConfigPayloadSize];
   encodeDeviceConfig(config, payload);
   return savePayload(paths_.config_a, paths_.config_b, payload,
-                     sizeof(payload), kConfigRecordVersion, true);
+                     sizeof(payload), kConfigRecordVersion, true, false);
 }
 
 bool StorageManager::loadOdometer(OdometerData& odometer,
@@ -275,10 +349,8 @@ bool StorageManager::loadOdometer(OdometerData& odometer,
   if (!mounted_) return false;
   Slot a;
   Slot b;
-  readSlot(paths_.odometer_a, kOdometerRecordVersion,
-           kOdometerPayloadSize, false, a);
-  readSlot(paths_.odometer_b, kOdometerRecordVersion,
-           kOdometerPayloadSize, false, b);
+  readOdometerSlot(paths_.odometer_a, a);
+  readOdometerSlot(paths_.odometer_b, b);
   const Slot* selected = nullptr;
   if (a.valid && b.valid) {
     selected = isNewer(b.sequence, a.sequence) ? &b : &a;
@@ -293,10 +365,23 @@ bool StorageManager::loadOdometer(OdometerData& odometer,
     }
     info.source = selected == &a ? StorageSource::kSlotA : StorageSource::kSlotB;
     info.sequence = selected->sequence;
+    info.from_version = selected->version;
     last_odometer_sequence_ = selected->sequence;
     info.recovered = selected == &a ? (b.present && !b.valid)
                                     : (a.present && !a.valid);
     if (info.recovered) ++counters_.odometer_slot_recoveries;
+    if (selected->needs_migration) {
+      ++counters_.odometer_migrations;
+      info.migrated = true;
+      info.migration_written =
+          savePayload(paths_.odometer_a, paths_.odometer_b, selected->payload,
+                      kOdometerPayloadSize, kOdometerRecordVersion, false,
+                      true);
+      if (info.migration_written) {
+        info.sequence = selected->sequence + 1u;
+        last_odometer_sequence_ = info.sequence;
+      }
+    }
     return true;
   }
 
@@ -309,6 +394,7 @@ bool StorageManager::loadOdometer(OdometerData& odometer,
   info.defaults_written = writeSlot(paths_.odometer_a, payload,
                                     sizeof(payload), kOdometerRecordVersion, 1);
   info.sequence = info.defaults_written ? 1 : 0;
+  info.from_version = kOdometerRecordVersion;
   if (info.defaults_written) last_odometer_sequence_ = 1;
   return info.defaults_written;
 }
@@ -319,7 +405,8 @@ bool StorageManager::saveOdometer(const OdometerData& odometer) {
   uint8_t payload[kOdometerPayloadSize];
   encodeOdometer(odometer, payload);
   const bool ok = savePayload(paths_.odometer_a, paths_.odometer_b, payload,
-                              sizeof(payload), kOdometerRecordVersion, false);
+                              sizeof(payload), kOdometerRecordVersion, false,
+                              false);
   if (!ok) return false;
   if (counters_.writes > writes_before) {
     last_odometer_sequence_ += 1u;

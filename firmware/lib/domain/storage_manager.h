@@ -8,8 +8,8 @@
 namespace bike {
 
 constexpr uint32_t kRecordMagic = 0x50434B42u;
-constexpr uint16_t kConfigRecordVersion = 1;
-constexpr uint16_t kOdometerRecordVersion = 1;
+constexpr uint16_t kConfigRecordVersion = 2;
+constexpr uint16_t kOdometerRecordVersion = 2;
 constexpr size_t kRecordHeaderSize = 16;
 constexpr size_t kOdometerPayloadSize = 16;
 constexpr size_t kMaximumRecordSize = 64;
@@ -38,6 +38,9 @@ bool decodeRecord(const uint8_t* record,
                   uint16_t expected_version,
                   size_t expected_payload_length,
                   DecodedRecord& decoded);
+bool inspectRecord(const uint8_t* record,
+                   size_t record_length,
+                   DecodedRecord& decoded);
 
 struct OdometerData {
   uint64_t odometer_mm = 0;
@@ -85,8 +88,11 @@ enum class StorageSource : uint8_t {
 struct StorageLoadInfo {
   StorageSource source = StorageSource::kDefaults;
   uint32_t sequence = 0;
+  uint16_t from_version = 0;
   bool recovered = false;
   bool defaults_written = false;
+  bool migrated = false;
+  bool migration_written = false;
 };
 
 struct StorageCounters {
@@ -98,6 +104,8 @@ struct StorageCounters {
   uint32_t odometer_slot_recoveries = 0;
   uint32_t config_defaults_restored = 0;
   uint32_t odometer_defaults_restored = 0;
+  uint32_t config_migrations = 0;
+  uint32_t odometer_migrations = 0;
 };
 
 class StorageManager {
@@ -118,11 +126,8 @@ class StorageManager {
  private:
   struct Slot;
 
-  void readSlot(const char* path,
-                uint16_t version,
-                size_t payload_length,
-                bool config_payload,
-                Slot& slot);
+  void readConfigSlot(const char* path, Slot& slot);
+  void readOdometerSlot(const char* path, Slot& slot);
   bool writeSlot(const char* path,
                  const uint8_t* payload,
                  size_t payload_length,
@@ -133,7 +138,8 @@ class StorageManager {
                    const uint8_t* payload,
                    size_t payload_length,
                    uint16_t version,
-                   bool config_payload);
+                   bool config_payload,
+                   bool force_write);
 
   StorageBackend& backend_;
   StoragePaths paths_;
