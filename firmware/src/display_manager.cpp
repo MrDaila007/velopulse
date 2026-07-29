@@ -5,6 +5,9 @@
 namespace bike {
 namespace {
 
+constexpr uint8_t kBrightContrast = 156;
+constexpr uint8_t kDimContrast = 20;
+
 class U8g2Canvas final : public DisplayCanvas {
  public:
   explicit U8g2Canvas(U8G2& display) : display_(display) {}
@@ -37,9 +40,11 @@ bool DisplayManager::begin(const DeviceConfig& config) {
   Wire.setClock(400000);
   display_.setI2CAddress(kDisplayI2cAddress << 1u);
   display_ok_ = display_.begin();
-  carousel_.configure(config, millis());
+  const uint32_t now = millis();
+  carousel_.configure(config, now);
+  power_.configure(config.display_timeout_s, now);
   if (display_ok_) {
-    display_.setContrast(156);
+    display_.setContrast(kBrightContrast);
     display_.clearBuffer();
     display_.setFont(u8g2_font_6x10_tf);
     display_.drawStr(0, 12, "BikeComp FW " FW_VERSION);
@@ -49,9 +54,23 @@ bool DisplayManager::begin(const DeviceConfig& config) {
   return display_ok_;
 }
 
+void DisplayManager::noteActivity(uint32_t now_ms) {
+  if (!power_.noteActivity(now_ms) || !display_ok_) return;
+  display_.setPowerSave(0);
+  display_.setContrast(kBrightContrast);
+  last_render_ms_ = 0;
+}
+
 void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
-  if (!display_ok_) return;
   const uint32_t now = millis();
+  if (power_.update(now) && display_ok_) {
+    if (power_.state() == DisplayPowerState::kDim) {
+      display_.setContrast(kDimContrast);
+    } else if (power_.state() == DisplayPowerState::kOff) {
+      display_.setPowerSave(1);
+    }
+  }
+  if (!display_ok_ || power_.state() == DisplayPowerState::kOff) return;
   const bool page_changed = carousel_.update(now);
   const uint32_t period = snapshot.trip.ride_state == RideState::kMoving ? 250u : 1000u;
   if (!force && !page_changed && static_cast<uint32_t>(now - last_render_ms_) < period) return;

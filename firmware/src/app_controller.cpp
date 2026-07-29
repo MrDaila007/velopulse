@@ -79,6 +79,7 @@ void AppController::processPulses(uint32_t now_ms) {
       continue;
     }
 
+    display_.noteActivity(now_ms);
     applyRideUpdate(ride_state_.onPulse(now_ms));
     uint16_t speed = 0;
     if (!decision.first_pulse) {
