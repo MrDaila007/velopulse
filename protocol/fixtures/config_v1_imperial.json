@@ -1,0 +1,23 @@
+{
+  "struct_version": 1,
+  "flags": 31,
+  "wheel_circumference_mm": 2100,
+  "max_speed_kmh": 100,
+  "stop_timeout_s": 3,
+  "display_timeout_s": 60,
+  "deep_sleep_timeout_s": 900,
+  "brightness_pct": 60,
+  "page_switch_period_s": 4,
+  "enabled_pages_mask": 31,
+  "low_battery_pct": 20,
+  "odometer_save_interval_m": 500,
+  "smoothing_window": 3,
+  "debounce_ms": 3,
+  "active_edge": 0,
+  "pinned_page": 0,
+  "batt_cal_scale_permille": 1000,
+  "batt_cal_offset_mv": 0,
+  "page_order": [0, 1, 2, 3, 4],
+  "device_name": "BikeComp-XXXX",
+  "units_imperial": true
+}

@@ -1,0 +1,8 @@
+{
+  "struct_version": 1,
+  "command_id": 32,
+  "flags": 1,
+  "payload_len": 4,
+  "payload": [120, 86, 52, 18],
+  "token": 305419896
+}

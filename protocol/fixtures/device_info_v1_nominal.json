@@ -1,0 +1,13 @@
+{
+  "struct_version": 1,
+  "proto_major": 1,
+  "proto_minor": 0,
+  "hw_revision": 1,
+  "model": "BIKECOMP-XIAO",
+  "fw_version": "1.0.0",
+  "serial": [1, 2, 3, 4, 5, 6, 7, 8],
+  "uptime_s": 3600,
+  "reset_reason": 1,
+  "boot_count": 42,
+  "flags": 7
+}

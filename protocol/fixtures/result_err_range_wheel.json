@@ -1,0 +1,10 @@
+{
+  "struct_version": 1,
+  "command_id": 240,
+  "status": 4,
+  "detail": 2,
+  "token": 0,
+  "payload_len": 0,
+  "payload": [],
+  "field": "wheel_circumference_mm"
+}

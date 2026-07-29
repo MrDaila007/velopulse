@@ -1,8 +1,8 @@
 # Э4. BLE-протокол
 
-- [ ] 4.1 Создать `ble_protocol.h` и `static_assert` размеров.
-- [ ] 4.2 Реализовать codec всех BLE-структур.
-- [ ] 4.3 Сгенерировать shared `.hex`/`.json` fixtures и golden-тесты.
+- [x] 4.1 Создать `ble_protocol.h` и `static_assert` размеров.
+- [x] 4.2 Реализовать codec всех BLE-структур.
+- [x] 4.3 Сгенерировать shared `.hex`/`.json` fixtures и golden-тесты.
 - [ ] 4.4 Реализовать GATT service, characteristics, descriptors и permissions.
 - [ ] 4.5 Реализовать fast/slow advertising и Scan Response.
 - [ ] 4.6 Реализовать Device Information, FICR serial, uptime/reset reason.

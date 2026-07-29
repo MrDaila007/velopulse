@@ -1,13 +1,17 @@
 #include <unity.h>
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include <fstream>
 #include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "battery_model.h"
+#include "ble_protocol.h"
 #include "config_codec.h"
 #include "config_validator.h"
 #include "crc32.h"
@@ -16,6 +20,7 @@
 #include "display_power.h"
 #include "odometer_save_policy.h"
 #include "page_carousel.h"
+#include "protocol_codec.h"
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
@@ -84,6 +89,132 @@ void putOdometerRecord(MemoryStorageBackend& backend,
   const size_t length = encodeRecord(payload, sizeof(payload), version,
                                      sequence, record, sizeof(record));
   backend.write(path, record, length);
+}
+
+#ifndef PROTOCOL_FIXTURES_DIR
+#define PROTOCOL_FIXTURES_DIR "../protocol/fixtures"
+#endif
+
+std::string fixturePath(const char* name, const char* ext) {
+  std::ostringstream path;
+  path << PROTOCOL_FIXTURES_DIR << "/" << name << "." << ext;
+  return path.str();
+}
+
+bool loadFixtureText(const char* name, const char* ext, std::string& text) {
+  std::ifstream input(fixturePath(name, ext).c_str());
+  if (!input) {
+    return false;
+  }
+  std::ostringstream buffer;
+  buffer << input.rdbuf();
+  text = buffer.str();
+  return true;
+}
+
+int hexNibble(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+bool loadFixtureHex(const char* name, std::vector<uint8_t>& bytes) {
+  std::string text;
+  if (!loadFixtureText(name, "hex", text)) {
+    return false;
+  }
+  bytes.clear();
+  int high = -1;
+  for (char c : text) {
+    if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+      continue;
+    }
+    const int nibble = hexNibble(c);
+    if (nibble < 0) {
+      return false;
+    }
+    if (high < 0) {
+      high = nibble;
+    } else {
+      bytes.push_back(static_cast<uint8_t>((high << 4) | nibble));
+      high = -1;
+    }
+  }
+  return high < 0 && !bytes.empty();
+}
+
+bool jsonHasNumber(const std::string& json, const char* key, long long expected) {
+  const std::string needle = std::string("\"") + key + "\": ";
+  const size_t pos = json.find(needle);
+  if (pos == std::string::npos) {
+    return false;
+  }
+  size_t i = pos + needle.size();
+  while (i < json.size() && (json[i] == ' ' || json[i] == '\t')) {
+    ++i;
+  }
+  char* end = nullptr;
+  const long long value = strtoll(json.c_str() + i, &end, 10);
+  return end != json.c_str() + i && value == expected;
+}
+
+bool jsonHasString(const std::string& json, const char* key, const char* expected) {
+  const std::string needle =
+      std::string("\"") + key + "\": \"" + expected + "\"";
+  return json.find(needle) != std::string::npos;
+}
+
+DeviceInfoPacket makeNominalDeviceInfo() {
+  DeviceInfoPacket info = {};
+  info.struct_version = kBleStructVersion;
+  info.proto_major = kBleProtoMajor;
+  info.proto_minor = kBleProtoMinor;
+  info.hw_revision = 1;
+  memcpy(info.model, "BIKECOMP-XIAO", 13);
+  memcpy(info.fw_version, "1.0.0", 5);
+  const uint8_t serial[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  memcpy(info.serial, serial, 8);
+  info.uptime_s = 3600;
+  info.reset_reason = static_cast<uint8_t>(ResetReason::kPowerOn);
+  info.boot_count = 42;
+  info.flags = kDeviceInfoFlagConfigValid | kDeviceInfoFlagDisplayOk |
+               kDeviceInfoFlagFsOk;
+  return info;
+}
+
+TelemetryPacket makeMovingTelemetry() {
+  TelemetryPacket telemetry = {};
+  telemetry.struct_version = kBleStructVersion;
+  telemetry.flags = kTelemetryFlagMoving | kTelemetryFlagDisplayOn |
+                    kTelemetryFlagSmoothingEnabled;
+  telemetry.speed_x100 = 2550;
+  telemetry.avg_speed_x100 = 2200;
+  telemetry.max_speed_x100 = 3500;
+  telemetry.trip_distance_cm = 125000;
+  telemetry.moving_time_s = 1800;
+  telemetry.odometer_m = 123456;
+  telemetry.battery_mv = 3900;
+  telemetry.battery_pct = 75;
+  telemetry.ride_state = static_cast<uint8_t>(RideState::kMoving);
+  telemetry.revolutions = 500;
+  telemetry.last_pulse_age_ms = 250;
+  telemetry.seq = 42;
+  telemetry.sensor_state = static_cast<uint8_t>(SensorState::kOk);
+  telemetry.power_state = static_cast<uint8_t>(PowerState::kActive);
+  return telemetry;
+}
+
+TelemetryPacket makePausedTelemetry() {
+  TelemetryPacket telemetry = makeMovingTelemetry();
+  telemetry.flags = kTelemetryFlagDisplayOn | kTelemetryFlagSmoothingEnabled;
+  telemetry.speed_x100 = 0;
+  telemetry.ride_state = static_cast<uint8_t>(RideState::kPaused);
+  telemetry.last_pulse_age_ms = 5000;
+  telemetry.seq = 43;
+  telemetry.sensor_state = static_cast<uint8_t>(SensorState::kIdle);
+  telemetry.power_state = static_cast<uint8_t>(PowerState::kShortStop);
+  return telemetry;
 }
 
 }  // namespace
@@ -1036,6 +1167,226 @@ void test_diagnostic_saturates_narrow_fields() {
   TEST_ASSERT_EQUAL_UINT8(0xFFu, snap.i2c_error_count);
 }
 
+void test_ble_protocol_sizes_match_contract() {
+  TEST_ASSERT_EQUAL_UINT32(48u, kDeviceInfoSize);
+  TEST_ASSERT_EQUAL_UINT32(36u, kTelemetrySize);
+  TEST_ASSERT_EQUAL_UINT32(48u, kConfigurationSize);
+  TEST_ASSERT_EQUAL_UINT32(kDeviceConfigPayloadSize, kConfigurationSize);
+  TEST_ASSERT_EQUAL_UINT32(20u, kCommandMaxSize);
+  TEST_ASSERT_EQUAL_UINT32(25u, kCommandResultMaxSize);
+  TEST_ASSERT_EQUAL_UINT32(sizeof(DeviceInfoPacket), kDeviceInfoSize);
+  TEST_ASSERT_EQUAL_UINT32(sizeof(TelemetryPacket), kTelemetrySize);
+  TEST_ASSERT_EQUAL_UINT32(sizeof(ConfigurationPacket), kConfigurationSize);
+}
+
+void test_protocol_fixture_device_info_v1_nominal() {
+  std::vector<uint8_t> hex;
+  std::string json;
+  TEST_ASSERT_TRUE(loadFixtureHex("device_info_v1_nominal", hex));
+  TEST_ASSERT_TRUE(loadFixtureText("device_info_v1_nominal", "json", json));
+  TEST_ASSERT_EQUAL_UINT32(kDeviceInfoSize, hex.size());
+
+  const DeviceInfoPacket expected = makeNominalDeviceInfo();
+  uint8_t encoded[kDeviceInfoSize];
+  encodeDeviceInfo(expected, encoded);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(hex.data(), encoded, kDeviceInfoSize);
+
+  DeviceInfoPacket decoded = {};
+  TEST_ASSERT_TRUE(decodeDeviceInfo(hex.data(), hex.size(), decoded));
+  TEST_ASSERT_EQUAL_UINT8(expected.struct_version, decoded.struct_version);
+  TEST_ASSERT_EQUAL_UINT8(expected.proto_major, decoded.proto_major);
+  TEST_ASSERT_EQUAL_UINT8(expected.proto_minor, decoded.proto_minor);
+  TEST_ASSERT_EQUAL_UINT8(expected.hw_revision, decoded.hw_revision);
+  TEST_ASSERT_EQUAL_STRING_LEN("BIKECOMP-XIAO", decoded.model, 13);
+  TEST_ASSERT_EQUAL_STRING_LEN("1.0.0", decoded.fw_version, 5);
+  TEST_ASSERT_EQUAL_UINT32(3600u, decoded.uptime_s);
+  TEST_ASSERT_EQUAL_UINT8(1u, decoded.reset_reason);
+  TEST_ASSERT_EQUAL_UINT16(42u, decoded.boot_count);
+  TEST_ASSERT_EQUAL_UINT8(7u, decoded.flags);
+  TEST_ASSERT_TRUE(jsonHasNumber(json, "uptime_s", 3600));
+  TEST_ASSERT_TRUE(jsonHasNumber(json, "boot_count", 42));
+  TEST_ASSERT_TRUE(jsonHasString(json, "model", "BIKECOMP-XIAO"));
+}
+
+void test_protocol_fixture_telemetry_v1_moving_and_paused() {
+  std::vector<uint8_t> moving_hex;
+  std::vector<uint8_t> paused_hex;
+  std::string moving_json;
+  std::string paused_json;
+  TEST_ASSERT_TRUE(loadFixtureHex("telemetry_v1_moving", moving_hex));
+  TEST_ASSERT_TRUE(loadFixtureHex("telemetry_v1_paused", paused_hex));
+  TEST_ASSERT_TRUE(loadFixtureText("telemetry_v1_moving", "json", moving_json));
+  TEST_ASSERT_TRUE(loadFixtureText("telemetry_v1_paused", "json", paused_json));
+
+  uint8_t encoded[kTelemetrySize];
+  encodeTelemetry(makeMovingTelemetry(), encoded);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(moving_hex.data(), encoded, kTelemetrySize);
+  encodeTelemetry(makePausedTelemetry(), encoded);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(paused_hex.data(), encoded, kTelemetrySize);
+
+  TelemetryPacket decoded = {};
+  TEST_ASSERT_TRUE(
+      decodeTelemetry(moving_hex.data(), moving_hex.size(), decoded));
+  TEST_ASSERT_EQUAL_UINT16(2550u, decoded.speed_x100);
+  TEST_ASSERT_EQUAL_UINT8(1u, decoded.ride_state);
+  TEST_ASSERT_EQUAL_UINT16(42u, decoded.seq);
+  TEST_ASSERT_TRUE(jsonHasNumber(moving_json, "speed_x100", 2550));
+  TEST_ASSERT_TRUE(jsonHasNumber(moving_json, "seq", 42));
+
+  TEST_ASSERT_TRUE(
+      decodeTelemetry(paused_hex.data(), paused_hex.size(), decoded));
+  TEST_ASSERT_EQUAL_UINT16(0u, decoded.speed_x100);
+  TEST_ASSERT_EQUAL_UINT8(2u, decoded.ride_state);
+  TEST_ASSERT_EQUAL_UINT16(43u, decoded.seq);
+  TEST_ASSERT_TRUE(jsonHasNumber(paused_json, "ride_state", 2));
+  TEST_ASSERT_TRUE(jsonHasNumber(paused_json, "last_pulse_age_ms", 5000));
+}
+
+void test_protocol_fixture_config_v1_defaults_and_imperial() {
+  std::vector<uint8_t> defaults_hex;
+  std::vector<uint8_t> imperial_hex;
+  std::string defaults_json;
+  std::string imperial_json;
+  TEST_ASSERT_TRUE(loadFixtureHex("config_v1_defaults", defaults_hex));
+  TEST_ASSERT_TRUE(loadFixtureHex("config_v1_imperial", imperial_hex));
+  TEST_ASSERT_TRUE(loadFixtureText("config_v1_defaults", "json", defaults_json));
+  TEST_ASSERT_TRUE(loadFixtureText("config_v1_imperial", "json", imperial_json));
+
+  DeviceConfig defaults;
+  uint8_t encoded[kConfigurationSize];
+  encodeConfiguration(defaults, encoded);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(defaults_hex.data(), encoded, kConfigurationSize);
+
+  DeviceConfig imperial = defaults;
+  imperial.units_imperial = true;
+  encodeConfiguration(imperial, encoded);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(imperial_hex.data(), encoded, kConfigurationSize);
+
+  DeviceConfig decoded;
+  TEST_ASSERT_TRUE(
+      decodeConfiguration(defaults_hex.data(), defaults_hex.size(), decoded));
+  TEST_ASSERT_TRUE(deviceConfigsEqual(defaults, decoded));
+  TEST_ASSERT_TRUE(
+      decodeConfiguration(imperial_hex.data(), imperial_hex.size(), decoded));
+  TEST_ASSERT_TRUE(decoded.units_imperial);
+  TEST_ASSERT_TRUE(jsonHasNumber(defaults_json, "flags", 15));
+  TEST_ASSERT_TRUE(jsonHasNumber(imperial_json, "flags", 31));
+  TEST_ASSERT_TRUE(jsonHasString(defaults_json, "device_name", "BikeComp-XXXX"));
+}
+
+void test_protocol_fixture_commands_and_results() {
+  std::vector<uint8_t> reset_hex;
+  std::vector<uint8_t> odo_hex;
+  std::vector<uint8_t> ok_hex;
+  std::vector<uint8_t> err_hex;
+  std::string reset_json;
+  std::string odo_json;
+  std::string ok_json;
+  std::string err_json;
+  TEST_ASSERT_TRUE(loadFixtureHex("command_reset_trip", reset_hex));
+  TEST_ASSERT_TRUE(loadFixtureHex("command_reset_odo_with_token", odo_hex));
+  TEST_ASSERT_TRUE(loadFixtureHex("result_ok", ok_hex));
+  TEST_ASSERT_TRUE(loadFixtureHex("result_err_range_wheel", err_hex));
+  TEST_ASSERT_TRUE(loadFixtureText("command_reset_trip", "json", reset_json));
+  TEST_ASSERT_TRUE(
+      loadFixtureText("command_reset_odo_with_token", "json", odo_json));
+  TEST_ASSERT_TRUE(loadFixtureText("result_ok", "json", ok_json));
+  TEST_ASSERT_TRUE(loadFixtureText("result_err_range_wheel", "json", err_json));
+
+  CommandPacket reset_cmd = {};
+  reset_cmd.struct_version = kBleStructVersion;
+  reset_cmd.command_id = static_cast<uint8_t>(CommandId::kResetTrip);
+  uint8_t encoded_cmd[kCommandMaxSize];
+  TEST_ASSERT_EQUAL_UINT32(4u, encodeCommand(reset_cmd, encoded_cmd,
+                                             sizeof(encoded_cmd)));
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(reset_hex.data(), encoded_cmd, 4);
+
+  CommandPacket odo_cmd = {};
+  odo_cmd.struct_version = kBleStructVersion;
+  odo_cmd.command_id = static_cast<uint8_t>(CommandId::kResetOdometer);
+  odo_cmd.flags = kCommandFlagHasToken;
+  odo_cmd.payload_len = 4;
+  odo_cmd.payload[0] = 0x78;
+  odo_cmd.payload[1] = 0x56;
+  odo_cmd.payload[2] = 0x34;
+  odo_cmd.payload[3] = 0x12;
+  TEST_ASSERT_EQUAL_UINT32(8u, encodeCommand(odo_cmd, encoded_cmd,
+                                             sizeof(encoded_cmd)));
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(odo_hex.data(), encoded_cmd, 8);
+
+  CommandPacket decoded_cmd = {};
+  TEST_ASSERT_TRUE(decodeCommand(odo_hex.data(), odo_hex.size(), decoded_cmd));
+  TEST_ASSERT_EQUAL_UINT8(0x20u, decoded_cmd.command_id);
+  TEST_ASSERT_EQUAL_UINT8(4u, decoded_cmd.payload_len);
+  TEST_ASSERT_TRUE(jsonHasNumber(reset_json, "command_id", 1));
+  TEST_ASSERT_TRUE(jsonHasNumber(odo_json, "command_id", 32));
+  TEST_ASSERT_TRUE(jsonHasNumber(odo_json, "token", 305419896));
+
+  CommandResultPacket ok_result = {};
+  ok_result.struct_version = kBleStructVersion;
+  ok_result.command_id = static_cast<uint8_t>(CommandId::kResetTrip);
+  ok_result.status = static_cast<uint8_t>(CommandStatus::kOk);
+  uint8_t encoded_result[kCommandResultMaxSize];
+  TEST_ASSERT_EQUAL_UINT32(
+      9u, encodeCommandResult(ok_result, encoded_result, sizeof(encoded_result)));
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(ok_hex.data(), encoded_result, 9);
+
+  CommandResultPacket err_result = {};
+  err_result.struct_version = kBleStructVersion;
+  err_result.command_id = kCommandResultConfigWriteId;
+  err_result.status = static_cast<uint8_t>(CommandStatus::kErrRange);
+  err_result.detail =
+      static_cast<uint8_t>(ConfigFieldId::kWheelCircumferenceMm);
+  TEST_ASSERT_EQUAL_UINT32(
+      9u,
+      encodeCommandResult(err_result, encoded_result, sizeof(encoded_result)));
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(err_hex.data(), encoded_result, 9);
+
+  CommandResultPacket decoded_result = {};
+  TEST_ASSERT_TRUE(
+      decodeCommandResult(err_hex.data(), err_hex.size(), decoded_result));
+  TEST_ASSERT_EQUAL_UINT8(0xF0u, decoded_result.command_id);
+  TEST_ASSERT_EQUAL_UINT8(4u, decoded_result.status);
+  TEST_ASSERT_EQUAL_UINT8(2u, decoded_result.detail);
+  TEST_ASSERT_TRUE(jsonHasNumber(ok_json, "status", 0));
+  TEST_ASSERT_TRUE(jsonHasNumber(err_json, "detail", 2));
+  TEST_ASSERT_TRUE(jsonHasString(err_json, "field", "wheel_circumference_mm"));
+}
+
+void test_protocol_codec_rejects_bad_length_and_version() {
+  uint8_t telemetry[kTelemetrySize] = {};
+  encodeTelemetry(makeMovingTelemetry(), telemetry);
+  TelemetryPacket decoded_telemetry = {};
+  telemetry[0] = 2;
+  TEST_ASSERT_FALSE(
+      decodeTelemetry(telemetry, sizeof(telemetry), decoded_telemetry));
+  telemetry[0] = 1;
+  TEST_ASSERT_FALSE(
+      decodeTelemetry(telemetry, sizeof(telemetry) - 1, decoded_telemetry));
+
+  uint8_t command[4] = {1, 1, 0, 0};
+  CommandPacket decoded_command = {};
+  TEST_ASSERT_FALSE(decodeCommand(command, 3, decoded_command));
+  command[3] = 1;
+  TEST_ASSERT_FALSE(decodeCommand(command, 4, decoded_command));
+
+  ErrorLogPacket log = {};
+  log.struct_version = kBleStructVersion;
+  log.entry_count = 1;
+  log.entries[0].uptime_s = 10;
+  log.entries[0].code = static_cast<uint8_t>(ErrorLogCode::kFlashError);
+  log.entries[0].severity = static_cast<uint8_t>(ErrorLogSeverity::kError);
+  log.entries[0].detail = 7;
+  uint8_t encoded_log[kErrorLogMaxSize];
+  TEST_ASSERT_EQUAL_UINT32(
+      10u, encodeErrorLog(log, encoded_log, sizeof(encoded_log)));
+  ErrorLogPacket decoded_log = {};
+  TEST_ASSERT_TRUE(decodeErrorLog(encoded_log, 10, decoded_log));
+  TEST_ASSERT_EQUAL_UINT8(1u, decoded_log.entry_count);
+  TEST_ASSERT_EQUAL_UINT16(7u, decoded_log.entries[0].detail);
+  TEST_ASSERT_FALSE(decodeErrorLog(encoded_log, 9, decoded_log));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_crc32_standard_vector);
@@ -1081,5 +1432,11 @@ int main(int, char**) {
   RUN_TEST(test_diagnostic_snapshot_maps_storage_and_pulse_counters);
   RUN_TEST(test_diagnostic_payload_little_endian_layout);
   RUN_TEST(test_diagnostic_saturates_narrow_fields);
+  RUN_TEST(test_ble_protocol_sizes_match_contract);
+  RUN_TEST(test_protocol_fixture_device_info_v1_nominal);
+  RUN_TEST(test_protocol_fixture_telemetry_v1_moving_and_paused);
+  RUN_TEST(test_protocol_fixture_config_v1_defaults_and_imperial);
+  RUN_TEST(test_protocol_fixture_commands_and_results);
+  RUN_TEST(test_protocol_codec_rejects_bad_length_and_version);
   return UNITY_END();
 }
