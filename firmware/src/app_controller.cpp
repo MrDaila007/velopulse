@@ -4,6 +4,10 @@
 
 #include "board_pins.h"
 
+#ifndef BIKECOMP_HOTPATH_SERIAL
+#define BIKECOMP_HOTPATH_SERIAL 0
+#endif
+
 namespace bike {
 namespace {
 
@@ -124,22 +128,34 @@ void AppController::begin() {
   odometer_save_.noteRideState(ride_state_.state(), millis());
   odometer_save_.noteDisplayPower(display_.powerState());
 
+  BleBootSeed ble_seed;
+  ble_seed.config_from_flash =
+      config_ok && config_info.source != StorageSource::kDefaults;
+  ble_seed.display_ok = display_ok;
+  ble_seed.fs_ok = fs_ok;
+  ble_seed.usb_connected = battery_.snapshot().usb_present;
+  ble_seed.battery_percent = battery_.snapshot().percent;
+  const bool ble_ok = ble_.begin(config_, ble_seed);
+  Serial.print("BLE GATT: ");
+  Serial.println(ble_ok ? "OK" : "INIT FAILED");
+
   selftest_mask_ = 0;
   if (display_ok) selftest_mask_ |= kSelftestDisplayOk;
   selftest_mask_ |= kSelftestHallPinOk;
   if (battery_.snapshot().valid) selftest_mask_ |= kSelftestAdcOk;
   if (fs_ok) selftest_mask_ |= kSelftestFsOk;
-  if (config_ok && config_info.source != StorageSource::kDefaults) {
-    selftest_mask_ |= kSelftestConfigValid;
-  }
+  if (ble_seed.config_from_flash) selftest_mask_ |= kSelftestConfigValid;
+  if (ble_ok) selftest_mask_ |= kSelftestBleOk;
+  // kSelftestWatchdogOk stays unset until Watchdog is initialized (docs §12.2).
   printDiagnostics();
 }
 
 DiagnosticSnapshot AppController::diagnosticSnapshot() const {
+  const int free_heap = dbgHeapFree();
   return buildDiagnosticSnapshot(makeDiagnosticSources(
       storage_.counters(), pulse_filter_.counters(),
       wheel_sensor_.rawPulseCount(), wheel_sensor_.overflowCount(),
-      /*free_heap_bytes=*/0u,
+      free_heap > 0 ? static_cast<uint32_t>(free_heap) : 0u,
       display_.isOk() ? 0u : 1u, selftest_mask_));
 }
 
@@ -212,8 +228,12 @@ void AppController::maybePersistOdometer(uint32_t now_ms) {
   data.odometer_mm = odometer_mm;
   data.total_revolutions = trip_computer_.totalRevolutions();
   const bool ok = storage_.mounted() && storage_.saveOdometer(data);
-  if (ok) odometer_save_.markSaved(odometer_mm);
-  odometer_save_.acknowledge(trigger);
+  if (ok) {
+    odometer_save_.markSaved(odometer_mm);
+    // Only clear one-shot pending flags after a successful write; otherwise
+    // pause/display-off/critical/usb triggers would be lost on Flash errors.
+    odometer_save_.acknowledge(trigger);
+  }
 
   Serial.print("Odo save: trigger=");
   Serial.print(odometerSaveTriggerName(trigger));
@@ -234,8 +254,10 @@ void AppController::processPulses(uint32_t now_ms) {
   while (wheel_sensor_.pop(event)) {
     const PulseDecision decision = pulse_filter_.process(event.timestamp_us, event.returned_passive);
     if (!decision.accepted) {
+#if BIKECOMP_HOTPATH_SERIAL
       Serial.print("Pulse rejected: ");
       Serial.println(static_cast<unsigned>(decision.rejection));
+#endif
       continue;
     }
 
@@ -253,10 +275,12 @@ void AppController::processPulses(uint32_t now_ms) {
     trip_computer_.onRevolution(config_.wheel_circumference_mm, speed);
     maybePersistOdometer(now_ms);
 
+#if BIKECOMP_HOTPATH_SERIAL
     Serial.print("Revolution ");
     Serial.print(trip_computer_.snapshot().revolutions);
     Serial.print(", speed x100=");
     Serial.println(speed);
+#endif
   }
 }
 
@@ -286,6 +310,7 @@ void AppController::updateBattery(uint32_t now_ms) {
   odometer_save_.noteUsbPresent(snapshot.usb_present);
   odometer_save_.noteBatteryPercent(snapshot.percent, snapshot.valid);
   maybePersistOdometer(now_ms);
+#if BIKECOMP_HOTPATH_SERIAL
   Serial.print("Battery raw=");
   Serial.print(battery_.lastRawAverage());
   Serial.print(", spread=");
@@ -296,6 +321,7 @@ void AppController::updateBattery(uint32_t now_ms) {
   Serial.print(snapshot.percent);
   Serial.print(", usb=");
   Serial.println(snapshot.usb_present ? 1 : 0);
+#endif
 }
 
 }  // namespace bike

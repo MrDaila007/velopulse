@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "battery_model.h"
+#include "ble_identity.h"
 #include "ble_protocol.h"
 #include "config_codec.h"
 #include "config_validator.h"
@@ -1096,6 +1097,44 @@ void test_odometer_save_flash_error_keeps_distance_retry() {
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(500000u, 0));
 }
 
+void test_odometer_save_flash_error_keeps_oneshot_pending() {
+  // Mirrors AppController: acknowledge only after Flash success, otherwise
+  // one-shot triggers (display-off / critical) must remain pending for retry.
+  OdometerSavePolicy policy;
+  policy.configure(500);
+  policy.markSaved(0);
+
+  policy.noteDisplayPower(DisplayPowerState::kBright);
+  policy.noteDisplayPower(DisplayPowerState::kOff);
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDisplayOff, policy.evaluate(0, 0));
+  // Flash failed → no acknowledge.
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDisplayOff, policy.evaluate(0, 0));
+  policy.acknowledge(OdometerSaveTrigger::kDisplayOff);
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 0));
+
+  policy.noteBatteryPercent(5, true);
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kCriticalBattery, policy.evaluate(0, 0));
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kCriticalBattery, policy.evaluate(0, 0));
+  policy.acknowledge(OdometerSaveTrigger::kCriticalBattery);
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 0));
+}
+
+void test_ble_identity_resolves_placeholder_name() {
+  TEST_ASSERT_TRUE(isDeviceNamePlaceholder(nullptr));
+  TEST_ASSERT_TRUE(isDeviceNamePlaceholder(""));
+  TEST_ASSERT_TRUE(isDeviceNamePlaceholder(kDeviceNamePlaceholder));
+  TEST_ASSERT_FALSE(isDeviceNamePlaceholder("BikeComp-V1"));
+
+  char name[16];
+  formatDeviceNameWithSerial(0x0A3F, name, sizeof(name));
+  TEST_ASSERT_EQUAL_STRING("BikeComp-0A3F", name);
+
+  resolveDeviceLocalName(kDeviceNamePlaceholder, 0xBEEF, name, sizeof(name));
+  TEST_ASSERT_EQUAL_STRING("BikeComp-BEEF", name);
+  resolveDeviceLocalName("MyBike-01", 0xBEEF, name, sizeof(name));
+  TEST_ASSERT_EQUAL_STRING("MyBike-01", name);
+}
+
 void test_diagnostic_snapshot_maps_storage_and_pulse_counters() {
   StorageCounters storage{};
   storage.writes = 42u;
@@ -1429,6 +1468,8 @@ int main(int, char**) {
   RUN_TEST(test_odometer_save_critical_battery_once_and_usb_reboot);
   RUN_TEST(test_odometer_save_unchanged_skips_sequence_growth);
   RUN_TEST(test_odometer_save_flash_error_keeps_distance_retry);
+  RUN_TEST(test_odometer_save_flash_error_keeps_oneshot_pending);
+  RUN_TEST(test_ble_identity_resolves_placeholder_name);
   RUN_TEST(test_diagnostic_snapshot_maps_storage_and_pulse_counters);
   RUN_TEST(test_diagnostic_payload_little_endian_layout);
   RUN_TEST(test_diagnostic_saturates_narrow_fields);

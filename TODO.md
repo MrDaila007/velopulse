@@ -19,13 +19,13 @@
 
 Э3.5 hardware DoD частично закрыт на XIAO (`/dev/ttyACM0`): odo A/B embedded,
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
-power-loss вручную → M3. BLE Э4.1–4.3 выполнены (structs/codecs/fixtures);
-дальше Э4.4 GATT. Diagnostics — см. STATUS.
+power-loss вручную → M3. BLE Э4.1–4.4 + QA-hardening (имя из serial, stubs,
+ack-on-success, free_heap); дальше Э4.6 live Device Info / Э4.8 Config Write.
 
 ## Порядок и зависимости
 
 1. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и аппаратные долги Hall/стенда.
-2. BLE structures/fixtures Э4.1–4.3 — выполнены.
+2. BLE structures/fixtures/GATT Э4.1–4.4 — выполнены.
 3. Реализовать BLE firmware — Э4.4–4.14.
 4. После fixtures параллельно начать Flutter codecs и FakeBleTransport.
 5. Завершить MVP Э5 и расширенное приложение Э6.

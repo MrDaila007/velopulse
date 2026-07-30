@@ -1,6 +1,7 @@
 #pragma once
 
 #include "battery_manager.h"
+#include "ble_manager.h"
 #include "config.h"
 #include "diagnostics.h"
 #include "display_manager.h"
@@ -50,6 +51,7 @@ class AppController {
   RideStateMachine ride_state_;
   BatteryManager battery_;
   DisplayManager display_;
+  BleManager ble_;
   ScheduledTask tasks_[4];
   Scheduler scheduler_;
   uint8_t selftest_mask_ = 0;

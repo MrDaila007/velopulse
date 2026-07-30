@@ -44,17 +44,26 @@
   мигрируется, перезаписывается как v2 (force write); будущая version отвергается.
   Счётчики `config_migrations` / `odometer_migrations`.
 - `diagnostics`: snapshot §6.1 (`raw_pulse_count`, debounce/overspeed rejects,
-  `isr_overflow`, `flash_write_count` ← `StorageCounters::writes`, heap/16 stub,
-  i2c/selftest). Little-endian 16-byte payload для будущего `GET_DIAGNOSTIC`.
-  Serial dump при старте; `AppController::diagnosticSnapshot()`.
-- BLE Э4.1–4.3: `ble_protocol.h` (packed structs + `static_assert`), domain
-  `protocol_codec` (Config через существующий `config_codec`/`DeviceConfig`),
-  `protocol/fixtures/*.hex|*.json` и native golden-тесты.
+  `isr_overflow`, `flash_write_count` ← `StorageCounters::writes`,
+  `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
+  для будущего `GET_DIAGNOSTIC`. Serial dump при старте;
+  `AppController::diagnosticSnapshot()`.
+- BLE Э4.1–4.4 + QA-hardening: `BleManager` GATT (7 chars, CCCD/User Desc,
+  SECMODE), seed Device Info (`BIKECOMP-XIAO`, FICR serial, flags) и Config Read;
+  Telemetry/CommandResult/ErrorLog — не-нулевые stubs (`struct_version=1`);
+  Config Write/Command → `ERR_NOT_SUPPORTED` через Command Result; ADV Flags +
+  Service UUID, Scan Response name + Tx Power; имя `BikeComp-XXXX` резолвится в
+  serial-суффикс (`ble_identity`); ack одометра только при успехе Flash;
+  hot-path Serial за `BIKECOMP_HOTPATH_SERIAL` (по умолчанию выкл).
 
 ## Проверки
 
-- `pio test -e native`: 49 тестов проходят.
+- `pio test -e native`: 51 тестов проходят (включая oneshot-ack regression и
+  `ble_identity` name resolve).
 - `pio run -e xiao_ble_sense`: сборка проходит.
+- Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
+  (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
+  стабильно после SoftDevice init.
 - Embedded A/B-тест прошёл на XIAO: mount, A/B-чередование, чтение и fallback после
   повреждения свежего слота; `/test_storage_a/b` удалены после теста.
 - Embedded odometer A/B на `/test_odo_a/b`: чередование и fallback после повреждения
@@ -80,14 +89,18 @@
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
   (чтобы не уничтожить обе копии `/odo_a|b`).
-- BLE стек не подключён (Э4.1–4.3: structs/codecs/fixtures готовы; GATT с Э4.4).
-  Deep sleep и `FORCE_SAVE` имеют API policy, но runtime deep sleep / BLE-команды
-  ещё не подключены.
+- BLE: handlers Config/Command — stub `ERR_NOT_SUPPORTED` до Э4.8–4.11; live
+  Telemetry notify / uptime / boot_count — Э4.6–4.7; стандартные DIS/BAS
+  (`0x180A`/`0x180F`) отложены (SoftDevice attr-table risk на текущем стеке;
+  приложение их не использует). `flash_write_count` RAM-only до персиста counters.
+  `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
+  `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 
 ## Следующий шаг
 
 Остаток DoD Э3.5: 10× power-loss вручную (хотя бы один слот `/odo_a|b` жив),
-затем закрыть M3. Параллельно: BLE Э4.4 (`BleManager` GATT) или персист
-diagnostics counters / free_heap.
+затем закрыть M3. Дальше: Э4.6 Device Info (uptime/boot_count/flags live) или
+Э4.8 Config Write; персист diagnostics counters. Ручной nRF Connect: имя
+`BikeComp-<hex>`, Device Info bytes, pairing для encrypted chars.

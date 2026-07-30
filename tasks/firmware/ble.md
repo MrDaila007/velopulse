@@ -3,9 +3,15 @@
 - [x] 4.1 Создать `ble_protocol.h` и `static_assert` размеров.
 - [x] 4.2 Реализовать codec всех BLE-структур.
 - [x] 4.3 Сгенерировать shared `.hex`/`.json` fixtures и golden-тесты.
-- [ ] 4.4 Реализовать GATT service, characteristics, descriptors и permissions.
+- [x] 4.4 Реализовать GATT service, characteristics, descriptors и permissions
+  (`BleManager`: Bluefruit service + 7 chars, CCCD/User Desc, SECMODE per uuids.md;
+  минимальная реклама + Scan Response name/Tx Power; payload/handlers — Э4.5–4.13;
+  write stubs → ERR_NOT_SUPPORTED; ADV name resolves BikeComp-XXXX → serial).
 - [ ] 4.5 Реализовать fast/slow advertising и Scan Response.
+  (частично: intervals 30/1000 ms + fast timeout 30 s + name/TxPower уже есть;
+  остаётся polish/DoD Э4.5).
 - [ ] 4.6 Реализовать Device Information, FICR serial, uptime/reset reason.
+  (частично: FICR serial + seed flags/model; uptime/boot_count/live flags — ещё нет).
 - [ ] 4.7 Реализовать Telemetry notify, sequence и adaptive rate.
 - [ ] 4.8 Реализовать Config Read/Write, pending queue и validation/apply.
 - [ ] 4.9 Реализовать safe commands `0x01–0x0B`.

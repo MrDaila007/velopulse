@@ -114,7 +114,16 @@ void test_odometer_ab_write_read_and_corrupt_fallback() {
 }
 
 void setup() {
-  delay(1500);
+  // USB CDC re-enumerates after upload; wait long enough that UNITY_BEGIN and
+  // the first RUN_TEST are not lost (previously PlatformIO reported 2/3).
+  delay(2500);
+  Serial.begin(115200);
+  const uint32_t started = millis();
+  while (!Serial && static_cast<uint32_t>(millis() - started) < 2000u) {
+    delay(10);
+  }
+  delay(200);
+
   backend.begin();
   UNITY_BEGIN();
   RUN_TEST(test_display_is_present);
