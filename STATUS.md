@@ -50,12 +50,12 @@ hardware gate с firmware Э4.7–Э4.12.
   `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
   для будущего `GET_DIAGNOSTIC`. Serial dump при старте;
   `AppController::diagnosticSnapshot()`.
-- BLE Э4.1–4.7: `BleManager` GATT + live Device Info на Read (uptime, flags,
+- BLE Э4.1–4.8: `BleManager` GATT + live Device Info на Read (uptime, flags,
   bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
   `boot_count` в `/boot_cnt`; live Telemetry notify (seq + adaptive 1 Гц /
-  0.2 Гц Read refresh; sensor-test 5 Гц hook); Config Read seed;
-  CommandResult/ErrorLog — stubs; Config Write/Command → `ERR_NOT_SUPPORTED`;
-  ADV Flags + Service UUID, Scan Response name + Tx Power; имя `BikeComp-XXXX`
+  0.2 Гц Read refresh; sensor-test 5 Гц hook); Config Write pending queue +
+  validation/apply + Config Read notify; Command/CommandResult для команд —
+  stubs; ADV Flags + Service UUID, Scan Response name + Tx Power; имя `BikeComp-XXXX`
   → serial (`ble_identity`); ack одометра только при успехе Flash; hot-path
   Serial за `BIKECOMP_HOTPATH_SERIAL` (по умолчанию выкл).
 - `mobile-app`: Flutter 3.44.7, application ID `app.bikecomp.mobile`, minSdk 24,
@@ -70,8 +70,9 @@ hardware gate с firmware Э4.7–Э4.12.
 
 ## Проверки
 
-- `pio test -e native`: 57 тестов проходят (включая oneshot-ack, `ble_identity`,
-  reset_reason map, boot_count, Device Info flags/uptime, telemetry rate/seq).
+- `pio test -e native`: 60 тестов проходят (включая oneshot-ack, `ble_identity`,
+  reset_reason map, boot_count, Device Info flags/uptime, telemetry rate/seq,
+  config write parse/queue/field_id).
 - `pio run -e xiao_ble_sense`: сборка проходит.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
@@ -83,9 +84,9 @@ hardware gate с firmware Э4.7–Э4.12.
 - DoD Э3.5 reboot на `/dev/ttyACM0`: seed 424242 mm / 77 rev переживает два reboot
   production (`Odometer: source=A, sequence=3`, те же значения оба раза).
 - Mobile automatic gate: codegen повторно — 0 outputs; `dart format` — 0 changes;
-  `flutter analyze` — no issues; `flutter test` — 34/34; debug/release APK собраны.
+  `flutter analyze` — no issues; `flutter test` — 36/36; debug/release APK собраны.
 - Release APK: application ID `app.bikecomp.mobile`, minSdk 24, target/compileSdk 36,
-  54.0 MB по Flutter (`4d530a7fb4ca3c84673e6375657cf5a24e854f8a6de8044728bd114f871e0247`).
+  54.0 MB по Flutter (`13c772db7fa9981daf3d30e7aa8665a1554acebeb2d51075dd3f8586250615a4`).
 - Android-устройства через ADB нет; результаты выше получены с fake и локальной
   сборкой, не являются аппаратной приёмкой BLE.
 - Production восстановлена после embedded-тестов (`pio run -e xiao_ble_sense -t upload`).
@@ -107,7 +108,7 @@ hardware gate с firmware Э4.7–Э4.12.
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
   (чтобы не уничтожить обе копии `/odo_a|b`).
-- BLE: handlers Config/Command — stub `ERR_NOT_SUPPORTED` до Э4.8–4.11; стандартные
+- BLE: handlers Command — stub `ERR_NOT_SUPPORTED` до Э4.9–4.11; стандартные
   DIS/BAS (`0x180A`/`0x180F`) отложены (SoftDevice attr-table risk на текущем стеке;
   приложение их не использует). `flash_write_count` RAM-only до персиста counters.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
@@ -127,9 +128,9 @@ hardware gate с firmware Э4.7–Э4.12.
 ## Следующий шаг
 
 Остаток DoD Э3.5: 10× power-loss вручную (хотя бы один слот `/odo_a|b` жив),
-затем закрыть M3. Дальше: Э4.8 Config Write (pending queue + validation/apply);
-персист diagnostics counters. Ручной nRF Connect: Telemetry notify 1 Гц + seq,
-Device Info uptime/boot_count/reset_reason, имя `BikeComp-<hex>`, pairing для
+затем закрыть M3. Дальше: Э4.9 safe commands `0x01–0x0B`; персист diagnostics
+counters. Ручной nRF Connect: Config Write write-then-verify, Telemetry notify 1 Гц
++ seq, Device Info uptime/boot_count/reset_reason, имя `BikeComp-<hex>`, pairing для
 encrypted chars.
 После Э4.8–Э4.12 выполнить mobile hardware gate из `tasks/mobile/README.md`; только
 после него закрыть 5.1–5.15 и перевести Э5 из «В работе» в «Завершён».

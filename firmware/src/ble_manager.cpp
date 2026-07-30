@@ -7,6 +7,7 @@
 #include "ble_device_info.h"
 #include "ble_identity.h"
 #include "ble_protocol.h"
+#include "ble_config_write.h"
 #include "ble_telemetry.h"
 #include "protocol_codec.h"
 
@@ -44,6 +45,8 @@ uint16_t g_telemetry_seq = 0;
 uint32_t g_telemetry_last_publish_ms = 0;
 bool g_telemetry_has_published = false;
 bool g_sensor_test_active = false;
+uint16_t g_serial_suffix = 0;
+PendingConfigWrite g_pending_config_write = {};
 
 bool beginChar(BLECharacteristic& chr) {
   return chr.begin() == ERROR_NONE;
@@ -99,11 +102,14 @@ void onDeviceInfoRead(uint16_t conn_hdl, BLECharacteristic*,
   sd_ble_gatts_rw_authorize_reply(conn_hdl, &reply);
 }
 
-void publishCommandResult(uint8_t command_id, CommandStatus status) {
+void publishCommandResult(uint8_t command_id,
+                            CommandStatus status,
+                            uint8_t detail = 0) {
   CommandResultPacket result = {};
   result.struct_version = kBleStructVersion;
   result.command_id = command_id;
   result.status = static_cast<uint8_t>(status);
+  result.detail = detail;
   const size_t encoded =
       encodeCommandResult(result, g_command_result_buf, sizeof(g_command_result_buf));
   if (encoded == 0) return;
@@ -111,8 +117,29 @@ void publishCommandResult(uint8_t command_id, CommandStatus status) {
   g_command_result.notify(g_command_result_buf, static_cast<uint16_t>(encoded));
 }
 
-void onConfigWrite(uint16_t, BLECharacteristic*, uint8_t*, uint16_t) {
-  publishCommandResult(kCommandResultConfigWriteId, CommandStatus::kErrNotSupported);
+void publishConfigRead(const DeviceConfig& config) {
+  encodeConfiguration(config, g_config_read_buf);
+  g_config_read.write(g_config_read_buf, kConfigurationSize);
+  g_config_read.notify(g_config_read_buf, kConfigurationSize);
+}
+
+void refreshAdvertisingName(const DeviceConfig& config) {
+  resolveDeviceLocalName(config.device_name, g_serial_suffix, g_local_name,
+                         sizeof(g_local_name));
+  Bluefruit.setName(g_local_name);
+}
+
+void onConfigWrite(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t len) {
+  ConfigWriteRejectReason reject = ConfigWriteRejectReason::kNone;
+  if (!configWriteQueueStage(g_pending_config_write, data, len, reject)) {
+    if (reject == ConfigWriteRejectReason::kBusy) {
+      publishCommandResult(kCommandResultConfigWriteId, CommandStatus::kErrBusy);
+      return;
+    }
+    publishCommandResult(kCommandResultConfigWriteId, CommandStatus::kErrRange,
+                         static_cast<uint8_t>(ConfigFieldId::kStructVersion));
+    return;
+  }
 }
 
 void onCommandWrite(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t len) {
@@ -258,6 +285,7 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   uint8_t serial[8] = {};
   uint16_t serial_suffix = 0;
   readFicrSerial(serial, serial_suffix);
+  g_serial_suffix = serial_suffix;
   resolveDeviceLocalName(config.device_name, serial_suffix, g_local_name,
                          sizeof(g_local_name));
 
@@ -322,6 +350,30 @@ void BleManager::serviceTelemetry(const TelemetryBuildInput& input,
 
   g_telemetry_last_publish_ms = now_ms;
   g_telemetry_has_published = true;
+}
+
+bool BleManager::hasPendingConfigWrite() const {
+  return g_pending_config_write.state == ConfigWriteQueueState::kPending;
+}
+
+bool BleManager::takePendingConfigWrite(uint8_t out[kConfigurationSize]) {
+  return configWriteQueueDequeue(g_pending_config_write, out);
+}
+
+void BleManager::completePendingConfigWrite() {
+  configWriteQueueFinish(g_pending_config_write);
+}
+
+void BleManager::publishConfigWriteResult(const ConfigWriteResult& result) {
+  publishCommandResult(kCommandResultConfigWriteId, result.status,
+                       result.field_id);
+}
+
+void BleManager::publishAppliedConfig(const DeviceConfig& config,
+                                      bool config_valid) {
+  g_config_valid = config_valid;
+  publishConfigRead(config);
+  refreshAdvertisingName(config);
 }
 
 }  // namespace bike

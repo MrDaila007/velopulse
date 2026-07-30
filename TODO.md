@@ -19,16 +19,16 @@
 
 Э3.5 hardware DoD частично закрыт на XIAO (`/dev/ttyACM0`): odo A/B embedded,
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
-power-loss вручную → M3. BLE Э4.1–4.7 (GATT + Device Info + Telemetry notify
-seq/adaptive rate); дальше Э4.8 Config Write.
+power-loss вручную → M3. BLE Э4.1–4.8 (GATT + Device Info + Telemetry notify
+seq/adaptive rate + Config Write pending queue); дальше Э4.9 safe commands.
 Параллельно Э5 реализован и проходит fake/automatic gate; завершение остаётся
 заблокировано аппаратной приёмкой после Э4.7–Э4.12.
 
 ## Порядок и зависимости
 
 1. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и аппаратные долги Hall/стенда.
-2. BLE structures/fixtures/GATT/Device Info/Telemetry Э4.1–4.7 — выполнены.
-3. Реализовать BLE firmware — Э4.8–4.14.
+2. BLE structures/fixtures/GATT/Device Info/Telemetry/Config Write Э4.1–4.8 — выполнены.
+3. Реализовать BLE firmware — Э4.9–4.14.
 4. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
 5. После Э4.8–Э4.12 провести hardware gate Э5, затем начать Э6.
 6. Выполнить soak, power и field tests Э7, затем собрать v1.0.

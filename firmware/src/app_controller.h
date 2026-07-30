@@ -38,6 +38,8 @@ class AppController {
   void updateDisplay(uint32_t now_ms);
   void updateBattery(uint32_t now_ms);
   void updateBle(uint32_t now_ms);
+  void processPendingConfigWrite();
+  void applyConfig(const DeviceConfig& config);
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
   void maybePersistOdometer(uint32_t now_ms);
   void printDiagnostics() const;

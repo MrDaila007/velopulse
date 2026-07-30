@@ -7,6 +7,11 @@
 
 namespace bike {
 
+struct ConfigWriteResult {
+  CommandStatus status = CommandStatus::kOk;
+  uint8_t field_id = 0;
+};
+
 // Runtime seed for Device Information and initial Telemetry battery %.
 struct BleBootSeed {
   bool config_from_flash = false;
@@ -25,7 +30,8 @@ struct BleBootSeed {
 // É4.4 registers service + 7 characteristics (props, permissions, lengths, CCCD).
 // É4.6 refreshes Device Info on each Read (uptime / live flags / bonded).
 // É4.7 publishes Telemetry at adaptive rate (1 Hz notify / 0.2 Hz Read refresh).
-// Safe write stubs return ERR_NOT_SUPPORTED via Command Result until É4.8–4.11.
+// É4.8 stages Config Write in a pending queue; main loop validates/applies.
+// Command stubs return ERR_NOT_SUPPORTED via Command Result until É4.9–4.11.
 // Advertising name resolves BikeComp-XXXX → serial suffix; Tx Power in Scan Response.
 class BleManager {
  public:
@@ -42,6 +48,13 @@ class BleManager {
   // Sensor-test mode forces 5 Hz notify (Э4.13 command path will toggle this).
   void setSensorTestActive(bool active);
   bool sensorTestActive() const;
+
+  bool hasPendingConfigWrite() const;
+  bool takePendingConfigWrite(uint8_t out[kConfigurationSize]);
+  void completePendingConfigWrite();
+
+  void publishConfigWriteResult(const ConfigWriteResult& result);
+  void publishAppliedConfig(const DeviceConfig& config, bool config_valid);
 
  private:
   bool ok_ = false;

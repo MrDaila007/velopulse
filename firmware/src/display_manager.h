@@ -16,6 +16,7 @@ class DisplayManager {
  public:
   DisplayManager();
   bool begin(const DeviceConfig& config);
+  void applyRuntimeConfig(const DeviceConfig& config, uint32_t now_ms);
   void noteActivity(uint32_t now_ms);
   bool updatePower(uint32_t now_ms);
   void render(const DisplaySnapshot& snapshot, bool force = false);

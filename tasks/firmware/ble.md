@@ -19,7 +19,10 @@
   (`ble_telemetry`: 1 Гц notify / 0.2 Гц Read refresh / 5 Гц sensor-test hook;
   `BleManager::serviceTelemetry` + seq; `AppController` task `ble` 100 мс;
   live trip/battery/display/pulse → `TelemetryPacket`).
-- [ ] 4.8 Реализовать Config Read/Write, pending queue и validation/apply.
+- [x] 4.8 Реализовать Config Read/Write, pending queue и validation/apply.
+  (`ble_config_write`: BLE callback stages 48 B write; `AppController` validates,
+  saves A/B config, applies runtime settings; `Command Result` OK/ERR_RANGE/ERR_BUSY/
+  ERR_STORAGE + Config Read notify; advertising name refresh).
 - [ ] 4.9 Реализовать safe commands `0x01–0x0B`.
 - [ ] 4.10 Реализовать dangerous command nonce, TTL и connection binding.
 - [ ] 4.11 Реализовать Command Result statuses и `field_id`.

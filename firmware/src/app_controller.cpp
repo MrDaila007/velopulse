@@ -3,7 +3,10 @@
 #include <Arduino.h>
 
 #include "ble_device_info.h"
+#include "ble_config_write.h"
 #include "ble_telemetry.h"
+#include "board_pins.h"
+#include "config_codec.h"
 #include "board_pins.h"
 #include "boot_counter.h"
 
@@ -358,7 +361,61 @@ void AppController::updateBattery(uint32_t now_ms) {
 #endif
 }
 
+void AppController::applyConfig(const DeviceConfig& new_config) {
+  const uint8_t previous_edge = config_.active_edge;
+  config_ = new_config;
+
+  pulse_filter_.configure(PulseFilterConfig{
+      config_.wheel_circumference_mm, config_.max_speed_kmh,
+      config_.debounce_ms, 500});
+  ride_state_.setStopTimeoutMs(
+      static_cast<uint32_t>(config_.stop_timeout_s) * 1000u);
+  odometer_save_.configure(config_.odometer_save_interval_m);
+  display_.applyRuntimeConfig(config_, millis());
+  battery_.applyRuntimeConfig(config_, millis());
+  if (config_.active_edge != previous_edge) {
+    wheel_sensor_.begin(kHallPin, interruptMode(config_.active_edge));
+  }
+}
+
+void AppController::processPendingConfigWrite() {
+  if (!ble_.hasPendingConfigWrite()) return;
+
+  uint8_t payload[kConfigurationSize] = {};
+  if (!ble_.takePendingConfigWrite(payload)) return;
+
+  ConfigWriteResult result = {};
+  const ConfigWriteParseResult parsed = parseConfigWritePayload(
+      payload, kConfigurationSize);
+  if (!parsed.ok) {
+    result.status = parsed.status;
+    result.field_id = parsed.field_id;
+    ble_.publishConfigWriteResult(result);
+    ble_.completePendingConfigWrite();
+    return;
+  }
+
+  if (!deviceConfigsEqual(config_, parsed.config)) {
+    applyConfig(parsed.config);
+  }
+
+  const bool saved = storage_.mounted() && storage_.saveConfig(config_);
+  if (!saved) {
+    result.status = CommandStatus::kErrStorage;
+    ble_.publishConfigWriteResult(result);
+    ble_.completePendingConfigWrite();
+    return;
+  }
+
+  ble_.publishAppliedConfig(config_, /*config_valid=*/true);
+  result.status = CommandStatus::kOk;
+  ble_.publishConfigWriteResult(result);
+  ble_.completePendingConfigWrite();
+}
+
 void AppController::updateBle(uint32_t now_ms) {
+  processPendingConfigWrite();
+
   TelemetryBuildInput input;
   input.trip = trip_computer_.snapshot();
   input.battery = battery_.snapshot();

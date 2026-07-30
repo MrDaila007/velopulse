@@ -53,13 +53,17 @@ void encodeDeviceConfig(const DeviceConfig& config,
   }
 }
 
-bool decodeDeviceConfig(const uint8_t* input,
-                        size_t length,
-                        DeviceConfig& config) {
-  if (input == nullptr || length != kDeviceConfigPayloadSize ||
-      input[0] != kDeviceConfigVersion || input[29] != 0 ||
-      input[46] != 0 || input[47] != 0) {
-    return false;
+DeviceConfigWireError tryDecodeDeviceConfigWire(const uint8_t* input,
+                                                size_t length,
+                                                DeviceConfig& config) {
+  if (input == nullptr || length != kDeviceConfigPayloadSize) {
+    return DeviceConfigWireError::kBadLength;
+  }
+  if (input[0] != kDeviceConfigVersion) {
+    return DeviceConfigWireError::kBadVersion;
+  }
+  if (input[29] != 0 || input[46] != 0 || input[47] != 0) {
+    return DeviceConfigWireError::kBadPadding;
   }
 
   DeviceConfig decoded;
@@ -90,7 +94,18 @@ bool decodeDeviceConfig(const uint8_t* input,
   decoded.batt_cal_offset_mv = static_cast<int16_t>(readU16(input + 22));
   memcpy(decoded.page_order, input + 24, kDisplayPageCount);
   memcpy(decoded.device_name, input + 30, sizeof(decoded.device_name));
+  config = decoded;
+  return DeviceConfigWireError::kOk;
+}
 
+bool decodeDeviceConfig(const uint8_t* input,
+                        size_t length,
+                        DeviceConfig& config) {
+  DeviceConfig decoded;
+  if (tryDecodeDeviceConfigWire(input, length, decoded) !=
+      DeviceConfigWireError::kOk) {
+    return false;
+  }
   if (ConfigValidator::validate(decoded) != ConfigValidationError::kNone) {
     return false;
   }

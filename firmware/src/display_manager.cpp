@@ -54,6 +54,13 @@ bool DisplayManager::begin(const DeviceConfig& config) {
   return display_ok_;
 }
 
+void DisplayManager::applyRuntimeConfig(const DeviceConfig& config,
+                                        uint32_t now_ms) {
+  carousel_.configure(config, now_ms);
+  power_.configure(config.display_timeout_s, now_ms);
+  applyPowerHardware();
+}
+
 void DisplayManager::noteActivity(uint32_t now_ms) {
   if (!power_.noteActivity(now_ms) || !display_ok_) return;
   applyPowerHardware();

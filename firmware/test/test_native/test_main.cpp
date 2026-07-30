@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "battery_model.h"
+#include "ble_config_write.h"
 #include "ble_device_info.h"
 #include "ble_identity.h"
 #include "ble_protocol.h"
@@ -1305,6 +1306,59 @@ void test_ride_state_tracks_last_pulse() {
   ride.reset(5000);
   TEST_ASSERT_FALSE(ride.hasPulse());
   TEST_ASSERT_EQUAL(RideState::kIdle, ride.state());
+  ride.setStopTimeoutMs(5000);
+}
+
+void test_config_write_parse_valid_and_range_error() {
+  std::vector<uint8_t> defaults_hex;
+  TEST_ASSERT_TRUE(loadFixtureHex("config_v1_defaults", defaults_hex));
+
+  ConfigWriteParseResult ok =
+      parseConfigWritePayload(defaults_hex.data(), defaults_hex.size());
+  TEST_ASSERT_TRUE(ok.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kOk, ok.status);
+  TEST_ASSERT_EQUAL_UINT16(kDefaultWheelCircumferenceMm,
+                           ok.config.wheel_circumference_mm);
+
+  defaults_hex[2] = 0xF3;
+  defaults_hex[3] = 0x01;  // 499 mm, below minimum
+  ConfigWriteParseResult bad =
+      parseConfigWritePayload(defaults_hex.data(), defaults_hex.size());
+  TEST_ASSERT_FALSE(bad.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, bad.status);
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<uint8_t>(ConfigFieldId::kWheelCircumferenceMm), bad.field_id);
+}
+
+void test_config_write_pending_queue_single_slot() {
+  std::vector<uint8_t> defaults_hex;
+  TEST_ASSERT_TRUE(loadFixtureHex("config_v1_defaults", defaults_hex));
+
+  PendingConfigWrite queue = {};
+  ConfigWriteRejectReason reject = ConfigWriteRejectReason::kNone;
+  TEST_ASSERT_TRUE(configWriteQueueStage(queue, defaults_hex.data(),
+                                         defaults_hex.size(), reject));
+  TEST_ASSERT_EQUAL(ConfigWriteQueueState::kPending, queue.state);
+
+  reject = ConfigWriteRejectReason::kNone;
+  TEST_ASSERT_FALSE(configWriteQueueStage(queue, defaults_hex.data(),
+                                          defaults_hex.size(), reject));
+  TEST_ASSERT_EQUAL(ConfigWriteRejectReason::kBusy, reject);
+
+  uint8_t taken[kConfigurationSize] = {};
+  TEST_ASSERT_TRUE(configWriteQueueDequeue(queue, taken));
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(defaults_hex.data(), taken, defaults_hex.size());
+  configWriteQueueFinish(queue);
+  TEST_ASSERT_EQUAL(ConfigWriteQueueState::kIdle, queue.state);
+}
+
+void test_config_validation_error_maps_to_field_id() {
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<uint8_t>(ConfigFieldId::kWheelCircumferenceMm),
+      configValidationErrorToFieldId(ConfigValidationError::kWheelCircumference));
+  TEST_ASSERT_EQUAL_UINT8(
+      static_cast<uint8_t>(ConfigFieldId::kDeviceName),
+      configValidationErrorToFieldId(ConfigValidationError::kDeviceName));
 }
 
 void test_diagnostic_snapshot_maps_storage_and_pulse_counters() {
@@ -1648,6 +1702,9 @@ int main(int, char**) {
   RUN_TEST(test_telemetry_publish_mode_and_intervals);
   RUN_TEST(test_fill_telemetry_packet_moving_and_idle);
   RUN_TEST(test_ride_state_tracks_last_pulse);
+  RUN_TEST(test_config_write_parse_valid_and_range_error);
+  RUN_TEST(test_config_write_pending_queue_single_slot);
+  RUN_TEST(test_config_validation_error_maps_to_field_id);
   RUN_TEST(test_diagnostic_snapshot_maps_storage_and_pulse_counters);
   RUN_TEST(test_diagnostic_payload_little_endian_layout);
   RUN_TEST(test_diagnostic_saturates_narrow_fields);

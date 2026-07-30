@@ -51,4 +51,8 @@ void RideStateMachine::reset(uint32_t now_ms) {
   had_pulse_ = false;
 }
 
+void RideStateMachine::setStopTimeoutMs(uint32_t stop_timeout_ms) {
+  stop_timeout_ms_ = stop_timeout_ms;
+}
+
 }  // namespace bike
