@@ -21,9 +21,9 @@
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
 power-loss вручную → M3. BLE mobile-critical path Э4.1–4.4 и Э4.6–4.12 программно
 выполнен: команды, nonce/TTL/binding, encryption и 5-минутное pairing window;
-74/74 native, XIAO build
-и 42/42 Flutter tests проходят. Дальше Android/XIAO hardware gate. Э5 проходит
-fake/automatic gate, но
+74/74 native, XIAO build и 42/42 Flutter tests проходят. Production `18380ea`
+загружена на XIAO, актуальный release APK собран; дальше Android hardware gate.
+Э5 проходит fake/automatic gate, но
 остаётся незакрытым до аппаратной приёмки.
 
 ## Порядок и зависимости

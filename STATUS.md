@@ -96,12 +96,13 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
 - DoD Э3.5 reboot на `/dev/ttyACM0`: seed 424242 mm / 77 rev переживает два reboot
   production (`Odometer: source=A, sequence=3`, те же значения оба раза).
 - Mobile automatic gate: `dart format`, `flutter analyze` — no issues;
-  `flutter test` — 42/42; ранее debug/release APK собраны.
+  `flutter test` — 42/42; актуальный release APK собран.
 - Release APK: application ID `app.bikecomp.mobile`, minSdk 24, target/compileSdk 36,
-  54.0 MB по Flutter (`13c772db7fa9981daf3d30e7aa8665a1554acebeb2d51075dd3f8586250615a4`).
-- Android-устройства через ADB нет; результаты выше получены с fake и локальной
-  сборкой, не являются аппаратной приёмкой BLE.
-- Production восстановлена после embedded-тестов (`pio run -e xiao_ble_sense -t upload`).
+  54,000,485 байт (`1d8f99ab7126b27669933aee9e40891ce4b11ffc6a7153ad990d74f865befd73`).
+- Android-устройства через ADB и Bluetooth controller на хосте нет;
+  локальные результаты не являются аппаратной приёмкой BLE.
+- Production E4.12 (`18380ea`) загружена на `/dev/ttyACM0`; DFU success, USB CDC
+  вернулся после reboot. Boot-строки текущего старта монитор не успел захватить.
 - Ранее: два старта подряд прочитали config/odometer из слота A с `sequence=1`,
   без роста sequence и лишней записи.
 - Прошивка загружалась на XIAO; OLED и импульсы кнопки подтверждены пользователем.
@@ -138,8 +139,8 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
 
 ## Следующий шаг
 
-Прошить XIAO и выполнить nRF Connect/mobile hardware gate: новый bond в первые
-5 минут, reconnect после reboot, закрытое окно, Config Write write-then-verify,
-Telemetry 1 Гц + seq и все MVP-команды. Отдельный ручной долг:
+Установить актуальный release APK на Android и выполнить hardware gate: новый bond
+в первые 5 минут, reconnect после reboot, закрытое окно, Config Write
+write-then-verify, Telemetry 1 Гц + seq и все MVP-команды. Отдельный ручной долг:
 10× power-loss для закрытия Э3.5. После hardware gate закрыть 5.1–5.15 и перевести
 Э5 из «В работе» в «Завершён».
