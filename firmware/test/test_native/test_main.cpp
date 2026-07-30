@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "battery_model.h"
+#include "ble_command.h"
 #include "ble_config_write.h"
 #include "ble_device_info.h"
 #include "ble_identity.h"
@@ -1618,6 +1619,133 @@ void test_protocol_fixture_commands_and_results() {
   TEST_ASSERT_TRUE(jsonHasString(err_json, "field", "wheel_circumference_mm"));
 }
 
+void test_ble_command_is_safe_command_id_range() {
+  TEST_ASSERT_TRUE(isSafeCommandId(static_cast<uint8_t>(CommandId::kResetTrip)));
+  TEST_ASSERT_TRUE(isSafeCommandId(static_cast<uint8_t>(CommandId::kGetDiagnostic)));
+  TEST_ASSERT_FALSE(isSafeCommandId(0x00u));
+  TEST_ASSERT_FALSE(isSafeCommandId(0x0Cu));
+  TEST_ASSERT_FALSE(isSafeCommandId(static_cast<uint8_t>(CommandId::kResetOdometer)));
+}
+
+void test_ble_command_reset_trip_fixture() {
+  std::vector<uint8_t> reset_hex;
+  TEST_ASSERT_TRUE(loadFixtureHex("command_reset_trip", reset_hex));
+
+  SafeCommandParseResult result =
+      parseSafeBleCommand(reset_hex.data(), reset_hex.size());
+  TEST_ASSERT_TRUE(result.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kOk, result.status);
+  TEST_ASSERT_EQUAL(CommandId::kResetTrip, result.command_id);
+  TEST_ASSERT_EQUAL_UINT8(0u, result.field_id);
+}
+
+void test_ble_command_safe_no_payload_commands() {
+  const CommandId ids[] = {
+      CommandId::kResetTrip,      CommandId::kResetMaxSpeed,
+      CommandId::kForceSave,      CommandId::kDisplayOn,
+      CommandId::kDisplayOff,     CommandId::kSensorTestStop,
+      CommandId::kBatteryTest,    CommandId::kStartDiagnostic,
+      CommandId::kGetDiagnostic,
+  };
+
+  for (CommandId id : ids) {
+    CommandPacket packet = {};
+    packet.struct_version = kBleStructVersion;
+    packet.command_id = static_cast<uint8_t>(id);
+    uint8_t encoded[kCommandMaxSize];
+    const size_t encoded_len = encodeCommand(packet, encoded, sizeof(encoded));
+    TEST_ASSERT_EQUAL_UINT32(4u, encoded_len);
+
+    SafeCommandParseResult result =
+        parseSafeBleCommand(encoded, encoded_len);
+    TEST_ASSERT_TRUE(result.ok);
+    TEST_ASSERT_EQUAL(CommandStatus::kOk, result.status);
+    TEST_ASSERT_EQUAL(id, result.command_id);
+  }
+}
+
+void test_ble_command_display_test_fixture_and_pattern_range() {
+  std::vector<uint8_t> fixture_hex;
+  TEST_ASSERT_TRUE(loadFixtureHex("command_display_test", fixture_hex));
+
+  SafeCommandParseResult ok =
+      parseSafeBleCommand(fixture_hex.data(), fixture_hex.size());
+  TEST_ASSERT_TRUE(ok.ok);
+  TEST_ASSERT_EQUAL(CommandId::kDisplayTest, ok.command_id);
+  TEST_ASSERT_EQUAL_UINT8(1u, ok.params.display_test_pattern);
+
+  uint8_t bad_pattern[] = {1, 6, 0, 1, 3};
+  SafeCommandParseResult range =
+      parseSafeBleCommand(bad_pattern, sizeof(bad_pattern));
+  TEST_ASSERT_FALSE(range.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, range.status);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kPayload),
+                          range.field_id);
+}
+
+void test_ble_command_sensor_test_start_fixture_and_duration_range() {
+  std::vector<uint8_t> fixture_hex;
+  TEST_ASSERT_TRUE(loadFixtureHex("command_sensor_test_start", fixture_hex));
+
+  SafeCommandParseResult ok =
+      parseSafeBleCommand(fixture_hex.data(), fixture_hex.size());
+  TEST_ASSERT_TRUE(ok.ok);
+  TEST_ASSERT_EQUAL(CommandId::kSensorTestStart, ok.command_id);
+  TEST_ASSERT_EQUAL_UINT16(60u, ok.params.sensor_test_duration_s);
+
+  uint8_t too_short[] = {1, 7, 0, 2, 0, 0};
+  SafeCommandParseResult range =
+      parseSafeBleCommand(too_short, sizeof(too_short));
+  TEST_ASSERT_FALSE(range.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, range.status);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kPayload),
+                          range.field_id);
+
+  uint8_t too_long[] = {1, 7, 0, 2, 121, 0};
+  SafeCommandParseResult range_high =
+      parseSafeBleCommand(too_long, sizeof(too_long));
+  TEST_ASSERT_FALSE(range_high.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, range_high.status);
+}
+
+void test_ble_command_rejects_has_token_and_unknown_id() {
+  uint8_t with_token[] = {1, 1, 1, 0};
+  SafeCommandParseResult token =
+      parseSafeBleCommand(with_token, sizeof(with_token));
+  TEST_ASSERT_FALSE(token.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, token.status);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kFlags),
+                          token.field_id);
+
+  uint8_t dangerous[] = {1, 0x20, 0, 0};
+  SafeCommandParseResult unknown =
+      parseSafeBleCommand(dangerous, sizeof(dangerous));
+  TEST_ASSERT_FALSE(unknown.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrUnknownCommand, unknown.status);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kCommandId),
+                          unknown.field_id);
+}
+
+void test_ble_command_rejects_bad_wire() {
+  uint8_t bad_version[] = {2, 1, 0, 0};
+  SafeCommandParseResult version =
+      parseSafeBleCommand(bad_version, sizeof(bad_version));
+  TEST_ASSERT_FALSE(version.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrStructVersion, version.status);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kStructVersion),
+                          version.field_id);
+
+  uint8_t bad_length[] = {1, 1, 0, 1};
+  SafeCommandParseResult length =
+      parseSafeBleCommand(bad_length, sizeof(bad_length));
+  TEST_ASSERT_FALSE(length.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrLength, length.status);
+
+  SafeCommandParseResult null_ptr = parseSafeBleCommand(nullptr, 4);
+  TEST_ASSERT_FALSE(null_ptr.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrLength, null_ptr.status);
+}
+
 void test_protocol_codec_rejects_bad_length_and_version() {
   uint8_t telemetry[kTelemetrySize] = {};
   encodeTelemetry(makeMovingTelemetry(), telemetry);
@@ -1705,6 +1833,13 @@ int main(int, char**) {
   RUN_TEST(test_config_write_parse_valid_and_range_error);
   RUN_TEST(test_config_write_pending_queue_single_slot);
   RUN_TEST(test_config_validation_error_maps_to_field_id);
+  RUN_TEST(test_ble_command_is_safe_command_id_range);
+  RUN_TEST(test_ble_command_reset_trip_fixture);
+  RUN_TEST(test_ble_command_safe_no_payload_commands);
+  RUN_TEST(test_ble_command_display_test_fixture_and_pattern_range);
+  RUN_TEST(test_ble_command_sensor_test_start_fixture_and_duration_range);
+  RUN_TEST(test_ble_command_rejects_has_token_and_unknown_id);
+  RUN_TEST(test_ble_command_rejects_bad_wire);
   RUN_TEST(test_diagnostic_snapshot_maps_storage_and_pulse_counters);
   RUN_TEST(test_diagnostic_payload_little_endian_layout);
   RUN_TEST(test_diagnostic_saturates_narrow_fields);
