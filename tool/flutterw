@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+flutter_bin="${repo_root}/.tooling/flutter/bin/flutter"
+jdk_home="${repo_root}/.tooling/jdk-17"
+android_sdk="${BIKECOMP_ANDROID_SDK_ROOT:-${repo_root}/.tooling/android-sdk}"
+
+if [[ ! -x "${flutter_bin}" || ! -x "${jdk_home}/bin/java" ]]; then
+  echo "Mobile toolchain is missing. Run tool/bootstrap-mobile.sh first." >&2
+  exit 1
+fi
+
+if [[ ! -d "${android_sdk}/platforms/android-36" ]]; then
+  echo "Local Android SDK 36 is missing. Run tool/bootstrap-mobile.sh." >&2
+  exit 1
+fi
+export ANDROID_SDK_ROOT="${android_sdk}"
+
+export ANDROID_HOME="${ANDROID_SDK_ROOT}"
+export JAVA_HOME="${jdk_home}"
+export PATH="${jdk_home}/bin:${repo_root}/.tooling/flutter/bin:${PATH}"
+
+exec "${flutter_bin}" "$@"

@@ -6,6 +6,8 @@
 
 Э3 — хранение данных. Реализованы A/B-хранилище, экономное автосохранение
 одометра, migration hook flash-записей v1 → v2 и экспорт counters в diagnostics.
+Параллельно Э5 — в работе: Android MVP реализован и fake-tested, но не закрыт до
+hardware gate с firmware Э4.7–Э4.12.
 
 ## Готово
 
@@ -48,18 +50,28 @@
   `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
   для будущего `GET_DIAGNOSTIC`. Serial dump при старте;
   `AppController::diagnosticSnapshot()`.
-- BLE Э4.1–4.6: `BleManager` GATT + live Device Info на Read (uptime, flags,
+- BLE Э4.1–4.7: `BleManager` GATT + live Device Info на Read (uptime, flags,
   bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
-  `boot_count` в `/boot_cnt`; Config Read seed; Telemetry/CommandResult/ErrorLog —
-  stubs; Config Write/Command → `ERR_NOT_SUPPORTED`; ADV Flags + Service UUID,
-  Scan Response name + Tx Power; имя `BikeComp-XXXX` → serial (`ble_identity`);
-  ack одометра только при успехе Flash; hot-path Serial за
-  `BIKECOMP_HOTPATH_SERIAL` (по умолчанию выкл).
+  `boot_count` в `/boot_cnt`; live Telemetry notify (seq + adaptive 1 Гц /
+  0.2 Гц Read refresh; sensor-test 5 Гц hook); Config Read seed;
+  CommandResult/ErrorLog — stubs; Config Write/Command → `ERR_NOT_SUPPORTED`;
+  ADV Flags + Service UUID, Scan Response name + Tx Power; имя `BikeComp-XXXX`
+  → serial (`ble_identity`); ack одометра только при успехе Flash; hot-path
+  Serial за `BIKECOMP_HOTPATH_SERIAL` (по умолчанию выкл).
+- `mobile-app`: Flutter 3.44.7, application ID `app.bikecomp.mobile`, minSdk 24,
+  compileSdk/targetSdk 36; четыре Material 3 раздела и connecting overlay-route.
+  Реализованы protocol v1 Freezed-модели/codecs, полный ConfigValidator,
+  `FakeBleTransport`, production `flutter_reactive_ble` transport, Android
+  permissions/adapter/location/bond layer, FSM/reconnect, domain repository,
+  write-then-verify и versioned per-device dirty drafts. Dashboard, MVP settings,
+  defaults и maintenance не включают diagnostics/export/dangerous commands Э6.
+  Воспроизводимый Flutter/JDK/Android SDK/NDK/CMake toolchain лежит в игнорируемой
+  `.tooling/` и разворачивается `tool/bootstrap-mobile.sh`.
 
 ## Проверки
 
-- `pio test -e native`: 54 тестов проходят (включая oneshot-ack, `ble_identity`,
-  reset_reason map, boot_count, Device Info flags/uptime).
+- `pio test -e native`: 57 тестов проходят (включая oneshot-ack, `ble_identity`,
+  reset_reason map, boot_count, Device Info flags/uptime, telemetry rate/seq).
 - `pio run -e xiao_ble_sense`: сборка проходит.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
@@ -70,6 +82,12 @@
   свежего слота; тестовые файлы удалены после теста (`pio test -e xiao_ble_sense`).
 - DoD Э3.5 reboot на `/dev/ttyACM0`: seed 424242 mm / 77 rev переживает два reboot
   production (`Odometer: source=A, sequence=3`, те же значения оба раза).
+- Mobile automatic gate: codegen повторно — 0 outputs; `dart format` — 0 changes;
+  `flutter analyze` — no issues; `flutter test` — 34/34; debug/release APK собраны.
+- Release APK: application ID `app.bikecomp.mobile`, minSdk 24, target/compileSdk 36,
+  54.0 MB по Flutter (`4d530a7fb4ca3c84673e6375657cf5a24e854f8a6de8044728bd114f871e0247`).
+- Android-устройства через ADB нет; результаты выше получены с fake и локальной
+  сборкой, не являются аппаратной приёмкой BLE.
 - Production восстановлена после embedded-тестов (`pio run -e xiao_ble_sense -t upload`).
 - Ранее: два старта подряд прочитали config/odometer из слота A с `sequence=1`,
   без роста sequence и лишней записи.
@@ -89,20 +107,29 @@
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
   (чтобы не уничтожить обе копии `/odo_a|b`).
-- BLE: handlers Config/Command — stub `ERR_NOT_SUPPORTED` до Э4.8–4.11; live
-  Telemetry notify — Э4.7; стандартные DIS/BAS (`0x180A`/`0x180F`) отложены
-  (SoftDevice attr-table risk на текущем стеке; приложение их не использует).
-  `flash_write_count` RAM-only до персиста counters. `sd_softdevice_disable` при
-  fail init не вызываем (ломает USB CDC); teardown = `Advertising.stop()`.
-  `kSelftestWatchdogOk` не ставится — Watchdog ещё не init. Pairing enforcement
-  (отклонение новых bonds после окна) — Э4.12; прототип
-  `BIKECOMP_OPEN_PAIRING=1` держит флаг окна открытым.
+- BLE: handlers Config/Command — stub `ERR_NOT_SUPPORTED` до Э4.8–4.11; стандартные
+  DIS/BAS (`0x180A`/`0x180F`) отложены (SoftDevice attr-table risk на текущем стеке;
+  приложение их не использует). `flash_write_count` RAM-only до персиста counters.
+  `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
+  `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.
+  Pairing enforcement (отклонение новых bonds после окна) — Э4.12; прототип
+  `BIKECOMP_OPEN_PAIRING=1` держит флаг окна открытым. Sensor-test 5 Гц —
+  hook `setSensorTestActive` есть, команда — Э4.13.
+- Mobile hardware gate не выполнялся: нужны поиск ≤5 с, 10/10 connect, bonding
+  после reboot, write-then-verify пяти настроек, все MVP-команды, reconnect и
+  permission flows на Android ≤11 и ≥12 после готовности Э4.7–Э4.12.
+- `flutter_reactive_ble` 5.5.0 пока применяет legacy Kotlin Gradle Plugin;
+  Flutter 3.44.7 собирает APK с предупреждением. CompileSdk библиотеки принудительно
+  36; до будущего обновления Flutter нужно отслеживать Built-in Kotlin миграцию.
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 
 ## Следующий шаг
 
 Остаток DoD Э3.5: 10× power-loss вручную (хотя бы один слот `/odo_a|b` жив),
-затем закрыть M3. Дальше: Э4.7 Telemetry notify (seq + adaptive rate) или
-Э4.8 Config Write; персист diagnostics counters. Ручной nRF Connect: Device Info
-uptime/boot_count/reset_reason, имя `BikeComp-<hex>`, pairing для encrypted chars.
+затем закрыть M3. Дальше: Э4.8 Config Write (pending queue + validation/apply);
+персист diagnostics counters. Ручной nRF Connect: Telemetry notify 1 Гц + seq,
+Device Info uptime/boot_count/reset_reason, имя `BikeComp-<hex>`, pairing для
+encrypted chars.
+После Э4.8–Э4.12 выполнить mobile hardware gate из `tasks/mobile/README.md`; только
+после него закрыть 5.1–5.15 и перевести Э5 из «В работе» в «Завершён».

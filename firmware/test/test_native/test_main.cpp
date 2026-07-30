@@ -14,6 +14,7 @@
 #include "ble_device_info.h"
 #include "ble_identity.h"
 #include "ble_protocol.h"
+#include "ble_telemetry.h"
 #include "boot_counter.h"
 #include "config_codec.h"
 #include "config_validator.h"
@@ -1203,6 +1204,109 @@ void test_boot_count_increments_and_persists() {
   TEST_ASSERT_EQUAL_UINT16(0xFFFFu, loadAndIncrementBootCount(backend));
 }
 
+void test_telemetry_publish_mode_and_intervals() {
+  TEST_ASSERT_EQUAL_UINT32(kTelemetryIntervalUnsubscribedMs,
+                           telemetryPublishIntervalMs(TelemetryPublishMode::kUnsubscribed));
+  TEST_ASSERT_EQUAL_UINT32(kTelemetryIntervalSubscribedMs,
+                           telemetryPublishIntervalMs(TelemetryPublishMode::kSubscribed));
+  TEST_ASSERT_EQUAL_UINT32(kTelemetryIntervalSensorTestMs,
+                           telemetryPublishIntervalMs(TelemetryPublishMode::kSensorTest));
+
+  TEST_ASSERT_EQUAL(TelemetryPublishMode::kUnsubscribed,
+                    selectTelemetryPublishMode(false, false));
+  TEST_ASSERT_EQUAL(TelemetryPublishMode::kSubscribed,
+                    selectTelemetryPublishMode(true, false));
+  TEST_ASSERT_EQUAL(TelemetryPublishMode::kSensorTest,
+                    selectTelemetryPublishMode(true, true));
+  TEST_ASSERT_EQUAL(TelemetryPublishMode::kSensorTest,
+                    selectTelemetryPublishMode(false, true));
+
+  TEST_ASSERT_TRUE(telemetryDue(0, 0, TelemetryPublishMode::kSubscribed, false));
+  TEST_ASSERT_FALSE(
+      telemetryDue(1000, 1999, TelemetryPublishMode::kSubscribed, true));
+  TEST_ASSERT_TRUE(
+      telemetryDue(1000, 2000, TelemetryPublishMode::kSubscribed, true));
+  TEST_ASSERT_FALSE(
+      telemetryDue(0, 4999, TelemetryPublishMode::kUnsubscribed, true));
+  TEST_ASSERT_TRUE(
+      telemetryDue(0, 5000, TelemetryPublishMode::kUnsubscribed, true));
+  TEST_ASSERT_TRUE(
+      telemetryDue(0, 200, TelemetryPublishMode::kSensorTest, true));
+  TEST_ASSERT_EQUAL_UINT16(1u, nextTelemetrySeq(0));
+  TEST_ASSERT_EQUAL_UINT16(0u, nextTelemetrySeq(0xFFFF));
+}
+
+void test_fill_telemetry_packet_moving_and_idle() {
+  TelemetryBuildInput input;
+  input.trip.speed_x100 = 2550;
+  input.trip.average_speed_x100 = 2200;
+  input.trip.max_speed_x100 = 3500;
+  input.trip.trip_distance_mm = 1250000;
+  input.trip.moving_time_ms = 1800000;
+  input.trip.odometer_mm = 123456000ull;
+  input.trip.revolutions = 500;
+  input.trip.ride_state = RideState::kMoving;
+  input.battery.millivolts = 3900;
+  input.battery.percent = 75;
+  input.battery.usb_present = true;
+  input.battery.charge_status = ChargeStatus::kNotCharging;
+  input.display_on = true;
+  input.smoothing_enabled = true;
+  input.had_pulse = true;
+  input.last_pulse_ms = 1000;
+  input.now_ms = 1250;
+
+  TelemetryPacket packet = {};
+  fillTelemetryPacket(packet, input);
+  packet.seq = 42;
+  TEST_ASSERT_EQUAL_UINT8(kBleStructVersion, packet.struct_version);
+  TEST_ASSERT_EQUAL_UINT8(
+      kTelemetryFlagMoving | kTelemetryFlagDisplayOn | kTelemetryFlagUsbConnected |
+          kTelemetryFlagSmoothingEnabled,
+      packet.flags);
+  TEST_ASSERT_EQUAL_UINT16(2550u, packet.speed_x100);
+  TEST_ASSERT_EQUAL_UINT32(125000u, packet.trip_distance_cm);
+  TEST_ASSERT_EQUAL_UINT32(1800u, packet.moving_time_s);
+  TEST_ASSERT_EQUAL_UINT32(123456u, packet.odometer_m);
+  TEST_ASSERT_EQUAL_UINT16(3900u, packet.battery_mv);
+  TEST_ASSERT_EQUAL_UINT8(75u, packet.battery_pct);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(RideState::kMoving),
+                          packet.ride_state);
+  TEST_ASSERT_EQUAL_UINT32(500u, packet.revolutions);
+  TEST_ASSERT_EQUAL_UINT32(250u, packet.last_pulse_age_ms);
+  TEST_ASSERT_EQUAL_UINT16(42u, packet.seq);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SensorState::kOk),
+                          packet.sensor_state);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PowerState::kActive),
+                          packet.power_state);
+
+  input.trip.ride_state = RideState::kIdle;
+  input.had_pulse = false;
+  input.display_on = false;
+  input.battery.usb_present = false;
+  input.battery.charge_status = ChargeStatus::kUnknown;
+  fillTelemetryPacket(packet, input);
+  TEST_ASSERT_TRUE((packet.flags & kTelemetryFlagMoving) == 0);
+  TEST_ASSERT_TRUE((packet.flags & kTelemetryFlagDisplayOn) == 0);
+  TEST_ASSERT_TRUE((packet.flags & kTelemetryFlagChargeStatusUnknown) != 0);
+  TEST_ASSERT_EQUAL_UINT32(kTelemetryNoPulseAgeMs, packet.last_pulse_age_ms);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SensorState::kNoSignal),
+                          packet.sensor_state);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PowerState::kIdleDisplayOff),
+                          packet.power_state);
+}
+
+void test_ride_state_tracks_last_pulse() {
+  RideStateMachine ride(3000);
+  TEST_ASSERT_FALSE(ride.hasPulse());
+  ride.onPulse(1000);
+  TEST_ASSERT_TRUE(ride.hasPulse());
+  TEST_ASSERT_EQUAL_UINT32(1000u, ride.lastPulseMs());
+  ride.reset(5000);
+  TEST_ASSERT_FALSE(ride.hasPulse());
+  TEST_ASSERT_EQUAL(RideState::kIdle, ride.state());
+}
+
 void test_diagnostic_snapshot_maps_storage_and_pulse_counters() {
   StorageCounters storage{};
   storage.writes = 42u;
@@ -1541,6 +1645,9 @@ int main(int, char**) {
   RUN_TEST(test_map_nrf_reset_reason_priority);
   RUN_TEST(test_pairing_window_and_device_info_flags);
   RUN_TEST(test_boot_count_increments_and_persists);
+  RUN_TEST(test_telemetry_publish_mode_and_intervals);
+  RUN_TEST(test_fill_telemetry_packet_moving_and_idle);
+  RUN_TEST(test_ride_state_tracks_last_pulse);
   RUN_TEST(test_diagnostic_snapshot_maps_storage_and_pulse_counters);
   RUN_TEST(test_diagnostic_payload_little_endian_layout);
   RUN_TEST(test_diagnostic_saturates_narrow_fields);

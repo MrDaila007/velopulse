@@ -1,0 +1,284 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../application/app_states.dart';
+import '../../application/providers.dart';
+import '../../core/result.dart';
+import '../../domain/entities/models.dart';
+
+class MaintenanceScreen extends ConsumerStatefulWidget {
+  const MaintenanceScreen({super.key});
+
+  @override
+  ConsumerState<MaintenanceScreen> createState() => _MaintenanceScreenState();
+}
+
+class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
+  Timer? _timer;
+  int _secondsLeft = 60;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _toggleSensorTest(bool active) async {
+    if (active) {
+      _timer?.cancel();
+      final result = await _send(DeviceCommandId.sensorTestStop);
+      if (result.isSuccess && mounted) setState(() => _secondsLeft = 60);
+      return;
+    }
+
+    final result = await _send(DeviceCommandId.sensorTestStart);
+    if (!result.isSuccess || !mounted) return;
+    setState(() => _secondsLeft = 60);
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      if (_secondsLeft <= 1) {
+        timer.cancel();
+        _send(DeviceCommandId.sensorTestStop);
+        setState(() => _secondsLeft = 60);
+      } else {
+        setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  Future<Result<CommandResult>> _send(DeviceCommandId id) => ref
+      .read(connectionControllerProvider.notifier)
+      .sendCommand(DeviceCommand(id: id));
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(connectionControllerProvider);
+    final telemetry = session.telemetry;
+    final ready = session.connection is ConnectionReady;
+    final enabled = ready && !session.commandInFlight;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      children: <Widget>[
+        Text('Обслуживание', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 8),
+        const Text(
+          'Команда считается выполненной только после подтверждения устройства.',
+        ),
+        const SizedBox(height: 16),
+        if (!ready)
+          Card(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Для команд требуется готовое соединение с совместимым протоколом.',
+              ),
+            ),
+          ),
+        if (!ready) const SizedBox(height: 12),
+        _ActionTile(
+          icon: Icons.restart_alt,
+          title: 'Сбросить поездку',
+          subtitle: 'Обнулить trip, среднюю скорость и время поездки',
+          enabled: enabled,
+          onPressed: () => _confirm(
+            title: 'Сбросить текущую поездку?',
+            command: DeviceCommandId.resetTrip,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _ActionTile(
+          icon: telemetry?.displayOn == true
+              ? Icons.visibility_off
+              : Icons.visibility,
+          title: telemetry?.displayOn == true
+              ? 'Выключить OLED'
+              : 'Включить OLED',
+          subtitle: 'Временно изменить состояние экрана',
+          enabled: enabled,
+          onPressed: () => _send(
+            telemetry?.displayOn == true
+                ? DeviceCommandId.displayOff
+                : DeviceCommandId.displayOn,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _ActionTile(
+          icon: Icons.grid_view_outlined,
+          title: 'Тест дисплея',
+          subtitle: 'Проверить сегменты и яркость OLED',
+          enabled: enabled,
+          onPressed: () => _send(DeviceCommandId.displayTest),
+        ),
+        const SizedBox(height: 8),
+        _ActionTile(
+          icon: Icons.save_outlined,
+          title: 'Сохранить во Flash',
+          subtitle: 'Принудительно сохранить текущее состояние',
+          enabled: enabled,
+          onPressed: () => _send(DeviceCommandId.forceSave),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    const Icon(Icons.sensors),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Тест датчика',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    if (session.sensorTestActive)
+                      Text(
+                        '$_secondsLeft с',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  session.sensorTestActive
+                      ? 'Вращайте колесо. Показатели обновляются с частотой 5 Гц.'
+                      : 'Базовый тест длится 60 секунд и не изменяет настройки.',
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: <Widget>[
+                    _SensorValue(
+                      label: 'Состояние',
+                      value: telemetry == null
+                          ? '—'
+                          : _sensorLabel(telemetry.sensorState),
+                    ),
+                    _SensorValue(
+                      label: 'Обороты',
+                      value: telemetry?.revolutions.toString() ?? '—',
+                    ),
+                    _SensorValue(
+                      label: 'Возраст импульса',
+                      value: telemetry == null
+                          ? '—'
+                          : '${telemetry.lastPulseAgeMs} мс',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: enabled || session.sensorTestActive
+                      ? () => _toggleSensorTest(session.sensorTestActive)
+                      : null,
+                  icon: Icon(
+                    session.sensorTestActive ? Icons.stop : Icons.play_arrow,
+                  ),
+                  label: Text(
+                    session.sensorTestActive
+                        ? 'Остановить тест'
+                        : 'Начать тест',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirm({
+    required String title,
+    required DeviceCommandId command,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: const Text('Дождитесь подтверждения устройства.'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Подтвердить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _send(command);
+  }
+
+  String _sensorLabel(SensorState state) => switch (state) {
+    SensorState.ok => 'норма',
+    SensorState.idle => 'ожидание',
+    SensorState.stuck => 'залипание',
+    SensorState.noSignal => 'нет сигнала',
+    SensorState.unknown => 'неизвестно',
+  };
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      enabled: enabled,
+      onTap: enabled ? onPressed : null,
+    ),
+  );
+}
+
+class _SensorValue extends StatelessWidget {
+  const _SensorValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minWidth: 130),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        Text(value, style: Theme.of(context).textTheme.titleMedium),
+      ],
+    ),
+  );
+}

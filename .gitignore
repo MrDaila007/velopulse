@@ -1,4 +1,5 @@
 .pio/
+.tooling/
 firmware/.pio/
 firmware/.vscode/
 simulator/.venv/

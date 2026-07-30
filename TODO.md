@@ -11,7 +11,7 @@
 | Э2 | Базовая прошивка | Частично | [Firmware](tasks/firmware/README.md#э2-базовая-прошивка) |
 | Э3 | Данные переживают reboot | В работе | [Storage](tasks/firmware/storage.md) |
 | Э4 | BLE-контракт | Частично | [BLE](tasks/firmware/ble.md) |
-| Э5 | MVP Android-приложения | Не начат | [Mobile](tasks/mobile/README.md#э5-mvp-приложение) |
+| Э5 | MVP Android-приложения | В работе | [Mobile](tasks/mobile/README.md#э5-mvp-приложение) |
 | Э6 | Полное приложение | Не начат | [Mobile](tasks/mobile/README.md#э6-расширенное-приложение) |
 | Э7 | Испытания и v1.0 | Не начат | [Verification](tasks/verification/README.md) |
 
@@ -19,16 +19,18 @@
 
 Э3.5 hardware DoD частично закрыт на XIAO (`/dev/ttyACM0`): odo A/B embedded,
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
-power-loss вручную → M3. BLE Э4.1–4.6 (GATT + live Device Info: uptime,
-boot_count, reset_reason, flags); дальше Э4.7 Telemetry notify / Э4.8 Config Write.
+power-loss вручную → M3. BLE Э4.1–4.7 (GATT + Device Info + Telemetry notify
+seq/adaptive rate); дальше Э4.8 Config Write.
+Параллельно Э5 реализован и проходит fake/automatic gate; завершение остаётся
+заблокировано аппаратной приёмкой после Э4.7–Э4.12.
 
 ## Порядок и зависимости
 
 1. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и аппаратные долги Hall/стенда.
-2. BLE structures/fixtures/GATT/Device Info Э4.1–4.6 — выполнены.
-3. Реализовать BLE firmware — Э4.7–4.14.
-4. После fixtures параллельно начать Flutter codecs и FakeBleTransport.
-5. Завершить MVP Э5 и расширенное приложение Э6.
+2. BLE structures/fixtures/GATT/Device Info/Telemetry Э4.1–4.7 — выполнены.
+3. Реализовать BLE firmware — Э4.8–4.14.
+4. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
+5. После Э4.8–Э4.12 провести hardware gate Э5, затем начать Э6.
 6. Выполнить soak, power и field tests Э7, затем собрать v1.0.
 
 ## Папки задач

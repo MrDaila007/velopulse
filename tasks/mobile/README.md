@@ -2,6 +2,10 @@
 
 ## Э5. MVP-приложение
 
+> На 2026-07-30 код и fake-tested automatic gate готовы. Пункты 5.1–5.15
+> намеренно остаются незакрытыми до приёмки с firmware Э4.7–Э4.12 и двумя
+> поколениями Android; fake-проверка не считается аппаратным завершением этапа.
+
 - [ ] 5.1 Создать freezed domain models и enums.
 - [ ] 5.2 Реализовать codecs и golden-тесты shared fixtures.
 - [ ] 5.3 Реализовать ConfigValidator и boundary tests.
@@ -31,11 +35,26 @@
 - [ ] 6.9 Трёхступенчатый dangerous reset odometer.
 - [ ] 6.10 Skeleton/empty/error states, dark theme и accessibility.
 
-## DoD приложения
+## DoD Э5 — автоматический gate
+
+- [x] Code generation повторяется без diff.
+- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 34 теста проходят.
+- [x] Debug и release APK собираются с application ID `app.bikecomp.mobile`,
+  minSdk 24 и targetSdk 36.
+- [x] Config draft персистится асинхронно и namespaced по device ID.
+- [x] Некорректные поля блокируют BLE write; команды не показывают успех без
+  `CommandResult`.
+
+## DoD Э5 — аппаратный gate
+
+- [ ] Поиск ≤ 5 с и 10/10 подключений к firmware Э4.7–Э4.12.
+- [ ] Bonding переживает reboot; reconnect работает после потери связи.
+- [ ] Пять обязательных настроек проходят write-then-verify на устройстве.
+- [ ] Все MVP-команды подтверждены реальным `CommandResult`.
+- [ ] Permission/adapter/location flows проверены на Android ≤11 и ≥12.
+
+## DoD Э6
 
 - [ ] Все 10 экранов из ТЗ реализованы.
-- [ ] Config draft не теряется при disconnect/process background.
-- [ ] Каждая команда показывает подтверждённый результат.
-- [ ] Некорректные поля блокируют BLE write.
 - [ ] Profile export/import и diagnostic export работают.
-- [ ] Flutter analyze/test проходят без предупреждений/ошибок.
+- [ ] Dangerous commands имеют полный многошаговый confirm flow.

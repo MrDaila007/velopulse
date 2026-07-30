@@ -7,6 +7,7 @@
 #include "ble_device_info.h"
 #include "ble_identity.h"
 #include "ble_protocol.h"
+#include "ble_telemetry.h"
 #include "protocol_codec.h"
 
 namespace bike {
@@ -38,6 +39,11 @@ bool g_display_ok = false;
 bool g_fs_ok = false;
 bool g_usb_connected = false;
 bool g_deep_sleep_supported = false;
+
+uint16_t g_telemetry_seq = 0;
+uint32_t g_telemetry_last_publish_ms = 0;
+bool g_telemetry_has_published = false;
+bool g_sensor_test_active = false;
 
 bool beginChar(BLECharacteristic& chr) {
   return chr.begin() == ERROR_NONE;
@@ -206,8 +212,12 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
   telemetry.last_pulse_age_ms = kTelemetryNoPulseAgeMs;
   telemetry.sensor_state = static_cast<uint8_t>(SensorState::kNoSignal);
   telemetry.battery_pct = seed.battery_percent;
+  telemetry.seq = 0;
   encodeTelemetry(telemetry, g_telemetry_buf);
   g_telemetry.write(g_telemetry_buf, kTelemetrySize);
+  g_telemetry_seq = 0;
+  g_telemetry_has_published = false;
+  g_sensor_test_active = false;
 
   CommandResultPacket idle = {};
   idle.struct_version = kBleStructVersion;
@@ -277,6 +287,41 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
 
 void BleManager::noteUsbPresent(bool usb_present) {
   g_usb_connected = usb_present;
+}
+
+void BleManager::setSensorTestActive(bool active) {
+  g_sensor_test_active = active;
+}
+
+bool BleManager::sensorTestActive() const {
+  return g_sensor_test_active;
+}
+
+void BleManager::serviceTelemetry(const TelemetryBuildInput& input,
+                                  uint32_t now_ms) {
+  if (!ok_) return;
+
+  const bool notify_enabled = g_telemetry.notifyEnabled();
+  const TelemetryPublishMode mode =
+      selectTelemetryPublishMode(notify_enabled, g_sensor_test_active);
+  if (!telemetryDue(g_telemetry_last_publish_ms, now_ms, mode,
+                    g_telemetry_has_published)) {
+    return;
+  }
+
+  TelemetryPacket packet = {};
+  fillTelemetryPacket(packet, input);
+  g_telemetry_seq = nextTelemetrySeq(g_telemetry_seq);
+  packet.seq = g_telemetry_seq;
+
+  encodeTelemetry(packet, g_telemetry_buf);
+  g_telemetry.write(g_telemetry_buf, kTelemetrySize);
+  if (mode != TelemetryPublishMode::kUnsubscribed) {
+    g_telemetry.notify(g_telemetry_buf, kTelemetrySize);
+  }
+
+  g_telemetry_last_publish_ms = now_ms;
+  g_telemetry_has_published = true;
 }
 
 }  // namespace bike

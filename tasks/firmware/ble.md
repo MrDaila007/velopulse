@@ -15,7 +15,10 @@
   из `RESETREAS`; `boot_count` в `/boot_cnt`; pairing window 5 мин /
   `BIKECOMP_OPEN_PAIRING`; bonded из `BLEConnection::bonded()`; USB live через
   `noteUsbPresent`).
-- [ ] 4.7 Реализовать Telemetry notify, sequence и adaptive rate.
+- [x] 4.7 Реализовать Telemetry notify, sequence и adaptive rate.
+  (`ble_telemetry`: 1 Гц notify / 0.2 Гц Read refresh / 5 Гц sensor-test hook;
+  `BleManager::serviceTelemetry` + seq; `AppController` task `ble` 100 мс;
+  live trip/battery/display/pulse → `TelemetryPacket`).
 - [ ] 4.8 Реализовать Config Read/Write, pending queue и validation/apply.
 - [ ] 4.9 Реализовать safe commands `0x01–0x0B`.
 - [ ] 4.10 Реализовать dangerous command nonce, TTL и connection binding.

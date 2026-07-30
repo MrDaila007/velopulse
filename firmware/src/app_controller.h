@@ -31,11 +31,13 @@ class AppController {
   static void stateTask(void* context, uint32_t now_ms);
   static void displayTask(void* context, uint32_t now_ms);
   static void batteryTask(void* context, uint32_t now_ms);
+  static void bleTask(void* context, uint32_t now_ms);
 
   void processPulses(uint32_t now_ms);
   void updateState(uint32_t now_ms);
   void updateDisplay(uint32_t now_ms);
   void updateBattery(uint32_t now_ms);
+  void updateBle(uint32_t now_ms);
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
   void maybePersistOdometer(uint32_t now_ms);
   void printDiagnostics() const;
@@ -52,7 +54,7 @@ class AppController {
   BatteryManager battery_;
   DisplayManager display_;
   BleManager ble_;
-  ScheduledTask tasks_[4];
+  ScheduledTask tasks_[5];
   Scheduler scheduler_;
   uint8_t selftest_mask_ = 0;
 };

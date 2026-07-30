@@ -1,0 +1,99 @@
+import 'package:bikecomp_mobile/application/providers.dart';
+import 'package:bikecomp_mobile/data/ble/fake_ble_transport.dart';
+import 'package:bikecomp_mobile/presentation/bikecomp_app.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
+
+  testWidgets('renders four MVP navigation destinations', (tester) async {
+    final fake = FakeBleTransport();
+    addTearDown(fake.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [bleTransportProvider.overrideWithValue(fake)],
+        child: const BikeCompApp(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Поиск'), findsOneWidget);
+    expect(find.text('Показатели'), findsOneWidget);
+    expect(find.text('Настройки'), findsOneWidget);
+    expect(find.text('Обслуживание'), findsOneWidget);
+    expect(find.text('Искать'), findsOneWidget);
+  });
+
+  testWidgets('fake scan connects and shows dashboard metrics', (tester) async {
+    final fake = FakeBleTransport();
+    addTearDown(fake.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [bleTransportProvider.overrideWithValue(fake)],
+        child: const BikeCompApp(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Искать'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('BikeComp-FAKE'), findsOneWidget);
+    await tester.tap(find.text('Подключить'));
+    for (var frame = 0; frame < 10; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    expect(find.text('СКОРОСТЬ'), findsOneWidget);
+    expect(find.text('Поездка'), findsOneWidget);
+    expect(find.text('Батарея'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await fake.dispose();
+  });
+
+  testWidgets('settings and maintenance are write-blocked while disconnected', (
+    tester,
+  ) async {
+    final fake = FakeBleTransport();
+    addTearDown(fake.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [bleTransportProvider.overrideWithValue(fake)],
+        child: const BikeCompApp(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Настройки'));
+    await tester.pump();
+    expect(
+      find.text('Подключите BikeComp, чтобы прочитать настройки.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Обслуживание'));
+    await tester.pump();
+    expect(
+      find.text(
+        'Для команд требуется готовое соединение с совместимым протоколом.',
+      ),
+      findsOneWidget,
+    );
+    final action = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Сбросить поездку'),
+    );
+    expect(action.enabled, isFalse);
+  });
+}

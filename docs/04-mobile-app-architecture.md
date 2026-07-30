@@ -1,6 +1,6 @@
 # 04. Архитектура мобильного приложения
 
-Платформа v1.0: **Android** (minSdk 24, targetSdk 35). Технология: **Flutter 3.24+ / Dart 3.5+**.
+Платформа v1.0: **Android** (minSdk 24, compileSdk/targetSdk 36). Технология: **Flutter 3.44.7 / Dart 3.12.2**.
 Задел на iOS сохраняется: платформозависимый код изолирован в одном слое.
 
 Требования-источники: ТЗ §18–§31, §43, §45.
@@ -11,14 +11,14 @@
 
 | Задача | Выбор | Обоснование |
 | --- | --- | --- |
-| UI-фреймворк | Flutter 3.24+ | Единая кодовая база, путь на iOS (ТЗ §19) |
-| BLE | `flutter_blue_plus` ^1.32 | Наиболее зрелая поддержка Android 12+ разрешений, работает с 128-битными UUID, стабильные стримы состояния |
-| Состояние | `flutter_riverpod` ^2.5 + `riverpod_generator` | Явные зависимости, тестируемость, автоматическая утилизация подписок |
-| Модели | `freezed` + `json_serializable` | Иммутабельные модели, copyWith для черновиков конфигурации |
-| Локальное хранилище | `shared_preferences` (настройки) + `path_provider` (файлы профилей) | Достаточно для v1.0, без БД |
-| Навигация | `go_router` ^14 | Deep links, типизированные маршруты |
-| Разрешения | `permission_handler` ^11 | Единая точка для BLUETOOTH_SCAN/CONNECT/LOCATION |
-| Логирование | `logger` + собственный ring-buffer для экспорта диагностики | Экспорт отчёта (ТЗ §27) |
+| UI-фреймворк | Flutter 3.44.7 | Поддерживаемый Android API 24–37, единая кодовая база |
+| BLE | `flutter_reactive_ble` 5.5.0 | BSD-3, scan/connect/discovery/MTU/read/write/notify/RSSI; изолирован за `BleTransport` |
+| Состояние | Riverpod 3.x + codegen | Явные зависимости, provider overrides для fake-тестов |
+| Модели | Freezed 3.x + `json_serializable` | Иммутабельные модели, copyWith для черновиков конфигурации |
+| Локальное хранилище | `SharedPreferencesAsync` | Remembered device и versioned per-device MVP drafts без БД |
+| Навигация | `go_router` 17.x | Четыре destinations и отдельный transient connecting route |
+| Разрешения | `permission_handler` 12.x + Kotlin MethodChannel | API-specific permissions, adapter/location и bond status |
+| Логирование/экспорт | Отложено до Э6 | Не расширять MVP диагностикой и файловым экспортом |
 | Тесты | `flutter_test`, `mocktail` | Unit + widget + golden-тесты кодеков |
 
 Альтернатива Kotlin + Compose (ТЗ §19) отклонена: см. ADR-011.
@@ -45,7 +45,7 @@
 │ DATA                                                                 │
 │   BikeComputerRepository (единственный вход в устройство)             │
 │   protocol/  telemetry_codec · config_codec · command_codec · uuids   │
-│   ble/       BleTransport (обёртка flutter_blue_plus)                 │
+│   ble/       BleTransport (обёртка flutter_reactive_ble)              │
 │   local/     PreferencesStore · ProfileFileStore                     │
 └──────────────────────────┬───────────────────────────────────────────┘
 ┌──────────────────────────▼───────────────────────────────────────────┐
@@ -178,7 +178,7 @@ const delays = [1, 2, 4, 8, 15, 15, 15];  // секунды, далее 15 с б
 ## 5. Репозиторий устройства
 
 `BikeComputerRepository` — единственная точка доступа к устройству. Экраны и контроллеры
-не обращаются к `flutter_blue_plus` напрямую.
+не обращаются к `flutter_reactive_ble` напрямую.
 
 ```dart
 abstract class BikeComputerRepository {

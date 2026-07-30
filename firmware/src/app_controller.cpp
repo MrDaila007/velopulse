@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "ble_device_info.h"
+#include "ble_telemetry.h"
 #include "board_pins.h"
 #include "boot_counter.h"
 
@@ -70,8 +71,9 @@ AppController::AppController()
       tasks_{{"pulses", 0, 0, pulseTask, this, 0},
              {"state", 100, 0, stateTask, this, 0},
              {"battery", 1000, 0, batteryTask, this, 0},
-             {"display", 50, 0, displayTask, this, 0}},
-      scheduler_(tasks_, 4) {}
+             {"display", 50, 0, displayTask, this, 0},
+             {"ble", 100, 0, bleTask, this, 0}},
+      scheduler_(tasks_, 5) {}
 
 void AppController::begin() {
   Serial.begin(115200);
@@ -238,6 +240,10 @@ void AppController::batteryTask(void* context, uint32_t now_ms) {
   static_cast<AppController*>(context)->updateBattery(now_ms);
 }
 
+void AppController::bleTask(void* context, uint32_t now_ms) {
+  static_cast<AppController*>(context)->updateBle(now_ms);
+}
+
 void AppController::applyRideUpdate(const RideUpdate& update, uint32_t now_ms) {
   if (update.moving_delta_ms != 0) trip_computer_.addMovingTime(update.moving_delta_ms);
   trip_computer_.setRideState(update.state);
@@ -350,6 +356,19 @@ void AppController::updateBattery(uint32_t now_ms) {
   Serial.print(", usb=");
   Serial.println(snapshot.usb_present ? 1 : 0);
 #endif
+}
+
+void AppController::updateBle(uint32_t now_ms) {
+  TelemetryBuildInput input;
+  input.trip = trip_computer_.snapshot();
+  input.battery = battery_.snapshot();
+  input.display_on = display_.powerState() != DisplayPowerState::kOff;
+  input.smoothing_enabled = config_.smoothing_enabled;
+  input.units_imperial = config_.units_imperial;
+  input.had_pulse = ride_state_.hasPulse();
+  input.last_pulse_ms = ride_state_.lastPulseMs();
+  input.now_ms = now_ms;
+  ble_.serviceTelemetry(input, now_ms);
 }
 
 }  // namespace bike
