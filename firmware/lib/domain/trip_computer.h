@@ -13,6 +13,7 @@ class TripComputer {
   void setCurrentSpeed(uint16_t speed_x100) { snapshot_.speed_x100 = speed_x100; }
   void setRideState(RideState state) { snapshot_.ride_state = state; }
   void resetTrip();
+  void resetMaxSpeed() { snapshot_.max_speed_x100 = 0; }
   void restorePersistentTotals(uint64_t odometer_mm,
                                uint64_t total_revolutions);
 

@@ -46,6 +46,7 @@ uint8_t buildDeviceInfoFlags(bool config_valid,
 void refreshDeviceInfoLiveFields(DeviceInfoPacket& info,
                                  uint32_t boot_ms,
                                  uint32_t now_ms,
+                                 uint32_t pairing_window_started_ms,
                                  uint32_t pairing_window_ms,
                                  bool open_pairing_always,
                                  bool bonded,
@@ -56,7 +57,7 @@ void refreshDeviceInfoLiveFields(DeviceInfoPacket& info,
                                  bool deep_sleep_supported) {
   info.uptime_s = static_cast<uint32_t>(now_ms - boot_ms) / 1000u;
   const bool pairing_open = isPairingWindowOpen(
-      boot_ms, now_ms, pairing_window_ms, open_pairing_always);
+      pairing_window_started_ms, now_ms, pairing_window_ms, open_pairing_always);
   info.flags = buildDeviceInfoFlags(config_valid, display_ok, fs_ok, bonded,
                                     pairing_open, usb_connected,
                                     deep_sleep_supported);

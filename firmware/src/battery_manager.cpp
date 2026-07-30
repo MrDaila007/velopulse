@@ -46,6 +46,14 @@ bool BatteryManager::update(uint32_t now_ms) {
   return true;
 }
 
+bool BatteryManager::runTest(uint32_t now_ms) {
+  if (config_ == nullptr || !sample()) return false;
+  model_.recalculate(usbPresent(), config_->low_battery_pct);
+  last_sample_ms_ = now_ms;
+  last_percent_ms_ = now_ms;
+  return model_.snapshot().valid;
+}
+
 bool BatteryManager::sample() {
   if (config_ == nullptr) return false;
 

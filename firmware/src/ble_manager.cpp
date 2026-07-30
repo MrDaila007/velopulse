@@ -2,8 +2,10 @@
 
 #include <Arduino.h>
 #include <bluefruit.h>
+#include <nrf_soc.h>
 #include <string.h>
 
+#include "ble_command.h"
 #include "ble_device_info.h"
 #include "ble_identity.h"
 #include "ble_protocol.h"
@@ -33,6 +35,7 @@ char g_local_name[16] = {};
 
 DeviceInfoPacket g_device_info_packet = {};
 uint32_t g_boot_ms = 0;
+uint32_t g_pairing_window_started_ms = 0;
 uint32_t g_pairing_window_ms = kDefaultPairingWindowMs;
 bool g_open_pairing_always = true;
 bool g_config_valid = false;
@@ -47,6 +50,9 @@ bool g_telemetry_has_published = false;
 bool g_sensor_test_active = false;
 uint16_t g_serial_suffix = 0;
 PendingConfigWrite g_pending_config_write = {};
+PendingSafeCommand g_pending_safe_command = {};
+PendingDangerousCommand g_pending_dangerous_command = {};
+DangerousCommandSession g_dangerous_command_session = {};
 
 bool beginChar(BLECharacteristic& chr) {
   return chr.begin() == ERROR_NONE;
@@ -71,6 +77,20 @@ bool connectionBonded(uint16_t conn_hdl) {
   return conn != nullptr && conn->bonded();
 }
 
+uint32_t generateHardwareNonce() {
+  uint8_t available = 0;
+  if (sd_rand_application_bytes_available_get(&available) != NRF_SUCCESS ||
+      available < sizeof(uint32_t)) {
+    return 0;
+  }
+  uint32_t token = 0;
+  if (sd_rand_application_vector_get(reinterpret_cast<uint8_t*>(&token),
+                                     sizeof(token)) != NRF_SUCCESS) {
+    return 0;
+  }
+  return token;
+}
+
 void encodeAndPublishDeviceInfo() {
   encodeDeviceInfo(g_device_info_packet, g_device_info_buf);
   g_device_info.write(g_device_info_buf, kDeviceInfoSize);
@@ -78,7 +98,8 @@ void encodeAndPublishDeviceInfo() {
 
 void refreshDeviceInfoForRead(uint16_t conn_hdl) {
   refreshDeviceInfoLiveFields(
-      g_device_info_packet, g_boot_ms, millis(), g_pairing_window_ms,
+      g_device_info_packet, g_boot_ms, millis(), g_pairing_window_started_ms,
+      g_pairing_window_ms,
       g_open_pairing_always, connectionBonded(conn_hdl), g_usb_connected,
       g_config_valid, g_display_ok, g_fs_ok, g_deep_sleep_supported);
   encodeDeviceInfo(g_device_info_packet, g_device_info_buf);
@@ -104,12 +125,20 @@ void onDeviceInfoRead(uint16_t conn_hdl, BLECharacteristic*,
 
 void publishCommandResult(uint8_t command_id,
                             CommandStatus status,
-                            uint8_t detail = 0) {
+                            uint8_t detail = 0,
+                            uint32_t token = 0,
+                            const uint8_t* payload = nullptr,
+                            uint8_t payload_len = 0) {
   CommandResultPacket result = {};
   result.struct_version = kBleStructVersion;
   result.command_id = command_id;
   result.status = static_cast<uint8_t>(status);
   result.detail = detail;
+  result.token = token;
+  if (payload != nullptr && payload_len <= kCommandResultMaxPayload) {
+    result.payload_len = payload_len;
+    memcpy(result.payload, payload, payload_len);
+  }
   const size_t encoded =
       encodeCommandResult(result, g_command_result_buf, sizeof(g_command_result_buf));
   if (encoded == 0) return;
@@ -142,10 +171,59 @@ void onConfigWrite(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t len) {
   }
 }
 
-void onCommandWrite(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t len) {
+void onCommandWrite(uint16_t conn_hdl, BLECharacteristic*, uint8_t* data,
+                    uint16_t len) {
   uint8_t command_id = 0;
   if (data != nullptr && len >= 2) command_id = data[1];
-  publishCommandResult(command_id, CommandStatus::kErrNotSupported);
+
+  if (isDangerousCommandId(command_id)) {
+    const DangerousCommandParseResult parsed =
+        parseDangerousBleCommand(data, len);
+    if (!parsed.ok) {
+      publishCommandResult(command_id, parsed.status, parsed.field_id);
+      return;
+    }
+    if (g_pending_safe_command.state == SafeCommandQueueState::kPending ||
+        g_pending_dangerous_command.state ==
+            DangerousCommandQueueState::kPending) {
+      publishCommandResult(command_id, CommandStatus::kErrBusy);
+      return;
+    }
+    const bool bonded = connectionBonded(conn_hdl);
+    const uint32_t generated_token =
+        !parsed.has_token && bonded ? generateHardwareNonce() : 0;
+    const DangerousCommandHandshakeResult handshake =
+        processDangerousCommandHandshake(g_dangerous_command_session, parsed,
+                                         conn_hdl, bonded, millis(),
+                                         generated_token);
+    if (!handshake.execute) {
+      publishCommandResult(command_id, handshake.status, handshake.field_id,
+                           handshake.token);
+      return;
+    }
+    if (!dangerousCommandQueueStage(g_pending_dangerous_command, parsed)) {
+      publishCommandResult(command_id, CommandStatus::kErrBusy);
+    }
+    return;
+  }
+
+  const SafeCommandParseResult parsed = parseSafeBleCommand(data, len);
+  if (!parsed.ok) {
+    publishCommandResult(command_id, parsed.status, parsed.field_id);
+    return;
+  }
+  if (g_pending_dangerous_command.state ==
+          DangerousCommandQueueState::kPending ||
+      !safeCommandQueueStage(g_pending_safe_command, parsed)) {
+    publishCommandResult(command_id, CommandStatus::kErrBusy);
+  }
+}
+
+void onDisconnect(uint16_t, uint8_t) {
+  g_sensor_test_active = false;
+  safeCommandQueueFinish(g_pending_safe_command);
+  dangerousCommandQueueFinish(g_pending_dangerous_command);
+  invalidateDangerousCommandSession(g_dangerous_command_session);
 }
 
 bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
@@ -206,6 +284,7 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
   if (!beginChar(g_error_log)) return false;
 
   g_boot_ms = seed.boot_ms;
+  g_pairing_window_started_ms = seed.boot_ms;
   g_open_pairing_always = seed.open_pairing_always;
   g_config_valid = seed.config_from_flash;
   g_display_ok = seed.display_ok;
@@ -226,7 +305,8 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
   g_device_info_packet.reset_reason = seed.reset_reason;
   g_device_info_packet.boot_count = seed.boot_count;
   refreshDeviceInfoLiveFields(
-      g_device_info_packet, g_boot_ms, seed.boot_ms, g_pairing_window_ms,
+      g_device_info_packet, g_boot_ms, seed.boot_ms, g_pairing_window_started_ms,
+      g_pairing_window_ms,
       g_open_pairing_always, /*bonded=*/false, g_usb_connected, g_config_valid,
       g_display_ok, g_fs_ok, g_deep_sleep_supported);
   encodeAndPublishDeviceInfo();
@@ -297,6 +377,7 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   }
 
   Bluefruit.setTxPower(4);
+  Bluefruit.Periph.setDisconnectCallback(onDisconnect);
   Bluefruit.Periph.setConnInterval(12, 48);
   Bluefruit.Security.setIOCaps(false, false, false);
   Bluefruit.Security.setMITM(false);
@@ -323,6 +404,15 @@ void BleManager::setSensorTestActive(bool active) {
 
 bool BleManager::sensorTestActive() const {
   return g_sensor_test_active;
+}
+
+void BleManager::openPairingWindow(uint16_t duration_s, uint32_t now_ms) {
+  g_pairing_window_started_ms = now_ms;
+  g_pairing_window_ms = static_cast<uint32_t>(duration_s) * 1000u;
+}
+
+void BleManager::clearBonds() {
+  Bluefruit.Periph.clearBonds();
 }
 
 void BleManager::serviceTelemetry(const TelemetryBuildInput& input,
@@ -374,6 +464,46 @@ void BleManager::publishAppliedConfig(const DeviceConfig& config,
   g_config_valid = config_valid;
   publishConfigRead(config);
   refreshAdvertisingName(config);
+}
+
+bool BleManager::hasPendingSafeCommand() const {
+  return g_pending_safe_command.state == SafeCommandQueueState::kPending;
+}
+
+bool BleManager::takePendingSafeCommand(SafeCommandParseResult& command) {
+  return safeCommandQueueDequeue(g_pending_safe_command, command);
+}
+
+void BleManager::completePendingSafeCommand() {
+  safeCommandQueueFinish(g_pending_safe_command);
+}
+
+void BleManager::publishSafeCommandResult(CommandId command_id,
+                                          const BleCommandResult& result) {
+  publishCommandResult(static_cast<uint8_t>(command_id), result.status,
+                       result.detail, result.token, result.payload,
+                       result.payload_len);
+}
+
+bool BleManager::hasPendingDangerousCommand() const {
+  return g_pending_dangerous_command.state ==
+         DangerousCommandQueueState::kPending;
+}
+
+bool BleManager::takePendingDangerousCommand(
+    DangerousCommandParseResult& command) {
+  return dangerousCommandQueueDequeue(g_pending_dangerous_command, command);
+}
+
+void BleManager::completePendingDangerousCommand() {
+  dangerousCommandQueueFinish(g_pending_dangerous_command);
+}
+
+void BleManager::publishDangerousCommandResult(
+    CommandId command_id, const BleCommandResult& result) {
+  publishCommandResult(static_cast<uint8_t>(command_id), result.status,
+                       result.detail, result.token, result.payload,
+                       result.payload_len);
 }
 
 }  // namespace bike

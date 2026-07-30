@@ -18,6 +18,8 @@ class DisplayManager {
   bool begin(const DeviceConfig& config);
   void applyRuntimeConfig(const DeviceConfig& config, uint32_t now_ms);
   void noteActivity(uint32_t now_ms);
+  void turnOff(uint32_t now_ms);
+  void showTestPattern(uint8_t pattern, uint32_t now_ms);
   bool updatePower(uint32_t now_ms);
   void render(const DisplaySnapshot& snapshot, bool force = false);
   bool isOk() const { return display_ok_; }
@@ -31,6 +33,8 @@ class DisplayManager {
   DisplayPower power_;
   bool display_ok_ = false;
   uint32_t last_render_ms_ = 0;
+  uint32_t test_started_ms_ = 0;
+  bool test_active_ = false;
 };
 
 }  // namespace bike

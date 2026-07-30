@@ -45,7 +45,10 @@ void main() {
 
     for (final name in <String>[
       'command_reset_trip',
+      'command_reset_odo_request',
       'command_reset_odo_with_token',
+      'command_display_test',
+      'command_sensor_test_start',
     ]) {
       test('$name decodes, encodes and round-trips', () {
         final bytes = fixture(name);
@@ -54,7 +57,26 @@ void main() {
       });
     }
 
-    for (final name in <String>['result_ok', 'result_err_range_wheel']) {
+    test('MVP command builders match payload fixtures', () {
+      expect(
+        ProtocolCodecs.encodeCommand(
+          buildSafeCommand(DeviceCommandId.displayTest),
+        ),
+        fixture('command_display_test'),
+      );
+      expect(
+        ProtocolCodecs.encodeCommand(
+          buildSafeCommand(DeviceCommandId.sensorTestStart),
+        ),
+        fixture('command_sensor_test_start'),
+      );
+    });
+
+    for (final name in <String>[
+      'result_ok',
+      'result_needs_confirm_reset_odo',
+      'result_err_range_wheel',
+    ]) {
       test('$name decodes, encodes and round-trips', () {
         final bytes = fixture(name);
         final value = ProtocolCodecs.decodeCommandResult(bytes);

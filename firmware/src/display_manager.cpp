@@ -7,6 +7,7 @@ namespace {
 
 constexpr uint8_t kBrightContrast = 156;
 constexpr uint8_t kDimContrast = 20;
+constexpr uint32_t kDisplayTestDurationMs = 2000u;
 
 class U8g2Canvas final : public DisplayCanvas {
  public:
@@ -67,7 +68,42 @@ void DisplayManager::noteActivity(uint32_t now_ms) {
   last_render_ms_ = 0;
 }
 
+void DisplayManager::turnOff(uint32_t now_ms) {
+  test_active_ = false;
+  power_.forceOff(now_ms);
+  applyPowerHardware();
+}
+
+void DisplayManager::showTestPattern(uint8_t pattern, uint32_t now_ms) {
+  if (!display_ok_) return;
+  power_.noteActivity(now_ms);
+  applyPowerHardware();
+  display_.clearBuffer();
+  if (pattern == 0) {
+    display_.drawBox(0, 0, 128, 32);
+  } else if (pattern == 1) {
+    for (uint8_t y = 0; y < 32; y += 4) {
+      for (uint8_t x = (y / 4u) % 2u == 0 ? 0 : 4; x < 128; x += 8) {
+        display_.drawBox(x, y, 4, 4);
+      }
+    }
+  } else {
+    display_.setFont(u8g2_font_6x10_tf);
+    display_.drawStr(0, 12, "BikeComp display");
+    display_.drawStr(0, 27, "TEST: OK 012345");
+  }
+  display_.sendBuffer();
+  test_started_ms_ = now_ms;
+  test_active_ = true;
+}
+
 bool DisplayManager::updatePower(uint32_t now_ms) {
+  if (test_active_ &&
+      static_cast<uint32_t>(now_ms - test_started_ms_) <
+          kDisplayTestDurationMs) {
+    return false;
+  }
+  test_active_ = false;
   if (!power_.update(now_ms)) return false;
   applyPowerHardware();
   return true;
@@ -88,6 +124,11 @@ void DisplayManager::applyPowerHardware() {
 
 void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
   const uint32_t now = millis();
+  if (test_active_ &&
+      static_cast<uint32_t>(now - test_started_ms_) < kDisplayTestDurationMs) {
+    return;
+  }
+  test_active_ = false;
   if (!display_ok_ || power_.state() == DisplayPowerState::kOff) return;
   const bool page_changed = carousel_.update(now);
   const uint32_t period = snapshot.trip.ride_state == RideState::kMoving ? 250u : 1000u;

@@ -259,6 +259,11 @@ void AppController::maybePersistOdometer(uint32_t now_ms) {
   const OdometerSaveTrigger trigger =
       odometer_save_.evaluate(odometer_mm, now_ms);
   if (trigger == OdometerSaveTrigger::kNone) return;
+  persistOdometer(trigger);
+}
+
+bool AppController::persistOdometer(OdometerSaveTrigger trigger) {
+  const uint64_t odometer_mm = trip_computer_.snapshot().odometer_mm;
 
   OdometerData data;
   data.odometer_mm = odometer_mm;
@@ -283,7 +288,20 @@ void AppController::maybePersistOdometer(uint32_t now_ms) {
   Serial.print(storage_.counters().skipped_writes);
   Serial.print(", write_errors=");
   Serial.println(storage_.counters().write_errors);
+  return ok;
 }
+
+bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
+                                         uint64_t total_revolutions) {
+  OdometerData data;
+  data.odometer_mm = odometer_mm;
+  data.total_revolutions = total_revolutions;
+  if (!storage_.mounted() || !storage_.saveOdometer(data)) return false;
+  trip_computer_.restorePersistentTotals(odometer_mm, total_revolutions);
+  odometer_save_.markSaved(odometer_mm);
+  return true;
+}
+
 
 void AppController::processPulses(uint32_t now_ms) {
   PulseEvent event;
@@ -413,8 +431,180 @@ void AppController::processPendingConfigWrite() {
   ble_.completePendingConfigWrite();
 }
 
+void AppController::processPendingSafeCommand(uint32_t now_ms) {
+  if (!ble_.hasPendingSafeCommand()) return;
+
+  SafeCommandParseResult command;
+  if (!ble_.takePendingSafeCommand(command)) return;
+
+  BleCommandResult result;
+  switch (command.command_id) {
+    case CommandId::kResetTrip:
+      trip_computer_.resetTrip();
+      break;
+    case CommandId::kResetMaxSpeed:
+      trip_computer_.resetMaxSpeed();
+      break;
+    case CommandId::kForceSave: {
+      odometer_save_.requestForceSave();
+      const OdometerSaveTrigger trigger =
+          odometer_save_.evaluate(trip_computer_.snapshot().odometer_mm, now_ms);
+      if (trigger != OdometerSaveTrigger::kForceSave ||
+          !persistOdometer(trigger)) {
+        result.status = CommandStatus::kErrStorage;
+      }
+      break;
+    }
+    case CommandId::kDisplayOn:
+      display_.noteActivity(now_ms);
+      odometer_save_.noteDisplayPower(display_.powerState());
+      break;
+    case CommandId::kDisplayOff:
+      display_.turnOff(now_ms);
+      odometer_save_.noteDisplayPower(display_.powerState());
+      break;
+    case CommandId::kDisplayTest:
+      if (!display_.isOk()) {
+        result.status = CommandStatus::kErrHardware;
+      } else {
+        display_.showTestPattern(command.params.display_test_pattern, now_ms);
+        odometer_save_.noteDisplayPower(display_.powerState());
+      }
+      break;
+    case CommandId::kSensorTestStart:
+      sensor_test_started_ms_ = now_ms;
+      sensor_test_duration_ms_ =
+          static_cast<uint32_t>(command.params.sensor_test_duration_s) * 1000u;
+      ble_.setSensorTestActive(true);
+      break;
+    case CommandId::kSensorTestStop:
+      sensor_test_duration_ms_ = 0;
+      ble_.setSensorTestActive(false);
+      break;
+    case CommandId::kBatteryTest:
+      if (!battery_.runTest(now_ms)) {
+        result.status = CommandStatus::kErrHardware;
+      }
+      break;
+    case CommandId::kStartDiagnostic:
+      printDiagnostics();
+      result.detail = selftest_mask_;
+      break;
+    case CommandId::kGetDiagnostic: {
+      const DiagnosticSnapshot diagnostic = diagnosticSnapshot();
+      encodeDiagnosticPayload(diagnostic, result.payload);
+      result.payload_len = kDiagnosticPayloadSize;
+      break;
+    }
+    default:
+      result.status = CommandStatus::kErrUnknownCommand;
+      result.detail = static_cast<uint8_t>(CommandFieldId::kCommandId);
+      break;
+  }
+
+  ble_.completePendingSafeCommand();
+  ble_.publishSafeCommandResult(command.command_id, result);
+}
+
+void AppController::processPendingDangerousCommand(uint32_t now_ms) {
+  if (!ble_.hasPendingDangerousCommand()) return;
+
+  DangerousCommandParseResult command;
+  if (!ble_.takePendingDangerousCommand(command)) return;
+
+  BleCommandResult result;
+  bool clear_bonds_after_result = false;
+  switch (command.command_id) {
+    case CommandId::kResetOdometer:
+      if (!saveAndApplyOdometer(0, 0)) {
+        result.status = CommandStatus::kErrStorage;
+      }
+      break;
+
+    case CommandId::kFactoryReset: {
+      const uint64_t old_odometer_mm = trip_computer_.snapshot().odometer_mm;
+      const uint64_t old_total_revolutions = trip_computer_.totalRevolutions();
+      if (!saveAndApplyOdometer(0, 0)) {
+        result.status = CommandStatus::kErrStorage;
+        break;
+      }
+      const DeviceConfig defaults;
+      if (!storage_.mounted() || !storage_.saveConfig(defaults)) {
+        saveAndApplyOdometer(old_odometer_mm, old_total_revolutions);
+        result.status = CommandStatus::kErrStorage;
+        break;
+      }
+      trip_computer_.resetTrip();
+      applyConfig(defaults);
+      ble_.publishAppliedConfig(config_, /*config_valid=*/true);
+      ble_.openPairingWindow(kDefaultPairingWindowMs / 1000u, now_ms);
+      clear_bonds_after_result = true;
+      break;
+    }
+
+    case CommandId::kReboot:
+      odometer_save_.requestRebootSave();
+      if (!persistOdometer(OdometerSaveTrigger::kReboot)) {
+        result.status = CommandStatus::kErrStorage;
+      } else {
+        reboot_pending_ = true;
+        reboot_requested_ms_ = now_ms;
+      }
+      break;
+
+    case CommandId::kSetBatteryCal: {
+      DeviceConfig candidate = config_;
+      candidate.batt_cal_scale_permille =
+          command.params.battery_scale_permille;
+      candidate.batt_cal_offset_mv = command.params.battery_offset_mv;
+      if (!storage_.mounted() || !storage_.saveConfig(candidate)) {
+        result.status = CommandStatus::kErrStorage;
+      } else {
+        applyConfig(candidate);
+        ble_.publishAppliedConfig(config_, /*config_valid=*/true);
+      }
+      break;
+    }
+
+    case CommandId::kSetOdometer:
+      if (!saveAndApplyOdometer(
+              static_cast<uint64_t>(command.params.odometer_m) * 1000u,
+              trip_computer_.totalRevolutions())) {
+        result.status = CommandStatus::kErrStorage;
+      }
+      break;
+
+    case CommandId::kOpenPairingWindow:
+      ble_.openPairingWindow(command.params.pairing_window_duration_s, now_ms);
+      break;
+
+    default:
+      result.status = CommandStatus::kErrUnknownCommand;
+      result.detail = static_cast<uint8_t>(CommandFieldId::kCommandId);
+      break;
+  }
+
+  ble_.completePendingDangerousCommand();
+  ble_.publishDangerousCommandResult(command.command_id, result);
+  if (clear_bonds_after_result) ble_.clearBonds();
+}
+
 void AppController::updateBle(uint32_t now_ms) {
   processPendingConfigWrite();
+  processPendingSafeCommand(now_ms);
+  processPendingDangerousCommand(now_ms);
+
+  if (ble_.sensorTestActive() && sensor_test_duration_ms_ != 0 &&
+      static_cast<uint32_t>(now_ms - sensor_test_started_ms_) >=
+          sensor_test_duration_ms_) {
+    sensor_test_duration_ms_ = 0;
+    ble_.setSensorTestActive(false);
+  }
+
+  if (reboot_pending_ &&
+      static_cast<uint32_t>(now_ms - reboot_requested_ms_) >= 250u) {
+    NVIC_SystemReset();
+  }
 
   TelemetryBuildInput input;
   input.trip = trip_computer_.snapshot();

@@ -185,25 +185,25 @@
 
 ### 5.1. Коды команд
 
-| ID | Команда | Payload | Подтверждение | ТЗ |
-| --: | --- | --- | :---: | --- |
-| `0x01` | `RESET_TRIP` | — | нет | §5.5 |
-| `0x02` | `RESET_MAX_SPEED` | — | нет | §16 |
-| `0x03` | `FORCE_SAVE` | — | нет | §16 |
-| `0x04` | `DISPLAY_ON` | — | нет | §16 |
-| `0x05` | `DISPLAY_OFF` | — | нет | §16 |
-| `0x06` | `DISPLAY_TEST` | u8 `pattern` (0=all on, 1=шахматка, 2=текст) | нет | §16 |
-| `0x07` | `SENSOR_TEST_START` | u16 `duration_s` (1…120) | нет | §24 |
-| `0x08` | `SENSOR_TEST_STOP` | — | нет | §24 |
-| `0x09` | `BATTERY_TEST` | — | нет | §16 |
-| `0x0A` | `START_DIAGNOSTIC` | — | нет | §16 |
-| `0x0B` | `GET_DIAGNOSTIC` | — | нет | §27 |
-| `0x20` | `RESET_ODOMETER` | u32 `token` | **да** | §5.5 |
-| `0x21` | `FACTORY_RESET` | u32 `token` | **да** | §16 |
-| `0x22` | `REBOOT` | u32 `token` | **да** | §16 |
-| `0x23` | `SET_BATTERY_CAL` | u16 scale, i16 offset, u32 token | **да** | §16 |
-| `0x30` | `SET_ODOMETER` | u32 `odometer_m`, u32 `token` | **да** | сервис |
-| `0x40` | `OPEN_PAIRING_WINDOW` | u16 `duration_s`, u32 `token` | **да** | §17 |
+| ID | Команда | Payload первого запроса | Payload подтверждения | ТЗ |
+| --: | --- | --- | --- | --- |
+| `0x01` | `RESET_TRIP` | — | не требуется | §5.5 |
+| `0x02` | `RESET_MAX_SPEED` | — | не требуется | §16 |
+| `0x03` | `FORCE_SAVE` | — | не требуется | §16 |
+| `0x04` | `DISPLAY_ON` | — | не требуется | §16 |
+| `0x05` | `DISPLAY_OFF` | — | не требуется | §16 |
+| `0x06` | `DISPLAY_TEST` | u8 `pattern` (0=all on, 1=шахматка, 2=текст) | не требуется | §16 |
+| `0x07` | `SENSOR_TEST_START` | u16 `duration_s` (1…120) | не требуется | §24 |
+| `0x08` | `SENSOR_TEST_STOP` | — | не требуется | §24 |
+| `0x09` | `BATTERY_TEST` | — | не требуется | §16 |
+| `0x0A` | `START_DIAGNOSTIC` | — | не требуется | §16 |
+| `0x0B` | `GET_DIAGNOSTIC` | — | не требуется | §27 |
+| `0x20` | `RESET_ODOMETER` | — | u32 `token` | §5.5 |
+| `0x21` | `FACTORY_RESET` | — | u32 `token` | §16 |
+| `0x22` | `REBOOT` | — | u32 `token` | §16 |
+| `0x23` | `SET_BATTERY_CAL` | u16 `scale`, i16 `offset` | u16 `scale`, i16 `offset`, u32 `token` | §16 |
+| `0x30` | `SET_ODOMETER` | u32 `odometer_m` | u32 `odometer_m`, u32 `token` | сервис |
+| `0x40` | `OPEN_PAIRING_WINDOW` | u16 `duration_s` | u16 `duration_s`, u32 `token` | §17 |
 
 Диапазон `0x01…0x1F` — безопасные команды, `0x20…0x4F` — опасные (требуют токена).
 
@@ -223,8 +223,13 @@
     │◀───────────────────────────────────────────│
 ```
 
+Для параметризованной команды приложение повторяет исходный payload без изменений и
+добавляет `token` последними четырьмя байтами. Диапазоны: `scale` = 800…1200 ‰,
+`offset` = −500…500 мВ, `duration_s` для окна сопряжения = 1…3600 с.
+
 Правила:
-* Nonce — 32 бита, генерируется аппаратным RNG, привязан к `command_id` и соединению.
+* Nonce — 32 бита, генерируется аппаратным RNG, привязан к `command_id`, исходному
+  payload и соединению.
 * TTL = 30 с; по истечении — `ERR_TOKEN_EXPIRED`, нужно начинать заново.
 * Одновременно активен только один nonce; новый запрос отменяет предыдущий.
 * При разрыве соединения nonce аннулируется.
@@ -407,8 +412,10 @@ fixtures/
 ├── config_v1_defaults.hex / .json
 ├── config_v1_imperial.hex / .json
 ├── command_reset_trip.hex / .json
+├── command_reset_odo_request.hex / .json
 ├── command_reset_odo_with_token.hex / .json
 ├── result_ok.hex / .json
+├── result_needs_confirm_reset_odo.hex / .json
 └── result_err_range_wheel.hex / .json
 ```
 

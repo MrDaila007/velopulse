@@ -816,7 +816,6 @@ void test_page_carousel_pinned_page() {
   TEST_ASSERT_EQUAL(DisplayPage::kAverage, carousel.currentPage());
 }
 
-
 void test_display_power_dim_off_wake_disable_and_wrap() {
   DisplayPower power;
   power.configure(60, 1000);
@@ -829,6 +828,11 @@ void test_display_power_dim_off_wake_disable_and_wrap() {
   TEST_ASSERT_EQUAL(DisplayPowerState::kOff, power.state());
   TEST_ASSERT_TRUE(power.noteActivity(62000));
   TEST_ASSERT_EQUAL(DisplayPowerState::kBright, power.state());
+  power.configure(60, 1000);
+  TEST_ASSERT_TRUE(power.forceOff(5000));
+  TEST_ASSERT_EQUAL(DisplayPowerState::kOff, power.state());
+  TEST_ASSERT_FALSE(power.update(5001));
+  TEST_ASSERT_TRUE(power.noteActivity(5002));
 
   TEST_ASSERT_FALSE(power.noteActivity(63000));
   TEST_ASSERT_FALSE(power.update(92999));
@@ -1176,6 +1180,7 @@ void test_pairing_window_and_device_info_flags() {
   info.boot_count = 7;
   info.reset_reason = static_cast<uint8_t>(ResetReason::kSoftReset);
   refreshDeviceInfoLiveFields(info, /*boot_ms=*/1000, /*now_ms=*/65000,
+                              /*pairing_started_ms=*/1000,
                               kDefaultPairingWindowMs, /*open_pairing_always=*/false,
                               /*bonded=*/true, /*usb=*/false, /*config=*/true,
                               /*display=*/true, /*fs=*/true, /*deep_sleep=*/false);
@@ -1183,6 +1188,14 @@ void test_pairing_window_and_device_info_flags() {
   TEST_ASSERT_TRUE((info.flags & kDeviceInfoFlagBonded) != 0);
   TEST_ASSERT_TRUE((info.flags & kDeviceInfoFlagPairingWindowOpen) != 0);
   TEST_ASSERT_TRUE((info.flags & kDeviceInfoFlagUsbConnected) == 0);
+
+  refreshDeviceInfoLiveFields(info, /*boot_ms=*/1000, /*now_ms=*/400000,
+                              /*pairing_started_ms=*/399000,
+                              kDefaultPairingWindowMs, /*open_pairing_always=*/false,
+                              /*bonded=*/true, /*usb=*/false, /*config=*/true,
+                              /*display=*/true, /*fs=*/true, /*deep_sleep=*/false);
+  TEST_ASSERT_EQUAL_UINT32(399u, info.uptime_s);
+  TEST_ASSERT_TRUE((info.flags & kDeviceInfoFlagPairingWindowOpen) != 0);
 }
 
 void test_boot_count_increments_and_persists() {
@@ -1720,6 +1733,14 @@ void test_ble_command_rejects_has_token_and_unknown_id() {
   uint8_t dangerous[] = {1, 0x20, 0, 0};
   SafeCommandParseResult unknown =
       parseSafeBleCommand(dangerous, sizeof(dangerous));
+  uint8_t reserved_flag[] = {1, 1, 2, 0};
+  SafeCommandParseResult reserved =
+      parseSafeBleCommand(reserved_flag, sizeof(reserved_flag));
+  TEST_ASSERT_FALSE(reserved.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, reserved.status);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kFlags),
+                          reserved.field_id);
+
   TEST_ASSERT_FALSE(unknown.ok);
   TEST_ASSERT_EQUAL(CommandStatus::kErrUnknownCommand, unknown.status);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kCommandId),
@@ -1744,6 +1765,199 @@ void test_ble_command_rejects_bad_wire() {
   SafeCommandParseResult null_ptr = parseSafeBleCommand(nullptr, 4);
   TEST_ASSERT_FALSE(null_ptr.ok);
   TEST_ASSERT_EQUAL(CommandStatus::kErrLength, null_ptr.status);
+}
+
+void test_ble_command_pending_queue_is_single_slot() {
+  uint8_t reset_trip[] = {1, 1, 0, 0};
+  const SafeCommandParseResult parsed =
+      parseSafeBleCommand(reset_trip, sizeof(reset_trip));
+  PendingSafeCommand queue;
+
+  TEST_ASSERT_TRUE(safeCommandQueueStage(queue, parsed));
+  TEST_ASSERT_FALSE(safeCommandQueueStage(queue, parsed));
+
+  SafeCommandParseResult taken;
+  TEST_ASSERT_TRUE(safeCommandQueueDequeue(queue, taken));
+  TEST_ASSERT_EQUAL(CommandId::kResetTrip, taken.command_id);
+  TEST_ASSERT_FALSE(safeCommandQueueStage(queue, parsed));
+
+  safeCommandQueueFinish(queue);
+  TEST_ASSERT_FALSE(safeCommandQueueDequeue(queue, taken));
+  TEST_ASSERT_TRUE(safeCommandQueueStage(queue, parsed));
+}
+
+void test_ble_dangerous_command_reset_odometer_fixture() {
+  std::vector<uint8_t> request_bytes;
+  TEST_ASSERT_TRUE(loadFixtureHex("command_reset_odo_request", request_bytes));
+  const DangerousCommandParseResult request =
+      parseDangerousBleCommand(request_bytes.data(), request_bytes.size());
+  TEST_ASSERT_TRUE(request.ok);
+  TEST_ASSERT_FALSE(request.has_token);
+  TEST_ASSERT_EQUAL(CommandId::kResetOdometer, request.command_id);
+
+  std::vector<uint8_t> fixture_hex;
+  TEST_ASSERT_TRUE(loadFixtureHex("command_reset_odo_with_token", fixture_hex));
+  const DangerousCommandParseResult confirmation =
+      parseDangerousBleCommand(fixture_hex.data(), fixture_hex.size());
+  TEST_ASSERT_TRUE(confirmation.ok);
+  TEST_ASSERT_TRUE(confirmation.has_token);
+  TEST_ASSERT_EQUAL_UINT32(0x12345678u, confirmation.token);
+}
+
+void test_ble_dangerous_command_needs_confirm_result_fixture() {
+  std::vector<uint8_t> fixture_hex;
+  TEST_ASSERT_TRUE(
+      loadFixtureHex("result_needs_confirm_reset_odo", fixture_hex));
+
+  CommandResultPacket packet = {};
+  packet.struct_version = kBleStructVersion;
+  packet.command_id = static_cast<uint8_t>(CommandId::kResetOdometer);
+  packet.status = static_cast<uint8_t>(CommandStatus::kNeedsConfirm);
+  packet.token = 0x12345678u;
+  uint8_t encoded[kCommandResultMaxSize];
+  TEST_ASSERT_EQUAL_UINT32(
+      9u, encodeCommandResult(packet, encoded, sizeof(encoded)));
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(fixture_hex.data(), encoded, 9);
+
+  CommandResultPacket decoded = {};
+  TEST_ASSERT_TRUE(
+      decodeCommandResult(fixture_hex.data(), fixture_hex.size(), decoded));
+  TEST_ASSERT_EQUAL_UINT8(0x20u, decoded.command_id);
+  TEST_ASSERT_EQUAL_UINT8(5u, decoded.status);
+  TEST_ASSERT_EQUAL_UINT32(0x12345678u, decoded.token);
+}
+
+void test_ble_dangerous_command_parameter_layouts_and_ranges() {
+  uint8_t battery_request[] = {1, 0x23, 0, 4, 0x4C, 0x04, 0xE7, 0xFF};
+  DangerousCommandParseResult battery =
+      parseDangerousBleCommand(battery_request, sizeof(battery_request));
+  TEST_ASSERT_TRUE(battery.ok);
+  TEST_ASSERT_EQUAL_UINT16(1100u, battery.params.battery_scale_permille);
+  TEST_ASSERT_EQUAL_INT16(-25, battery.params.battery_offset_mv);
+
+  uint8_t odometer_request[] = {1, 0x30, 0, 4, 0x40, 0xE2, 0x01, 0x00};
+  DangerousCommandParseResult odometer =
+      parseDangerousBleCommand(odometer_request, sizeof(odometer_request));
+  TEST_ASSERT_TRUE(odometer.ok);
+  TEST_ASSERT_EQUAL_UINT32(123456u, odometer.params.odometer_m);
+
+  uint8_t pairing_request[] = {1, 0x40, 0, 2, 0x2C, 0x01};
+  DangerousCommandParseResult pairing =
+      parseDangerousBleCommand(pairing_request, sizeof(pairing_request));
+  TEST_ASSERT_TRUE(pairing.ok);
+  TEST_ASSERT_EQUAL_UINT16(300u, pairing.params.pairing_window_duration_s);
+
+  uint8_t bad_battery[] = {1, 0x23, 0, 4, 0x1F, 0x03, 0, 0};
+  DangerousCommandParseResult range =
+      parseDangerousBleCommand(bad_battery, sizeof(bad_battery));
+  TEST_ASSERT_FALSE(range.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, range.status);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kPayload),
+                          range.field_id);
+
+  uint8_t bad_pairing[] = {1, 0x40, 0, 2, 0, 0};
+  range = parseDangerousBleCommand(bad_pairing, sizeof(bad_pairing));
+  TEST_ASSERT_FALSE(range.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, range.status);
+
+  uint8_t bad_length[] = {1, 0x30, 1, 4, 1, 2, 3, 4};
+  DangerousCommandParseResult length =
+      parseDangerousBleCommand(bad_length, sizeof(bad_length));
+  TEST_ASSERT_FALSE(length.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrLength, length.status);
+
+  uint8_t bad_flags[] = {1, 0x20, 2, 0};
+  DangerousCommandParseResult flags =
+      parseDangerousBleCommand(bad_flags, sizeof(bad_flags));
+  TEST_ASSERT_FALSE(flags.ok);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrRange, flags.status);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(CommandFieldId::kFlags),
+                          flags.field_id);
+}
+
+void test_ble_dangerous_handshake_success_expiry_and_binding() {
+  uint8_t request_bytes[] = {1, 0x20, 0, 0};
+  uint8_t confirm_bytes[] = {1, 0x20, 1, 4, 0x78, 0x56, 0x34, 0x12};
+  const DangerousCommandParseResult request =
+      parseDangerousBleCommand(request_bytes, sizeof(request_bytes));
+  const DangerousCommandParseResult confirmation =
+      parseDangerousBleCommand(confirm_bytes, sizeof(confirm_bytes));
+  DangerousCommandSession session;
+
+  DangerousCommandHandshakeResult needs = processDangerousCommandHandshake(
+      session, request, 7, true, 1000, 0x12345678u);
+  TEST_ASSERT_EQUAL(CommandStatus::kNeedsConfirm, needs.status);
+  TEST_ASSERT_EQUAL_UINT32(0x12345678u, needs.token);
+  TEST_ASSERT_TRUE(session.active);
+
+  DangerousCommandHandshakeResult success = processDangerousCommandHandshake(
+      session, confirmation, 7, true, 30999, 0);
+  TEST_ASSERT_EQUAL(CommandStatus::kOk, success.status);
+  TEST_ASSERT_TRUE(success.execute);
+  TEST_ASSERT_FALSE(session.active);
+
+  needs = processDangerousCommandHandshake(session, request, 7, true, 1000,
+                                            0x12345678u);
+  DangerousCommandHandshakeResult expired = processDangerousCommandHandshake(
+      session, confirmation, 7, true, 31000, 0);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrTokenExpired, expired.status);
+  TEST_ASSERT_FALSE(expired.execute);
+  TEST_ASSERT_FALSE(session.active);
+
+  needs = processDangerousCommandHandshake(session, request, 7, true, 1000,
+                                            0x12345678u);
+  DangerousCommandHandshakeResult wrong_connection =
+      processDangerousCommandHandshake(session, confirmation, 8, true, 1001, 0);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrTokenInvalid, wrong_connection.status);
+  TEST_ASSERT_FALSE(session.active);
+}
+
+void test_ble_dangerous_handshake_pairing_rng_and_parameter_binding() {
+  uint8_t request_bytes[] = {1, 0x30, 0, 4, 100, 0, 0, 0};
+  uint8_t confirm_bytes[] = {
+      1, 0x30, 1, 8, 101, 0, 0, 0, 0x78, 0x56, 0x34, 0x12};
+  const DangerousCommandParseResult request =
+      parseDangerousBleCommand(request_bytes, sizeof(request_bytes));
+  const DangerousCommandParseResult changed_confirmation =
+      parseDangerousBleCommand(confirm_bytes, sizeof(confirm_bytes));
+  DangerousCommandSession session;
+
+  DangerousCommandHandshakeResult not_paired = processDangerousCommandHandshake(
+      session, request, 1, false, 100, 0x12345678u);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrNotPaired, not_paired.status);
+  TEST_ASSERT_FALSE(session.active);
+
+  DangerousCommandHandshakeResult no_rng = processDangerousCommandHandshake(
+      session, request, 1, true, 100, 0);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrBusy, no_rng.status);
+  TEST_ASSERT_FALSE(session.active);
+
+  processDangerousCommandHandshake(session, request, 1, true, 100,
+                                   0x12345678u);
+  DangerousCommandHandshakeResult changed = processDangerousCommandHandshake(
+      session, changed_confirmation, 1, true, 101, 0);
+  TEST_ASSERT_EQUAL(CommandStatus::kErrTokenInvalid, changed.status);
+  TEST_ASSERT_FALSE(changed.execute);
+
+  processDangerousCommandHandshake(session, request, 1, true, 100,
+                                   0x12345678u);
+  invalidateDangerousCommandSession(session);
+  TEST_ASSERT_FALSE(session.active);
+}
+
+void test_ble_dangerous_command_pending_queue_is_single_slot() {
+  uint8_t confirm_bytes[] = {1, 0x20, 1, 4, 0x78, 0x56, 0x34, 0x12};
+  const DangerousCommandParseResult confirmation =
+      parseDangerousBleCommand(confirm_bytes, sizeof(confirm_bytes));
+  PendingDangerousCommand queue;
+
+  TEST_ASSERT_TRUE(dangerousCommandQueueStage(queue, confirmation));
+  TEST_ASSERT_FALSE(dangerousCommandQueueStage(queue, confirmation));
+  DangerousCommandParseResult taken;
+  TEST_ASSERT_TRUE(dangerousCommandQueueDequeue(queue, taken));
+  TEST_ASSERT_EQUAL_UINT32(0x12345678u, taken.token);
+  dangerousCommandQueueFinish(queue);
+  TEST_ASSERT_FALSE(dangerousCommandQueueDequeue(queue, taken));
 }
 
 void test_protocol_codec_rejects_bad_length_and_version() {
@@ -1840,6 +2054,13 @@ int main(int, char**) {
   RUN_TEST(test_ble_command_sensor_test_start_fixture_and_duration_range);
   RUN_TEST(test_ble_command_rejects_has_token_and_unknown_id);
   RUN_TEST(test_ble_command_rejects_bad_wire);
+  RUN_TEST(test_ble_command_pending_queue_is_single_slot);
+  RUN_TEST(test_ble_dangerous_command_reset_odometer_fixture);
+  RUN_TEST(test_ble_dangerous_command_needs_confirm_result_fixture);
+  RUN_TEST(test_ble_dangerous_command_parameter_layouts_and_ranges);
+  RUN_TEST(test_ble_dangerous_handshake_success_expiry_and_binding);
+  RUN_TEST(test_ble_dangerous_handshake_pairing_rng_and_parameter_binding);
+  RUN_TEST(test_ble_dangerous_command_pending_queue_is_single_slot);
   RUN_TEST(test_diagnostic_snapshot_maps_storage_and_pulse_counters);
   RUN_TEST(test_diagnostic_payload_little_endian_layout);
   RUN_TEST(test_diagnostic_saturates_narrow_fields);

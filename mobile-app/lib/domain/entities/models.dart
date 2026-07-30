@@ -108,6 +108,15 @@ enum DeviceCommandId {
       values.firstWhere((value) => value.code == code, orElse: () => unknown);
 }
 
+DeviceCommand buildSafeCommand(DeviceCommandId id) {
+  final payload = switch (id) {
+    DeviceCommandId.displayTest => const <int>[1],
+    DeviceCommandId.sensorTestStart => const <int>[60, 0],
+    _ => const <int>[],
+  };
+  return DeviceCommand(id: id, payload: payload);
+}
+
 enum BondState { bonded, none, unknown }
 
 @freezed

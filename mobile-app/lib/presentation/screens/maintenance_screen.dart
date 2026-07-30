@@ -52,7 +52,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
 
   Future<Result<CommandResult>> _send(DeviceCommandId id) => ref
       .read(connectionControllerProvider.notifier)
-      .sendCommand(DeviceCommand(id: id));
+      .sendCommand(buildSafeCommand(id));
 
   @override
   Widget build(BuildContext context) {

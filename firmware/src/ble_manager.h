@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "ble_command.h"
 #include "ble_telemetry.h"
 #include "config.h"
 
@@ -10,6 +11,14 @@ namespace bike {
 struct ConfigWriteResult {
   CommandStatus status = CommandStatus::kOk;
   uint8_t field_id = 0;
+};
+
+struct BleCommandResult {
+  CommandStatus status = CommandStatus::kOk;
+  uint8_t detail = 0;
+  uint32_t token = 0;
+  uint8_t payload[kCommandResultMaxPayload] = {};
+  uint8_t payload_len = 0;
 };
 
 // Runtime seed for Device Information and initial Telemetry battery %.
@@ -31,7 +40,7 @@ struct BleBootSeed {
 // É4.6 refreshes Device Info on each Read (uptime / live flags / bonded).
 // É4.7 publishes Telemetry at adaptive rate (1 Hz notify / 0.2 Hz Read refresh).
 // É4.8 stages Config Write in a pending queue; main loop validates/applies.
-// Command stubs return ERR_NOT_SUPPORTED via Command Result until É4.9–4.11.
+// Safe commands are staged from the BLE callback and executed by AppController.
 // Advertising name resolves BikeComp-XXXX → serial suffix; Tx Power in Scan Response.
 class BleManager {
  public:
@@ -48,6 +57,9 @@ class BleManager {
   // Sensor-test mode forces 5 Hz notify (Э4.13 command path will toggle this).
   void setSensorTestActive(bool active);
   bool sensorTestActive() const;
+  void openPairingWindow(uint16_t duration_s, uint32_t now_ms);
+
+  void clearBonds();
 
   bool hasPendingConfigWrite() const;
   bool takePendingConfigWrite(uint8_t out[kConfigurationSize]);
@@ -55,6 +67,17 @@ class BleManager {
 
   void publishConfigWriteResult(const ConfigWriteResult& result);
   void publishAppliedConfig(const DeviceConfig& config, bool config_valid);
+
+  bool hasPendingSafeCommand() const;
+  bool takePendingSafeCommand(SafeCommandParseResult& command);
+  void completePendingSafeCommand();
+  void publishSafeCommandResult(CommandId command_id,
+                                const BleCommandResult& result);
+  bool hasPendingDangerousCommand() const;
+  bool takePendingDangerousCommand(DangerousCommandParseResult& command);
+  void completePendingDangerousCommand();
+  void publishDangerousCommandResult(CommandId command_id,
+                                     const BleCommandResult& result);
 
  private:
   bool ok_ = false;

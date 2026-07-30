@@ -23,9 +23,18 @@
   (`ble_config_write`: BLE callback stages 48 B write; `AppController` validates,
   saves A/B config, applies runtime settings; `Command Result` OK/ERR_RANGE/ERR_BUSY/
   ERR_STORAGE + Config Read notify; advertising name refresh).
-- [ ] 4.9 Реализовать safe commands `0x01–0x0B`.
-- [ ] 4.10 Реализовать dangerous command nonce, TTL и connection binding.
-- [ ] 4.11 Реализовать Command Result statuses и `field_id`.
+- [x] 4.9 Реализовать safe commands `0x01–0x0B`.
+  (`ble_command`: strict framing/range checks + single-slot queue; `AppController`:
+  trip/max reset, force-save с `ERR_STORAGE`, OLED on/off/test, sensor test 5 Гц с
+  timeout/disconnect, battery/self-test и 16-byte `GET_DIAGNOSTIC`; shared fixtures
+  проверяются firmware/mobile tests; mobile builder добавляет обязательные payload.)
+- [x] 4.10 Реализовать dangerous command nonce, TTL и connection binding.
+  (strict parser для `0x20–0x40`; аппаратный RNG; TTL 30 с; binding к command,
+  parameter payload и connection; bonded-only; single-slot execution; reset/factory/
+  reboot/calibration/odometer/open-pairing; общие request/NEEDS_CONFIRM fixtures.)
+- [x] 4.11 Реализовать Command Result statuses и `field_id`.
+  (Config Write и все safe/dangerous paths возвращают OK либо точный status/detail;
+  diagnostics payload и nonce передаются нормативным little-endian codec.)
 - [ ] 4.12 Реализовать pairing/bonding, 5-minute window и encryption.
 - [ ] 4.13 Реализовать Error Log и sensor test telemetry 5 Гц.
 - [ ] 4.14 Добавить `open-pairing`, `dump-config`, `selftest` в Serial.

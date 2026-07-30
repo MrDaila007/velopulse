@@ -1,6 +1,6 @@
 # BikeComp — задачи
 
-Обновлено: 2026-07-30
+Обновлено: 2026-07-31
 
 ## Состояние этапов
 
@@ -19,18 +19,19 @@
 
 Э3.5 hardware DoD частично закрыт на XIAO (`/dev/ttyACM0`): odo A/B embedded,
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
-power-loss вручную → M3. BLE Э4.1–4.8 (GATT + Device Info + Telemetry notify
-seq/adaptive rate + Config Write pending queue); дальше Э4.9 safe commands.
-Параллельно Э5 реализован и проходит fake/automatic gate; завершение остаётся
-заблокировано аппаратной приёмкой после Э4.7–Э4.12.
+power-loss вручную → M3. BLE Э4.1–4.10 выполнены: safe/dangerous-команды,
+Command Result, nonce/TTL/binding и payload приложения синхронизированы fixtures;
+74/74 native, XIAO build и 41/41 Flutter tests проходят. Дальше Э4.12 pairing,
+затем Android hardware gate. Э5 проходит fake/automatic gate, но
+остаётся незакрытым до аппаратной приёмки.
 
 ## Порядок и зависимости
 
 1. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и аппаратные долги Hall/стенда.
 2. BLE structures/fixtures/GATT/Device Info/Telemetry/Config Write Э4.1–4.8 — выполнены.
-3. Реализовать BLE firmware — Э4.9–4.14.
+3. Э4.9–4.11 выполнены; реализовать Э4.12–4.14, приоритет — pairing и hardware gate.
 4. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
-5. После Э4.8–Э4.12 провести hardware gate Э5, затем начать Э6.
+5. После Э4.12 провести hardware gate Э5, затем начать Э6.
 6. Выполнить soak, power и field tests Э7, затем собрать v1.0.
 
 ## Папки задач

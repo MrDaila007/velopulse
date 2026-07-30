@@ -39,9 +39,14 @@ class AppController {
   void updateBattery(uint32_t now_ms);
   void updateBle(uint32_t now_ms);
   void processPendingConfigWrite();
+  void processPendingSafeCommand(uint32_t now_ms);
+  void processPendingDangerousCommand(uint32_t now_ms);
   void applyConfig(const DeviceConfig& config);
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
   void maybePersistOdometer(uint32_t now_ms);
+  bool persistOdometer(OdometerSaveTrigger trigger);
+  bool saveAndApplyOdometer(uint64_t odometer_mm,
+                            uint64_t total_revolutions);
   void printDiagnostics() const;
 
   DeviceConfig config_;
@@ -59,6 +64,10 @@ class AppController {
   ScheduledTask tasks_[5];
   Scheduler scheduler_;
   uint8_t selftest_mask_ = 0;
+  uint32_t sensor_test_started_ms_ = 0;
+  uint32_t sensor_test_duration_ms_ = 0;
+  bool reboot_pending_ = false;
+  uint32_t reboot_requested_ms_ = 0;
 };
 
 }  // namespace bike
