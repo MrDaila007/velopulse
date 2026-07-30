@@ -4,6 +4,7 @@
 #include <bluefruit.h>
 #include <string.h>
 
+#include "ble_device_info.h"
 #include "ble_identity.h"
 #include "ble_protocol.h"
 #include "protocol_codec.h"
@@ -28,6 +29,16 @@ uint8_t g_error_log_buf[kErrorLogMaxSize] = {};
 
 char g_local_name[16] = {};
 
+DeviceInfoPacket g_device_info_packet = {};
+uint32_t g_boot_ms = 0;
+uint32_t g_pairing_window_ms = kDefaultPairingWindowMs;
+bool g_open_pairing_always = true;
+bool g_config_valid = false;
+bool g_display_ok = false;
+bool g_fs_ok = false;
+bool g_usb_connected = false;
+bool g_deep_sleep_supported = false;
+
 bool beginChar(BLECharacteristic& chr) {
   return chr.begin() == ERROR_NONE;
 }
@@ -44,6 +55,42 @@ void readFicrSerial(uint8_t serial[8], uint16_t& suffix_hex) {
   serial[6] = static_cast<uint8_t>(id1 >> 16);
   serial[7] = static_cast<uint8_t>(id1 >> 24);
   suffix_hex = static_cast<uint16_t>(id0 & 0xFFFFu);
+}
+
+bool connectionBonded(uint16_t conn_hdl) {
+  BLEConnection* conn = Bluefruit.Connection(conn_hdl);
+  return conn != nullptr && conn->bonded();
+}
+
+void encodeAndPublishDeviceInfo() {
+  encodeDeviceInfo(g_device_info_packet, g_device_info_buf);
+  g_device_info.write(g_device_info_buf, kDeviceInfoSize);
+}
+
+void refreshDeviceInfoForRead(uint16_t conn_hdl) {
+  refreshDeviceInfoLiveFields(
+      g_device_info_packet, g_boot_ms, millis(), g_pairing_window_ms,
+      g_open_pairing_always, connectionBonded(conn_hdl), g_usb_connected,
+      g_config_valid, g_display_ok, g_fs_ok, g_deep_sleep_supported);
+  encodeDeviceInfo(g_device_info_packet, g_device_info_buf);
+}
+
+// Must reply synchronously (useAdaCallback=false); SoftDevice waits for
+// sd_ble_gatts_rw_authorize_reply before completing the ATT Read.
+void onDeviceInfoRead(uint16_t conn_hdl, BLECharacteristic*,
+                      ble_gatts_evt_read_t* request) {
+  ble_gatts_rw_authorize_reply_params_t reply = {};
+  reply.type = BLE_GATTS_AUTHORIZE_TYPE_READ;
+  reply.params.read.gatt_status = BLE_GATT_STATUS_SUCCESS;
+  reply.params.read.update = 0;
+  if (request != nullptr && request->offset == 0) {
+    refreshDeviceInfoForRead(conn_hdl);
+    reply.params.read.update = 1;
+    reply.params.read.offset = 0;
+    reply.params.read.len = kDeviceInfoSize;
+    reply.params.read.p_data = g_device_info_buf;
+  }
+  sd_ble_gatts_rw_authorize_reply(conn_hdl, &reply);
 }
 
 void publishCommandResult(uint8_t command_id, CommandStatus status) {
@@ -79,6 +126,8 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
   g_device_info.setFixedLen(kDeviceInfoSize);
   g_device_info.setBuffer(g_device_info_buf, sizeof(g_device_info_buf));
   g_device_info.setUserDescriptor("Device Information");
+  // Synchronous authorize so SoftDevice gets an immediate reply with live data.
+  g_device_info.setReadAuthorizeCallback(onDeviceInfoRead, false);
   if (!beginChar(g_device_info)) return false;
 
   g_telemetry.setProperties(CHR_PROPS_READ | CHR_PROPS_NOTIFY);
@@ -123,20 +172,31 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
   g_error_log.setUserDescriptor("Error Log");
   if (!beginChar(g_error_log)) return false;
 
-  DeviceInfoPacket info = {};
-  info.struct_version = kBleStructVersion;
-  info.proto_major = kBleProtoMajor;
-  info.proto_minor = kBleProtoMinor;
-  info.hw_revision = static_cast<uint8_t>(HW_REVISION);
-  strncpy(info.model, "BIKECOMP-XIAO", sizeof(info.model) - 1u);
-  strncpy(info.fw_version, FW_VERSION, sizeof(info.fw_version) - 1u);
-  memcpy(info.serial, serial, 8);
-  if (seed.config_from_flash) info.flags |= kDeviceInfoFlagConfigValid;
-  if (seed.display_ok) info.flags |= kDeviceInfoFlagDisplayOk;
-  if (seed.fs_ok) info.flags |= kDeviceInfoFlagFsOk;
-  if (seed.usb_connected) info.flags |= kDeviceInfoFlagUsbConnected;
-  encodeDeviceInfo(info, g_device_info_buf);
-  g_device_info.write(g_device_info_buf, kDeviceInfoSize);
+  g_boot_ms = seed.boot_ms;
+  g_open_pairing_always = seed.open_pairing_always;
+  g_config_valid = seed.config_from_flash;
+  g_display_ok = seed.display_ok;
+  g_fs_ok = seed.fs_ok;
+  g_usb_connected = seed.usb_connected;
+  g_deep_sleep_supported = false;
+
+  g_device_info_packet = {};
+  g_device_info_packet.struct_version = kBleStructVersion;
+  g_device_info_packet.proto_major = kBleProtoMajor;
+  g_device_info_packet.proto_minor = kBleProtoMinor;
+  g_device_info_packet.hw_revision = static_cast<uint8_t>(HW_REVISION);
+  strncpy(g_device_info_packet.model, "BIKECOMP-XIAO",
+          sizeof(g_device_info_packet.model) - 1u);
+  strncpy(g_device_info_packet.fw_version, FW_VERSION,
+          sizeof(g_device_info_packet.fw_version) - 1u);
+  memcpy(g_device_info_packet.serial, serial, 8);
+  g_device_info_packet.reset_reason = seed.reset_reason;
+  g_device_info_packet.boot_count = seed.boot_count;
+  refreshDeviceInfoLiveFields(
+      g_device_info_packet, g_boot_ms, seed.boot_ms, g_pairing_window_ms,
+      g_open_pairing_always, /*bonded=*/false, g_usb_connected, g_config_valid,
+      g_display_ok, g_fs_ok, g_deep_sleep_supported);
+  encodeAndPublishDeviceInfo();
 
   encodeConfiguration(config, g_config_read_buf);
   g_config_read.write(g_config_read_buf, kConfigurationSize);
@@ -213,6 +273,10 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   Serial.println(g_local_name);
   ok_ = true;
   return true;
+}
+
+void BleManager::noteUsbPresent(bool usb_present) {
+  g_usb_connected = usb_present;
 }
 
 }  // namespace bike

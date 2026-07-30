@@ -48,18 +48,18 @@
   `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
   для будущего `GET_DIAGNOSTIC`. Serial dump при старте;
   `AppController::diagnosticSnapshot()`.
-- BLE Э4.1–4.4 + QA-hardening: `BleManager` GATT (7 chars, CCCD/User Desc,
-  SECMODE), seed Device Info (`BIKECOMP-XIAO`, FICR serial, flags) и Config Read;
-  Telemetry/CommandResult/ErrorLog — не-нулевые stubs (`struct_version=1`);
-  Config Write/Command → `ERR_NOT_SUPPORTED` через Command Result; ADV Flags +
-  Service UUID, Scan Response name + Tx Power; имя `BikeComp-XXXX` резолвится в
-  serial-суффикс (`ble_identity`); ack одометра только при успехе Flash;
-  hot-path Serial за `BIKECOMP_HOTPATH_SERIAL` (по умолчанию выкл).
+- BLE Э4.1–4.6: `BleManager` GATT + live Device Info на Read (uptime, flags,
+  bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
+  `boot_count` в `/boot_cnt`; Config Read seed; Telemetry/CommandResult/ErrorLog —
+  stubs; Config Write/Command → `ERR_NOT_SUPPORTED`; ADV Flags + Service UUID,
+  Scan Response name + Tx Power; имя `BikeComp-XXXX` → serial (`ble_identity`);
+  ack одометра только при успехе Flash; hot-path Serial за
+  `BIKECOMP_HOTPATH_SERIAL` (по умолчанию выкл).
 
 ## Проверки
 
-- `pio test -e native`: 51 тестов проходят (включая oneshot-ack regression и
-  `ble_identity` name resolve).
+- `pio test -e native`: 54 тестов проходят (включая oneshot-ack, `ble_identity`,
+  reset_reason map, boot_count, Device Info flags/uptime).
 - `pio run -e xiao_ble_sense`: сборка проходит.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
@@ -90,17 +90,19 @@
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
   (чтобы не уничтожить обе копии `/odo_a|b`).
 - BLE: handlers Config/Command — stub `ERR_NOT_SUPPORTED` до Э4.8–4.11; live
-  Telemetry notify / uptime / boot_count — Э4.6–4.7; стандартные DIS/BAS
-  (`0x180A`/`0x180F`) отложены (SoftDevice attr-table risk на текущем стеке;
-  приложение их не использует). `flash_write_count` RAM-only до персиста counters.
-  `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
-  `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.
+  Telemetry notify — Э4.7; стандартные DIS/BAS (`0x180A`/`0x180F`) отложены
+  (SoftDevice attr-table risk на текущем стеке; приложение их не использует).
+  `flash_write_count` RAM-only до персиста counters. `sd_softdevice_disable` при
+  fail init не вызываем (ломает USB CDC); teardown = `Advertising.stop()`.
+  `kSelftestWatchdogOk` не ставится — Watchdog ещё не init. Pairing enforcement
+  (отклонение новых bonds после окна) — Э4.12; прототип
+  `BIKECOMP_OPEN_PAIRING=1` держит флаг окна открытым.
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 
 ## Следующий шаг
 
 Остаток DoD Э3.5: 10× power-loss вручную (хотя бы один слот `/odo_a|b` жив),
-затем закрыть M3. Дальше: Э4.6 Device Info (uptime/boot_count/flags live) или
-Э4.8 Config Write; персист diagnostics counters. Ручной nRF Connect: имя
-`BikeComp-<hex>`, Device Info bytes, pairing для encrypted chars.
+затем закрыть M3. Дальше: Э4.7 Telemetry notify (seq + adaptive rate) или
+Э4.8 Config Write; персист diagnostics counters. Ручной nRF Connect: Device Info
+uptime/boot_count/reset_reason, имя `BikeComp-<hex>`, pairing для encrypted chars.

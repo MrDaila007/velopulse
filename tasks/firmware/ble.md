@@ -10,8 +10,11 @@
 - [ ] 4.5 Реализовать fast/slow advertising и Scan Response.
   (частично: intervals 30/1000 ms + fast timeout 30 s + name/TxPower уже есть;
   остаётся polish/DoD Э4.5).
-- [ ] 4.6 Реализовать Device Information, FICR serial, uptime/reset reason.
-  (частично: FICR serial + seed flags/model; uptime/boot_count/live flags — ещё нет).
+- [x] 4.6 Реализовать Device Information, FICR serial, uptime/reset reason.
+  (`BleManager` Read-authorize: live `uptime_s` + flags; FICR serial; `mapNrfResetReason`
+  из `RESETREAS`; `boot_count` в `/boot_cnt`; pairing window 5 мин /
+  `BIKECOMP_OPEN_PAIRING`; bonded из `BLEConnection::bonded()`; USB live через
+  `noteUsbPresent`).
 - [ ] 4.7 Реализовать Telemetry notify, sequence и adaptive rate.
 - [ ] 4.8 Реализовать Config Read/Write, pending queue и validation/apply.
 - [ ] 4.9 Реализовать safe commands `0x01–0x0B`.

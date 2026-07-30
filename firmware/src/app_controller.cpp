@@ -2,10 +2,16 @@
 
 #include <Arduino.h>
 
+#include "ble_device_info.h"
 #include "board_pins.h"
+#include "boot_counter.h"
 
 #ifndef BIKECOMP_HOTPATH_SERIAL
 #define BIKECOMP_HOTPATH_SERIAL 0
+#endif
+
+#ifndef BIKECOMP_OPEN_PAIRING
+#define BIKECOMP_OPEN_PAIRING 1
 #endif
 
 namespace bike {
@@ -76,9 +82,26 @@ void AppController::begin() {
   Serial.print("BikeComp FW ");
   Serial.println(FW_VERSION);
 
+  const uint32_t resetreas = NRF_POWER->RESETREAS;
+  const ResetReason reset_reason = mapNrfResetReason(resetreas);
+  // Clear sticky bits so the next boot sees a fresh reason.
+  NRF_POWER->RESETREAS = resetreas;
+  Serial.print("reset_reason=");
+  Serial.print(static_cast<unsigned>(reset_reason));
+  Serial.print(" (RESETREAS=0x");
+  Serial.print(resetreas, HEX);
+  Serial.println(')');
+
   const bool fs_ok = storage_.begin();
   Serial.print("Flash FS: ");
   Serial.println(fs_ok ? "OK" : "MOUNT FAILED");
+
+  uint16_t boot_count = 0;
+  if (fs_ok) {
+    boot_count = loadAndIncrementBootCount(storage_backend_);
+  }
+  Serial.print("boot_count=");
+  Serial.println(boot_count);
 
   StorageLoadInfo config_info;
   StorageLoadInfo odometer_info;
@@ -135,6 +158,10 @@ void AppController::begin() {
   ble_seed.fs_ok = fs_ok;
   ble_seed.usb_connected = battery_.snapshot().usb_present;
   ble_seed.battery_percent = battery_.snapshot().percent;
+  ble_seed.reset_reason = static_cast<uint8_t>(reset_reason);
+  ble_seed.boot_count = boot_count;
+  ble_seed.boot_ms = millis();
+  ble_seed.open_pairing_always = (BIKECOMP_OPEN_PAIRING != 0);
   const bool ble_ok = ble_.begin(config_, ble_seed);
   Serial.print("BLE GATT: ");
   Serial.println(ble_ok ? "OK" : "INIT FAILED");
@@ -309,6 +336,7 @@ void AppController::updateBattery(uint32_t now_ms) {
   const BatterySnapshot& snapshot = battery_.snapshot();
   odometer_save_.noteUsbPresent(snapshot.usb_present);
   odometer_save_.noteBatteryPercent(snapshot.percent, snapshot.valid);
+  ble_.noteUsbPresent(snapshot.usb_present);
   maybePersistOdometer(now_ms);
 #if BIKECOMP_HOTPATH_SERIAL
   Serial.print("Battery raw=");

@@ -11,8 +11,10 @@
 #include <vector>
 
 #include "battery_model.h"
+#include "ble_device_info.h"
 #include "ble_identity.h"
 #include "ble_protocol.h"
+#include "boot_counter.h"
 #include "config_codec.h"
 #include "config_validator.h"
 #include "crc32.h"
@@ -1135,6 +1137,72 @@ void test_ble_identity_resolves_placeholder_name() {
   TEST_ASSERT_EQUAL_STRING("MyBike-01", name);
 }
 
+void test_map_nrf_reset_reason_priority() {
+  TEST_ASSERT_EQUAL(ResetReason::kPowerOn, mapNrfResetReason(0u));
+  TEST_ASSERT_EQUAL(ResetReason::kWatchdog, mapNrfResetReason(kNrfResetReasonDog));
+  TEST_ASSERT_EQUAL(ResetReason::kLockup, mapNrfResetReason(kNrfResetReasonLockup));
+  TEST_ASSERT_EQUAL(ResetReason::kSoftReset, mapNrfResetReason(kNrfResetReasonSreq));
+  TEST_ASSERT_EQUAL(ResetReason::kPinReset, mapNrfResetReason(kNrfResetReasonPin));
+  TEST_ASSERT_EQUAL(ResetReason::kWakeFromSleep,
+                    mapNrfResetReason(kNrfResetReasonOff));
+  TEST_ASSERT_EQUAL(ResetReason::kWakeFromSleep,
+                    mapNrfResetReason(kNrfResetReasonVbus));
+  // Watchdog wins over soft+pin when several bits stick.
+  TEST_ASSERT_EQUAL(ResetReason::kWatchdog,
+                    mapNrfResetReason(kNrfResetReasonDog | kNrfResetReasonSreq |
+                                      kNrfResetReasonPin));
+  TEST_ASSERT_EQUAL(ResetReason::kUnknown, mapNrfResetReason(1u << 31));
+}
+
+void test_pairing_window_and_device_info_flags() {
+  TEST_ASSERT_TRUE(isPairingWindowOpen(0, 1000, kDefaultPairingWindowMs, false));
+  TEST_ASSERT_FALSE(
+      isPairingWindowOpen(0, kDefaultPairingWindowMs, kDefaultPairingWindowMs, false));
+  TEST_ASSERT_TRUE(
+      isPairingWindowOpen(0, kDefaultPairingWindowMs + 1u, kDefaultPairingWindowMs, true));
+
+  const uint8_t flags = buildDeviceInfoFlags(
+      true, true, true, true, true, true, false);
+  TEST_ASSERT_EQUAL_UINT8(
+      kDeviceInfoFlagConfigValid | kDeviceInfoFlagDisplayOk | kDeviceInfoFlagFsOk |
+          kDeviceInfoFlagBonded | kDeviceInfoFlagPairingWindowOpen |
+          kDeviceInfoFlagUsbConnected,
+      flags);
+
+  DeviceInfoPacket info = {};
+  info.boot_count = 7;
+  info.reset_reason = static_cast<uint8_t>(ResetReason::kSoftReset);
+  refreshDeviceInfoLiveFields(info, /*boot_ms=*/1000, /*now_ms=*/65000,
+                              kDefaultPairingWindowMs, /*open_pairing_always=*/false,
+                              /*bonded=*/true, /*usb=*/false, /*config=*/true,
+                              /*display=*/true, /*fs=*/true, /*deep_sleep=*/false);
+  TEST_ASSERT_EQUAL_UINT32(64u, info.uptime_s);
+  TEST_ASSERT_TRUE((info.flags & kDeviceInfoFlagBonded) != 0);
+  TEST_ASSERT_TRUE((info.flags & kDeviceInfoFlagPairingWindowOpen) != 0);
+  TEST_ASSERT_TRUE((info.flags & kDeviceInfoFlagUsbConnected) == 0);
+}
+
+void test_boot_count_increments_and_persists() {
+  MemoryStorageBackend backend;
+  TEST_ASSERT_EQUAL_UINT16(1u, loadAndIncrementBootCount(backend));
+  TEST_ASSERT_EQUAL_UINT16(2u, loadAndIncrementBootCount(backend));
+  TEST_ASSERT_EQUAL_UINT16(3u, loadAndIncrementBootCount(backend));
+
+  const auto found = backend.files.find(kBootCountPath);
+  TEST_ASSERT_TRUE(found != backend.files.end());
+  TEST_ASSERT_EQUAL_UINT32(2u, found->second.size());
+  TEST_ASSERT_EQUAL_UINT8(3u, found->second[0]);
+  TEST_ASSERT_EQUAL_UINT8(0u, found->second[1]);
+
+  // Corrupt / short payload restarts from 1.
+  backend.files[kBootCountPath] = {0x01};
+  TEST_ASSERT_EQUAL_UINT16(1u, loadAndIncrementBootCount(backend));
+
+  // Saturate at UINT16_MAX.
+  backend.files[kBootCountPath] = {0xFF, 0xFF};
+  TEST_ASSERT_EQUAL_UINT16(0xFFFFu, loadAndIncrementBootCount(backend));
+}
+
 void test_diagnostic_snapshot_maps_storage_and_pulse_counters() {
   StorageCounters storage{};
   storage.writes = 42u;
@@ -1470,6 +1538,9 @@ int main(int, char**) {
   RUN_TEST(test_odometer_save_flash_error_keeps_distance_retry);
   RUN_TEST(test_odometer_save_flash_error_keeps_oneshot_pending);
   RUN_TEST(test_ble_identity_resolves_placeholder_name);
+  RUN_TEST(test_map_nrf_reset_reason_priority);
+  RUN_TEST(test_pairing_window_and_device_info_flags);
+  RUN_TEST(test_boot_count_increments_and_persists);
   RUN_TEST(test_diagnostic_snapshot_maps_storage_and_pulse_counters);
   RUN_TEST(test_diagnostic_payload_little_endian_layout);
   RUN_TEST(test_diagnostic_saturates_narrow_fields);
