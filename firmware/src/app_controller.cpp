@@ -223,8 +223,115 @@ void AppController::printDiagnostics() const {
 
 void AppController::loop() {
   wheel_sensor_.pollPin();
-  scheduler_.run(millis());
+  const uint32_t now_ms = millis();
+  processSerialConsole(now_ms);
+  scheduler_.run(now_ms);
   yield();
+}
+
+void AppController::processSerialConsole(uint32_t now_ms) {
+  if (!Serial) return;
+
+  while (Serial.available() > 0) {
+    const int value = Serial.read();
+    if (value < 0) break;
+
+    const SerialCommand command =
+        serial_command_parser_.feed(static_cast<char>(value));
+    switch (command) {
+      case SerialCommand::kNone:
+        break;
+
+      case SerialCommand::kOpenPairing:
+        ble_.openPairingWindow(kDefaultPairingWindowMs / 1000u, now_ms);
+        Serial.println("OK open-pairing duration_s=300");
+        break;
+
+      case SerialCommand::kDumpConfig:
+        dumpConfig();
+        break;
+
+      case SerialCommand::kResetOdometer:
+        Serial.println(saveAndApplyOdometer(0, 0)
+                           ? "OK reset-odo"
+                           : "ERROR reset-odo storage");
+        break;
+
+      case SerialCommand::kSelftest:
+        printDiagnostics();
+        Serial.print("OK selftest mask=0x");
+        if (selftest_mask_ < 0x10u) Serial.print('0');
+        Serial.println(selftest_mask_, HEX);
+        break;
+
+      case SerialCommand::kUnknown:
+        Serial.println("ERROR unknown-command");
+        break;
+    }
+  }
+}
+
+void AppController::dumpConfig() const {
+  uint8_t payload[kDeviceConfigPayloadSize];
+  encodeDeviceConfig(config_, payload);
+
+  Serial.println("Config:");
+  Serial.print("  wheel_circumference_mm=");
+  Serial.println(config_.wheel_circumference_mm);
+  Serial.print("  max_speed_kmh=");
+  Serial.println(config_.max_speed_kmh);
+  Serial.print("  stop_timeout_s=");
+  Serial.println(config_.stop_timeout_s);
+  Serial.print("  display_timeout_s=");
+  Serial.println(config_.display_timeout_s);
+  Serial.print("  deep_sleep_timeout_s=");
+  Serial.println(config_.deep_sleep_timeout_s);
+  Serial.print("  brightness_pct=");
+  Serial.println(config_.brightness_pct);
+  Serial.print("  page_switch_period_s=");
+  Serial.println(config_.page_switch_period_s);
+  Serial.print("  enabled_pages_mask=0x");
+  Serial.println(config_.enabled_pages_mask, HEX);
+  Serial.print("  low_battery_pct=");
+  Serial.println(config_.low_battery_pct);
+  Serial.print("  odometer_save_interval_m=");
+  Serial.println(config_.odometer_save_interval_m);
+  Serial.print("  smoothing_window=");
+  Serial.println(config_.smoothing_window);
+  Serial.print("  debounce_ms=");
+  Serial.println(config_.debounce_ms);
+  Serial.print("  active_edge=");
+  Serial.println(config_.active_edge);
+  Serial.print("  pinned_page=");
+  Serial.println(config_.pinned_page);
+  Serial.print("  batt_cal_scale_permille=");
+  Serial.println(config_.batt_cal_scale_permille);
+  Serial.print("  batt_cal_offset_mv=");
+  Serial.println(config_.batt_cal_offset_mv);
+  Serial.print("  page_order=");
+  for (size_t i = 0; i < kDisplayPageCount; ++i) {
+    if (i != 0) Serial.print(',');
+    Serial.print(config_.page_order[i]);
+  }
+  Serial.println();
+  Serial.print("  device_name=");
+  Serial.println(config_.device_name);
+  Serial.print("  flags=");
+  Serial.print(config_.smoothing_enabled ? '1' : '0');
+  Serial.print(config_.auto_page_switch ? '1' : '0');
+  Serial.print(config_.display_auto_off ? '1' : '0');
+  Serial.print(config_.ble_always_advertise ? '1' : '0');
+  Serial.print(config_.units_imperial ? '1' : '0');
+  Serial.print(config_.sensor_invert ? '1' : '0');
+  Serial.print(config_.power_save_mode ? '1' : '0');
+  Serial.println(config_.deep_sleep_enabled ? '1' : '0');
+  Serial.print("  wire_v1=");
+  for (size_t i = 0; i < kDeviceConfigPayloadSize; ++i) {
+    if (payload[i] < 0x10u) Serial.print('0');
+    Serial.print(payload[i], HEX);
+  }
+  Serial.println();
+  Serial.println("OK dump-config");
 }
 
 void AppController::pulseTask(void* context, uint32_t now_ms) {

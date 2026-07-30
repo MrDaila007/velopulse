@@ -30,6 +30,7 @@
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
+#include "serial_console.h"
 #include "speed_calculator.h"
 #include "storage_manager.h"
 #include "storage_migration.h"
@@ -39,6 +40,54 @@ using namespace bike;
 
 void setUp() {}
 void tearDown() {}
+
+void test_serial_console_parses_supported_commands_and_crlf() {
+  SerialCommandParser parser;
+  const char* commands =
+      "open-pairing\r\ndump-config\nreset-odo\rselftest\n";
+  const SerialCommand expected[] = {
+      SerialCommand::kOpenPairing,
+      SerialCommand::kDumpConfig,
+      SerialCommand::kResetOdometer,
+      SerialCommand::kSelftest,
+  };
+  size_t found = 0;
+  for (size_t i = 0; commands[i] != '\0'; ++i) {
+    const SerialCommand command = parser.feed(commands[i]);
+    if (command != SerialCommand::kNone) {
+      TEST_ASSERT_LESS_THAN(sizeof(expected) / sizeof(expected[0]), found);
+      TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(expected[found]),
+                              static_cast<uint8_t>(command));
+      ++found;
+    }
+  }
+  TEST_ASSERT_EQUAL(sizeof(expected) / sizeof(expected[0]), found);
+}
+
+void test_serial_console_trims_rejects_and_recovers_after_overflow() {
+  SerialCommandParser parser;
+  const char* padded = " \tselftest \t\n";
+  SerialCommand result = SerialCommand::kNone;
+  for (size_t i = 0; padded[i] != '\0'; ++i) {
+    result = parser.feed(padded[i]);
+  }
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kSelftest),
+                          static_cast<uint8_t>(result));
+
+  const char* overflow = "this-command-is-far-too-long\n";
+  for (size_t i = 0; overflow[i] != '\0'; ++i) {
+    result = parser.feed(overflow[i]);
+  }
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kUnknown),
+                          static_cast<uint8_t>(result));
+
+  const char* recovered = "dump-config\n";
+  for (size_t i = 0; recovered[i] != '\0'; ++i) {
+    result = parser.feed(recovered[i]);
+  }
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kDumpConfig),
+                          static_cast<uint8_t>(result));
+}
 
 namespace {
 
@@ -2028,6 +2077,8 @@ int main(int, char**) {
   RUN_TEST(test_trip_restores_only_persistent_totals);
   RUN_TEST(test_ride_state_transitions_and_paused_time);
   RUN_TEST(test_scheduler_period_and_wrap);
+  RUN_TEST(test_serial_console_parses_supported_commands_and_crlf);
+  RUN_TEST(test_serial_console_trims_rejects_and_recovers_after_overflow);
   RUN_TEST(test_page_carousel_default_period_and_wrap);
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);

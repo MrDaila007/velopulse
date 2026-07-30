@@ -10,6 +10,7 @@
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
+#include "serial_console.h"
 #include "speed_calculator.h"
 #include "storage_manager.h"
 #include "trip_computer.h"
@@ -41,6 +42,8 @@ class AppController {
   void processPendingConfigWrite();
   void processPendingSafeCommand(uint32_t now_ms);
   void processPendingDangerousCommand(uint32_t now_ms);
+  void processSerialConsole(uint32_t now_ms);
+  void dumpConfig() const;
   void applyConfig(const DeviceConfig& config);
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
   void maybePersistOdometer(uint32_t now_ms);
@@ -61,6 +64,7 @@ class AppController {
   BatteryManager battery_;
   DisplayManager display_;
   BleManager ble_;
+  SerialCommandParser serial_command_parser_;
   ScheduledTask tasks_[5];
   Scheduler scheduler_;
   uint8_t selftest_mask_ = 0;

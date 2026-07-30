@@ -42,7 +42,10 @@
   dangerous commands требуют bonded+secured; mobile preflight даёт `notPaired`.
   Hardware DoD и лимит 4 bonds/LRU остаются открыты ниже.)
 - [ ] 4.13 Реализовать Error Log и sensor test telemetry 5 Гц.
-- [ ] 4.14 Добавить `open-pairing`, `dump-config`, `selftest` в Serial.
+- [x] 4.14 Добавить `open-pairing`, `dump-config`, `selftest` в Serial.
+  (Неблокирующий parser с CR/LF, trim, bounded buffer и overflow recovery;
+  `reset-odo` из архитектуры §12.4; config fields + wire payload, diagnostic mask;
+  76/76 native, production build/upload и безопасный Serial smoke на XIAO.)
 
 ## DoD Э4
 
