@@ -13,6 +13,7 @@ enum FakeBleScenario {
   serviceMissing,
   mtuTooSmall,
   protocolMajor2,
+  pairingClosed,
   writeTimeout,
   busyThenOk,
   rangeError,
@@ -68,7 +69,7 @@ class FakeBleTransport implements BleTransport {
     uptimeS: 3600,
     resetReason: ResetReason.powerOn,
     bootCount: 42,
-    flags: 0x1F,
+    flags: scenario == FakeBleScenario.pairingClosed ? 0x0F : 0x1F,
   );
 
   @override

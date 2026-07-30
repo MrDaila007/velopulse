@@ -1168,6 +1168,15 @@ void test_pairing_window_and_device_info_flags() {
   TEST_ASSERT_TRUE(
       isPairingWindowOpen(0, kDefaultPairingWindowMs + 1u, kDefaultPairingWindowMs, true));
 
+  TEST_ASSERT_FALSE(shouldRejectPairingRequest(
+      0, 1000, kDefaultPairingWindowMs, false, false));
+  TEST_ASSERT_FALSE(shouldRejectPairingRequest(
+      0, kDefaultPairingWindowMs, kDefaultPairingWindowMs, true, false));
+  TEST_ASSERT_FALSE(shouldRejectPairingRequest(
+      0, kDefaultPairingWindowMs, kDefaultPairingWindowMs, false, true));
+  TEST_ASSERT_TRUE(shouldRejectPairingRequest(
+      0, kDefaultPairingWindowMs, kDefaultPairingWindowMs, false, false));
+
   const uint8_t flags = buildDeviceInfoFlags(
       true, true, true, true, true, true, false);
   TEST_ASSERT_EQUAL_UINT8(

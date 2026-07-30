@@ -297,7 +297,8 @@ class ConnectionController extends _$ConnectionController {
         lastError: appError,
       );
       if (appError.kind != AppErrorKind.serviceMissing &&
-          appError.kind != AppErrorKind.unsupported) {
+          appError.kind != AppErrorKind.unsupported &&
+          appError.kind != AppErrorKind.notPaired) {
         _scheduleReconnect();
       }
     }
@@ -341,6 +342,10 @@ class ConnectionController extends _$ConnectionController {
         lastError: error,
       );
       return;
+    }
+
+    if (device.bondState == BondState.none && !info.pairingWindowOpen) {
+      throw AppErrors.notPaired;
     }
 
     state = state.copyWith(

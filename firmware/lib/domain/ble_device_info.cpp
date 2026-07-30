@@ -25,6 +25,16 @@ bool isPairingWindowOpen(uint32_t boot_ms,
   return elapsed < window_ms;
 }
 
+bool shouldRejectPairingRequest(uint32_t pairing_window_started_ms,
+                                uint32_t now_ms,
+                                uint32_t pairing_window_ms,
+                                bool open_pairing_always,
+                                bool connection_bonded) {
+  return !connection_bonded &&
+         !isPairingWindowOpen(pairing_window_started_ms, now_ms,
+                              pairing_window_ms, open_pairing_always);
+}
+
 uint8_t buildDeviceInfoFlags(bool config_valid,
                              bool display_ok,
                              bool fs_ok,

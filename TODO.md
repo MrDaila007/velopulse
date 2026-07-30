@@ -19,17 +19,18 @@
 
 Э3.5 hardware DoD частично закрыт на XIAO (`/dev/ttyACM0`): odo A/B embedded,
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
-power-loss вручную → M3. BLE Э4.1–4.10 выполнены: safe/dangerous-команды,
-Command Result, nonce/TTL/binding и payload приложения синхронизированы fixtures;
-74/74 native, XIAO build и 41/41 Flutter tests проходят. Дальше Э4.12 pairing,
-затем Android hardware gate. Э5 проходит fake/automatic gate, но
+power-loss вручную → M3. BLE mobile-critical path Э4.1–4.4 и Э4.6–4.12 программно
+выполнен: команды, nonce/TTL/binding, encryption и 5-минутное pairing window;
+74/74 native, XIAO build
+и 42/42 Flutter tests проходят. Дальше Android/XIAO hardware gate. Э5 проходит
+fake/automatic gate, но
 остаётся незакрытым до аппаратной приёмки.
 
 ## Порядок и зависимости
 
 1. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и аппаратные долги Hall/стенда.
-2. BLE structures/fixtures/GATT/Device Info/Telemetry/Config Write Э4.1–4.8 — выполнены.
-3. Э4.9–4.11 выполнены; реализовать Э4.12–4.14, приоритет — pairing и hardware gate.
+2. BLE Э4.1–4.4/4.6–4.8 выполнены; advertising polish Э4.5 остаётся.
+3. Э4.9–4.12 выполнены; hardware gate, затем Э4.5/4.13–4.14.
 4. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
 5. После Э4.12 провести hardware gate Э5, затем начать Э6.
 6. Выполнить soak, power и field tests Э7, затем собрать v1.0.

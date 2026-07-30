@@ -35,7 +35,12 @@
 - [x] 4.11 Реализовать Command Result statuses и `field_id`.
   (Config Write и все safe/dangerous paths возвращают OK либо точный status/detail;
   diagnostics payload и nonce передаются нормативным little-endian codec.)
-- [ ] 4.12 Реализовать pairing/bonding, 5-minute window и encryption.
+- [x] 4.12 Реализовать pairing/bonding, 5-minute window и encryption.
+  (LESC Just Works + Bluefruit Flash bonds; encrypted GATT permissions; release
+  default закрывает окно через 5 минут; raw security-event gate отклоняет новые
+  pairing requests и отзывает непредвиденный bond; runtime reopen/factory reset;
+  dangerous commands требуют bonded+secured; mobile preflight даёт `notPaired`.
+  Hardware DoD и лимит 4 bonds/LRU остаются открыты ниже.)
 - [ ] 4.13 Реализовать Error Log и sensor test telemetry 5 Гц.
 - [ ] 4.14 Добавить `open-pairing`, `dump-config`, `selftest` в Serial.
 
@@ -47,6 +52,7 @@
 - [ ] RESET_TRIP работает через BLE.
 - [ ] Dangerous command проходит NEEDS_CONFIRM → token → OK/expired.
 - [ ] Bonding переживает reboot; закрытое окно блокирует новые pairing.
+- [ ] Bond store ограничен четырьмя устройствами с LRU-заменой.
 - [ ] Устройство считает поездку без телефона.
 - [ ] `protocol/*`, firmware structs и fixtures синхронизированы.
 

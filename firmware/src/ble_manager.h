@@ -31,8 +31,8 @@ struct BleBootSeed {
   uint8_t reset_reason = 0;
   uint16_t boot_count = 0;
   uint32_t boot_ms = 0;
-  // Prototype default: keep pairing window open (FEATURE_OPEN_PAIRING).
-  bool open_pairing_always = true;
+  // Release-safe default; prototype builds may define BIKECOMP_OPEN_PAIRING=1.
+  bool open_pairing_always = false;
 };
 
 // Adafruit Bluefruit peripheral: Bike Computer Configuration Service GATT table.

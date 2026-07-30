@@ -3,6 +3,7 @@ import 'package:bikecomp_mobile/application/providers.dart';
 import 'package:bikecomp_mobile/core/app_error.dart';
 import 'package:bikecomp_mobile/data/ble/ble_transport.dart';
 import 'package:bikecomp_mobile/data/ble/fake_ble_transport.dart';
+import 'package:bikecomp_mobile/domain/entities/models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
@@ -15,8 +16,9 @@ const fakeDevice = BleScanResult(
 );
 
 Future<(ProviderContainer, FakeBleTransport)> connectWith(
-  FakeBleScenario scenario,
-) async {
+  FakeBleScenario scenario, {
+  BleScanResult device = fakeDevice,
+}) async {
   SharedPreferencesAsyncPlatform.instance =
       InMemorySharedPreferencesAsync.empty();
   final fake = FakeBleTransport(scenario: scenario);
@@ -25,7 +27,7 @@ Future<(ProviderContainer, FakeBleTransport)> connectWith(
   );
   await container
       .read(connectionControllerProvider.notifier)
-      .connectDevice(fakeDevice);
+      .connectDevice(device);
   return (container, fake);
 }
 
@@ -62,4 +64,25 @@ void main() {
       expect(session.lastError?.kind, AppErrorKind.serviceMissing);
     },
   );
+
+  test('closed pairing window gives typed terminal not-paired error', () async {
+    final (container, fake) = await connectWith(
+      FakeBleScenario.pairingClosed,
+      device: fakeDevice.copyWith(bondState: BondState.none),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await fake.dispose();
+    });
+
+    final session = container.read(connectionControllerProvider);
+    expect(session.connection, isA<ConnectionFailed>());
+    expect(session.lastError?.kind, AppErrorKind.notPaired);
+    expect(session.deviceInfo?.pairingWindowOpen, isFalse);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(
+      container.read(connectionControllerProvider).connection,
+      isA<ConnectionFailed>(),
+    );
+  });
 }

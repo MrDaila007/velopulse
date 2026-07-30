@@ -139,6 +139,11 @@ abstract class DeviceInfo with _$DeviceInfo {
       _$DeviceInfoFromJson(json);
 }
 
+extension DeviceInfoFlags on DeviceInfo {
+  bool get bonded => flags & 0x08 != 0;
+  bool get pairingWindowOpen => flags & 0x10 != 0;
+}
+
 @freezed
 abstract class Telemetry with _$Telemetry {
   const Telemetry._();

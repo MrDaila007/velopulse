@@ -31,6 +31,14 @@ bool isPairingWindowOpen(uint32_t boot_ms,
                          uint32_t window_ms,
                          bool open_pairing_always);
 
+// Rejects only a new pairing request outside the active window. A connection
+// already resolved against a stored bond remains allowed after the window.
+bool shouldRejectPairingRequest(uint32_t pairing_window_started_ms,
+                                uint32_t now_ms,
+                                uint32_t pairing_window_ms,
+                                bool open_pairing_always,
+                                bool connection_bonded);
+
 // Assembles Device Info flags from live runtime bits.
 uint8_t buildDeviceInfoFlags(bool config_valid,
                              bool display_ok,

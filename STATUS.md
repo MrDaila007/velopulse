@@ -4,10 +4,10 @@
 
 ## Текущий этап
 
-Э4 — BLE-интеграция. Э4.1–Э4.10 реализованы; safe/dangerous-команды синхронизированы
-с Android-кодеком и shared fixtures. Android MVP реализован и fake-tested, но не
-закрыт до pairing enforcement Э4.12 и hardware gate на реальном
-телефоне и XIAO.
+Э4 — BLE-интеграция. Критичный для приложения путь Э4.1–4.4 и Э4.6–4.12
+программно реализован: команды, encryption и 5-минутное pairing window
+синхронизированы с Android flow. Android MVP fake-tested, но не закрыт до hardware
+gate на реальном телефоне и XIAO; advertising polish Э4.5 остаётся открытым.
 
 ## Готово
 
@@ -50,7 +50,7 @@
   `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
   возвращается через `GET_DIAGNOSTIC`. Serial dump при старте;
   `AppController::diagnosticSnapshot()`.
-- BLE Э4.1–4.10: `BleManager` GATT + live Device Info на Read (uptime, flags,
+- BLE Э4.1–4.4, Э4.6–4.12: `BleManager` GATT + live Device Info на Read (uptime, flags,
   bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
   `boot_count` в `/boot_cnt`; live Telemetry notify (seq + adaptive 1 Гц /
   0.2 Гц Read refresh; sensor-test 5 Гц); Config Write pending queue +
@@ -66,6 +66,11 @@
   single-slot execution и token/error statuses. Реализованы reset odometer/factory,
   reboot с отложенным reset, battery calibration, set odometer и runtime pairing
   window; параметры сохраняются до ответа OK.
+  Pairing/bonding: LESC Just Works, Flash bond store Bluefruit, encrypted GATT
+  permissions, release-default `BIKECOMP_OPEN_PAIRING=0`; новые pairing requests
+  после 5 минут отклоняются disconnect + defensive bond revoke, сохранённые bonds
+  допускаются. Dangerous commands требуют одновременно bonded и encrypted link.
+  Android preflight показывает typed `notPaired` по Device Info без reconnect-loop.
 - `mobile-app`: Flutter 3.44.7, application ID `app.bikecomp.mobile`, minSdk 24,
   compileSdk/targetSdk 36; четыре Material 3 раздела и connecting overlay-route.
   Реализованы protocol v1 Freezed-модели/codecs, полный ConfigValidator,
@@ -91,7 +96,7 @@
 - DoD Э3.5 reboot на `/dev/ttyACM0`: seed 424242 mm / 77 rev переживает два reboot
   production (`Odometer: source=A, sequence=3`, те же значения оба раза).
 - Mobile automatic gate: `dart format`, `flutter analyze` — no issues;
-  `flutter test` — 41/41; ранее debug/release APK собраны.
+  `flutter test` — 42/42; ранее debug/release APK собраны.
 - Release APK: application ID `app.bikecomp.mobile`, minSdk 24, target/compileSdk 36,
   54.0 MB по Flutter (`13c772db7fa9981daf3d30e7aa8665a1554acebeb2d51075dd3f8586250615a4`).
 - Android-устройства через ADB нет; результаты выше получены с fake и локальной
@@ -115,9 +120,10 @@
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
   (чтобы не уничтожить обе копии `/odo_a|b`).
-- BLE: pairing enforcement после 5-минутного окна — Э4.12; прототип
-  `BIKECOMP_OPEN_PAIRING=1` держит окно открытым. Error Log sensor-test details —
-  Э4.13. Стандартные DIS/BAS (`0x180A`/`0x180F`) отложены из-за attr-table risk;
+- BLE: pairing enforcement и persistence собраны, но reboot/closed-window сценарии
+  ещё не приняты на телефоне; лимит 4 bonds с LRU пока не реализован. Prototype
+  override `BIKECOMP_OPEN_PAIRING=1` остаётся opt-in. Error Log sensor-test details
+  — Э4.13. Стандартные DIS/BAS (`0x180A`/`0x180F`) отложены из-за attr-table risk;
   приложение их не использует. `flash_write_count` RAM-only до персиста counters.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
   `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.
@@ -132,9 +138,8 @@
 
 ## Следующий шаг
 
-Реализовать Э4.12 pairing enforcement. Затем прошить XIAO и выполнить nRF Connect
-smoke: Config Write write-then-verify, Telemetry 1 Гц + seq, все MVP safe-команды
-и pairing; после этого
-провести mobile hardware gate из `tasks/mobile/README.md`. Отдельный ручной долг:
+Прошить XIAO и выполнить nRF Connect/mobile hardware gate: новый bond в первые
+5 минут, reconnect после reboot, закрытое окно, Config Write write-then-verify,
+Telemetry 1 Гц + seq и все MVP-команды. Отдельный ручной долг:
 10× power-loss для закрытия Э3.5. После hardware gate закрыть 5.1–5.15 и перевести
 Э5 из «В работе» в «Завершён».

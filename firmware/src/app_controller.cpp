@@ -15,7 +15,7 @@
 #endif
 
 #ifndef BIKECOMP_OPEN_PAIRING
-#define BIKECOMP_OPEN_PAIRING 1
+#define BIKECOMP_OPEN_PAIRING 0
 #endif
 
 namespace bike {

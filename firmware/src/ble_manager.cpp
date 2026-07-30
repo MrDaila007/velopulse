@@ -37,7 +37,7 @@ DeviceInfoPacket g_device_info_packet = {};
 uint32_t g_boot_ms = 0;
 uint32_t g_pairing_window_started_ms = 0;
 uint32_t g_pairing_window_ms = kDefaultPairingWindowMs;
-bool g_open_pairing_always = true;
+bool g_open_pairing_always = false;
 bool g_config_valid = false;
 bool g_display_ok = false;
 bool g_fs_ok = false;
@@ -49,6 +49,7 @@ uint32_t g_telemetry_last_publish_ms = 0;
 bool g_telemetry_has_published = false;
 bool g_sensor_test_active = false;
 uint16_t g_serial_suffix = 0;
+uint16_t g_pairing_allowed_conn_hdl = BLE_CONN_HANDLE_INVALID;
 PendingConfigWrite g_pending_config_write = {};
 PendingSafeCommand g_pending_safe_command = {};
 PendingDangerousCommand g_pending_dangerous_command = {};
@@ -75,6 +76,11 @@ void readFicrSerial(uint8_t serial[8], uint16_t& suffix_hex) {
 bool connectionBonded(uint16_t conn_hdl) {
   BLEConnection* conn = Bluefruit.Connection(conn_hdl);
   return conn != nullptr && conn->bonded();
+}
+
+bool connectionTrusted(uint16_t conn_hdl) {
+  BLEConnection* conn = Bluefruit.Connection(conn_hdl);
+  return conn != nullptr && conn->bonded() && conn->secured();
 }
 
 uint32_t generateHardwareNonce() {
@@ -189,7 +195,7 @@ void onCommandWrite(uint16_t conn_hdl, BLECharacteristic*, uint8_t* data,
       publishCommandResult(command_id, CommandStatus::kErrBusy);
       return;
     }
-    const bool bonded = connectionBonded(conn_hdl);
+    const bool bonded = connectionTrusted(conn_hdl);
     const uint32_t generated_token =
         !parsed.has_token && bonded ? generateHardwareNonce() : 0;
     const DangerousCommandHandshakeResult handshake =
@@ -219,11 +225,45 @@ void onCommandWrite(uint16_t conn_hdl, BLECharacteristic*, uint8_t* data,
   }
 }
 
-void onDisconnect(uint16_t, uint8_t) {
+void onBleEvent(ble_evt_t* event) {
+  if (event == nullptr ||
+      event->header.evt_id != BLE_GAP_EVT_SEC_PARAMS_REQUEST) {
+    return;
+  }
+
+  const uint16_t conn_hdl = event->evt.common_evt.conn_handle;
+  if (shouldRejectPairingRequest(g_pairing_window_started_ms, millis(),
+                                 g_pairing_window_ms, g_open_pairing_always,
+                                 connectionBonded(conn_hdl))) {
+    // Bluefruit invokes its security handler before this public event hook.
+    // Disconnect immediately to abort the accepted-on-wire pairing exchange.
+    g_pairing_allowed_conn_hdl = BLE_CONN_HANDLE_INVALID;
+    Bluefruit.disconnect(conn_hdl);
+    return;
+  }
+  g_pairing_allowed_conn_hdl = conn_hdl;
+}
+
+void onPairComplete(uint16_t conn_hdl, uint8_t auth_status) {
+  const bool was_allowed = g_pairing_allowed_conn_hdl == conn_hdl;
+  g_pairing_allowed_conn_hdl = BLE_CONN_HANDLE_INVALID;
+  if (auth_status != BLE_GAP_SEC_STATUS_SUCCESS || was_allowed) return;
+
+  // Defense in depth: never persist a pairing that completed without passing
+  // the window gate (for example if disconnect delivery was delayed).
+  BLEConnection* conn = Bluefruit.Connection(conn_hdl);
+  if (conn != nullptr && conn->bonded()) conn->removeBondKey();
+  Bluefruit.disconnect(conn_hdl);
+}
+
+void onDisconnect(uint16_t conn_hdl, uint8_t) {
   g_sensor_test_active = false;
   safeCommandQueueFinish(g_pending_safe_command);
   dangerousCommandQueueFinish(g_pending_dangerous_command);
   invalidateDangerousCommandSession(g_dangerous_command_session);
+  if (g_pairing_allowed_conn_hdl == conn_hdl) {
+    g_pairing_allowed_conn_hdl = BLE_CONN_HANDLE_INVALID;
+  }
 }
 
 bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
@@ -285,7 +325,9 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
 
   g_boot_ms = seed.boot_ms;
   g_pairing_window_started_ms = seed.boot_ms;
+  g_pairing_window_ms = kDefaultPairingWindowMs;
   g_open_pairing_always = seed.open_pairing_always;
+  g_pairing_allowed_conn_hdl = BLE_CONN_HANDLE_INVALID;
   g_config_valid = seed.config_from_flash;
   g_display_ok = seed.display_ok;
   g_fs_ok = seed.fs_ok;
@@ -376,6 +418,8 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
     return false;
   }
 
+  Bluefruit.setEventCallback(onBleEvent);
+  Bluefruit.Security.setPairCompleteCallback(onPairComplete);
   Bluefruit.setTxPower(4);
   Bluefruit.Periph.setDisconnectCallback(onDisconnect);
   Bluefruit.Periph.setConnInterval(12, 48);
