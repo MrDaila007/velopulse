@@ -41,11 +41,15 @@
   pairing requests и отзывает непредвиденный bond; runtime reopen/factory reset;
   dangerous commands требуют bonded+secured; mobile preflight даёт `notPaired`.
   Hardware DoD и лимит 4 bonds/LRU остаются открыты ниже.)
-- [ ] 4.13 Реализовать Error Log и sensor test telemetry 5 Гц.
+- [x] 4.13 Реализовать Error Log и sensor test telemetry 5 Гц.
+  (`ErrorLogBuffer`: RAM-кольцо 16 событий, wire snapshot последних 4; Read/Notify
+  обслуживается вне BLE callback. Реальные I²C/Flash/config/pairing/ISR/sensor/
+  watchdog/battery события; sensor-test Telemetry 200 мс + timeout/stop/disconnect;
+  77/77 native, production build/upload и XIAO selftest `0x3F`.)
 - [x] 4.14 Добавить `open-pairing`, `dump-config`, `selftest` в Serial.
   (Неблокирующий parser с CR/LF, trim, bounded buffer и overflow recovery;
   `reset-odo` из архитектуры §12.4; config fields + wire payload, diagnostic mask;
-  76/76 native, production build/upload и безопасный Serial smoke на XIAO.)
+  77/77 native, production build/upload и безопасный Serial smoke на XIAO.)
 
 ## DoD Э4
 

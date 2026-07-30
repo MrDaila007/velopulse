@@ -4,7 +4,7 @@
 
 ## Текущий этап
 
-Э4 — BLE-интеграция. Критичный для приложения путь Э4.1–4.4, Э4.6–4.12 и Э4.14
+Э4 — BLE-интеграция. Критичный для приложения путь Э4.1–4.4 и Э4.6–4.14
 программно реализован: команды, encryption и 5-минутное pairing window
 синхронизированы с Android flow. Android MVP fake-tested, но не закрыт до hardware
 gate на реальном телефоне и XIAO; advertising polish Э4.5 остаётся открытым.
@@ -50,7 +50,7 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
   `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
   возвращается через `GET_DIAGNOSTIC`. Serial dump при старте;
   `AppController::diagnosticSnapshot()`.
-- BLE Э4.1–4.4, Э4.6–4.12, Э4.14: `BleManager` GATT + live Device Info на Read (uptime, flags,
+- BLE Э4.1–4.4, Э4.6–4.14: `BleManager` GATT + live Device Info на Read (uptime, flags,
   bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
   `boot_count` в `/boot_cnt`; live Telemetry notify (seq + adaptive 1 Гц /
   0.2 Гц Read refresh; sensor-test 5 Гц); Config Write pending queue +
@@ -71,6 +71,10 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
   после 5 минут отклоняются disconnect + defensive bond revoke, сохранённые bonds
   допускаются. Dangerous commands требуют одновременно bonded и encrypted link.
   Android preflight показывает typed `notPaired` по Device Info без reconnect-loop.
+  Error Log: RAM-кольцо 16 событий, Read/Notify последних 4 в хронологическом порядке;
+  регистрируются I²C/Flash/config reject/pairing reject/ISR overflow/sensor stuck/
+  watchdog/critical battery. Sensor-test использует нормативные Telemetry fields и
+  принудительный интервал 200 мс; timeout, stop и disconnect завершают режим.
 - Неблокирующая USB Serial-консоль: `open-pairing`, `dump-config`, `reset-odo`,
   `selftest`; CR/LF, ограничение длины и восстановление после переполнения проверены
   native-тестами. `dump-config` возвращает читаемые поля и точный 48-byte wire payload.
@@ -86,8 +90,8 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
 
 ## Проверки
 
-- `pio test -e native`: 76/76 тестов проходят, включая safe/dangerous framing,
-  nonce/TTL/binding, shared fixtures, очереди, Config Write, diagnostics и Serial parser.
+- `pio test -e native`: 77/77 тестов проходят, включая safe/dangerous framing,
+  shared fixtures, Error Log ring/wrap, Config Write, diagnostics и Serial parser.
 - `pio run -e xiao_ble_sense`: сборка проходит.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
@@ -104,7 +108,7 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
   54,000,485 байт (`1d8f99ab7126b27669933aee9e40891ce4b11ffc6a7153ad990d74f865befd73`).
 - Android-устройства через ADB и Bluetooth controller на хосте нет;
   локальные результаты не являются аппаратной приёмкой BLE.
-- Текущая production-сборка с E4.14 загружена на `/dev/ttyACM0`; DFU success.
+- Текущая production-сборка с E4.13–4.14 загружена на `/dev/ttyACM0`; DFU success.
   Аппаратный Serial smoke: `dump-config` вернул default config и 48-byte payload,
   `selftest` вернул `0x3F`, `open-pairing` подтвердил окно 300 с. `reset-odo`
   намеренно не исполнялся на пользовательских данных; parser и execution path собраны.
@@ -128,8 +132,8 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
   (чтобы не уничтожить обе копии `/odo_a|b`).
 - BLE: pairing enforcement и persistence собраны, но reboot/closed-window сценарии
   ещё не приняты на телефоне; лимит 4 bonds с LRU пока не реализован. Prototype
-  override `BIKECOMP_OPEN_PAIRING=1` остаётся opt-in. Error Log sensor-test details
-  — Э4.13. Стандартные DIS/BAS (`0x180A`/`0x180F`) отложены из-за attr-table risk;
+  override `BIKECOMP_OPEN_PAIRING=1` остаётся opt-in. Error Log Read/Notify и sensor
+  test 5 Гц ждут BLE hardware DoD. Стандартные DIS/BAS (`0x180A`/`0x180F`) отложены;
   приложение их не использует. `flash_write_count` RAM-only до персиста counters.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
   `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.

@@ -38,6 +38,10 @@ void printUint64(uint64_t value) {
   Serial.print(cursor);
 }
 
+uint16_t saturateErrorDetail(uint32_t value) {
+  return value > 0xFFFFu ? 0xFFFFu : static_cast<uint16_t>(value);
+}
+
 void printLoadInfo(const char* label,
                    const StorageLoadInfo& info,
                    bool load_ok) {
@@ -170,6 +174,25 @@ void AppController::begin() {
   const bool ble_ok = ble_.begin(config_, ble_seed);
   Serial.print("BLE GATT: ");
   Serial.println(ble_ok ? "OK" : "INIT FAILED");
+  if (ble_ok) {
+    const uint32_t now_ms = millis();
+    if (!display_ok) {
+      ble_.recordError(ErrorLogCode::kI2cTimeout, ErrorLogSeverity::kError,
+                       kDisplayI2cAddress, now_ms);
+    }
+    if (!fs_ok) {
+      ble_.recordError(ErrorLogCode::kFlashError, ErrorLogSeverity::kError,
+                       0, now_ms);
+    }
+    if (config_info.recovered) {
+      ble_.recordError(ErrorLogCode::kConfigCrc, ErrorLogSeverity::kWarn,
+                       0, now_ms);
+    }
+    if (reset_reason == ResetReason::kWatchdog) {
+      ble_.recordError(ErrorLogCode::kWatchdogReset, ErrorLogSeverity::kError,
+                       0, now_ms);
+    }
+  }
 
   selftest_mask_ = 0;
   if (display_ok) selftest_mask_ |= kSelftestDisplayOk;
@@ -381,6 +404,9 @@ bool AppController::persistOdometer(OdometerSaveTrigger trigger) {
     // Only clear one-shot pending flags after a successful write; otherwise
     // pause/display-off/critical/usb triggers would be lost on Flash errors.
     odometer_save_.acknowledge(trigger);
+  } else {
+    ble_.recordError(ErrorLogCode::kFlashError, ErrorLogSeverity::kError,
+                     static_cast<uint16_t>(trigger), millis());
   }
 
   Serial.print("Odo save: trigger=");
@@ -472,6 +498,12 @@ void AppController::updateBattery(uint32_t now_ms) {
   odometer_save_.noteBatteryPercent(snapshot.percent, snapshot.valid);
   ble_.noteUsbPresent(snapshot.usb_present);
   maybePersistOdometer(now_ms);
+  const bool critical = snapshot.valid && snapshot.percent <= 5u;
+  if (critical && !critical_battery_active_) {
+    ble_.recordError(ErrorLogCode::kCriticalBattery, ErrorLogSeverity::kWarn,
+                     snapshot.percent, now_ms);
+  }
+  critical_battery_active_ = critical;
 #if BIKECOMP_HOTPATH_SERIAL
   Serial.print("Battery raw=");
   Serial.print(battery_.lastRawAverage());
@@ -503,7 +535,7 @@ void AppController::applyConfig(const DeviceConfig& new_config) {
   }
 }
 
-void AppController::processPendingConfigWrite() {
+void AppController::processPendingConfigWrite(uint32_t now_ms) {
   if (!ble_.hasPendingConfigWrite()) return;
 
   uint8_t payload[kConfigurationSize] = {};
@@ -515,6 +547,8 @@ void AppController::processPendingConfigWrite() {
   if (!parsed.ok) {
     result.status = parsed.status;
     result.field_id = parsed.field_id;
+    ble_.recordError(ErrorLogCode::kConfigWriteRejected,
+                     ErrorLogSeverity::kWarn, parsed.field_id, now_ms);
     ble_.publishConfigWriteResult(result);
     ble_.completePendingConfigWrite();
     return;
@@ -527,6 +561,8 @@ void AppController::processPendingConfigWrite() {
   const bool saved = storage_.mounted() && storage_.saveConfig(config_);
   if (!saved) {
     result.status = CommandStatus::kErrStorage;
+    ble_.recordError(ErrorLogCode::kFlashError, ErrorLogSeverity::kError,
+                     kCommandResultConfigWriteId, now_ms);
     ble_.publishConfigWriteResult(result);
     ble_.completePendingConfigWrite();
     return;
@@ -691,15 +727,32 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
       break;
   }
 
+  if (result.status == CommandStatus::kErrStorage) {
+    ble_.recordError(ErrorLogCode::kFlashError, ErrorLogSeverity::kError,
+                     static_cast<uint16_t>(command.command_id), now_ms);
+  }
   ble_.completePendingDangerousCommand();
   ble_.publishDangerousCommandResult(command.command_id, result);
   if (clear_bonds_after_result) ble_.clearBonds();
 }
 
 void AppController::updateBle(uint32_t now_ms) {
-  processPendingConfigWrite();
+  processPendingConfigWrite(now_ms);
   processPendingSafeCommand(now_ms);
   processPendingDangerousCommand(now_ms);
+
+  const uint32_t overflow = wheel_sensor_.overflowCount();
+  if (overflow != logged_isr_overflow_) {
+    logged_isr_overflow_ = overflow;
+    ble_.recordError(ErrorLogCode::kIsrOverflow, ErrorLogSeverity::kWarn,
+                     saturateErrorDetail(overflow), now_ms);
+  }
+  const uint32_t stuck = pulse_filter_.counters().rejected_stuck;
+  if (stuck != logged_sensor_stuck_) {
+    logged_sensor_stuck_ = stuck;
+    ble_.recordError(ErrorLogCode::kSensorStuck, ErrorLogSeverity::kWarn,
+                     saturateErrorDetail(stuck), now_ms);
+  }
 
   if (ble_.sensorTestActive() && sensor_test_duration_ms_ != 0 &&
       static_cast<uint32_t>(now_ms - sensor_test_started_ms_) >=

@@ -22,6 +22,7 @@
 #include "config_validator.h"
 #include "crc32.h"
 #include "diagnostics.h"
+#include "error_log.h"
 #include "display_formatter.h"
 #include "display_power.h"
 #include "odometer_save_policy.h"
@@ -87,6 +88,33 @@ void test_serial_console_trims_rejects_and_recovers_after_overflow() {
   }
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kDumpConfig),
                           static_cast<uint8_t>(result));
+}
+
+void test_error_log_keeps_16_and_snapshots_newest_four_in_order() {
+  ErrorLogBuffer log;
+  ErrorLogPacket packet = {};
+  TEST_ASSERT_FALSE(log.snapshot(packet));
+
+  for (uint32_t i = 0; i < 18; ++i) {
+    log.append(i, ErrorLogCode::kFlashError,
+               i % 2 == 0 ? ErrorLogSeverity::kWarn
+                          : ErrorLogSeverity::kError,
+               static_cast<uint16_t>(100u + i));
+  }
+
+  TEST_ASSERT_EQUAL_UINT32(16u, log.size());
+  TEST_ASSERT_TRUE(log.snapshot(packet));
+  TEST_ASSERT_EQUAL_UINT8(kBleStructVersion, packet.struct_version);
+  TEST_ASSERT_EQUAL_UINT8(4u, packet.entry_count);
+  for (uint32_t i = 0; i < 4; ++i) {
+    TEST_ASSERT_EQUAL_UINT32(14u + i, packet.entries[i].uptime_s);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ErrorLogCode::kFlashError),
+                            packet.entries[i].code);
+    TEST_ASSERT_EQUAL_UINT16(114u + i, packet.entries[i].detail);
+  }
+
+  log.clear();
+  TEST_ASSERT_FALSE(log.snapshot(packet));
 }
 
 namespace {
@@ -2079,6 +2107,7 @@ int main(int, char**) {
   RUN_TEST(test_scheduler_period_and_wrap);
   RUN_TEST(test_serial_console_parses_supported_commands_and_crlf);
   RUN_TEST(test_serial_console_trims_rejects_and_recovers_after_overflow);
+  RUN_TEST(test_error_log_keeps_16_and_snapshots_newest_four_in_order);
   RUN_TEST(test_page_carousel_default_period_and_wrap);
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);

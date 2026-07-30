@@ -57,6 +57,10 @@ class BleManager {
   // Sensor-test mode forces 5 Hz notify (Э4.13 command path will toggle this).
   void setSensorTestActive(bool active);
   bool sensorTestActive() const;
+  void recordError(ErrorLogCode code,
+                   ErrorLogSeverity severity,
+                   uint16_t detail,
+                   uint32_t now_ms);
   void openPairingWindow(uint16_t duration_s, uint32_t now_ms);
 
   void clearBonds();

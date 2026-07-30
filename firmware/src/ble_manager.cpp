@@ -11,6 +11,7 @@
 #include "ble_protocol.h"
 #include "ble_config_write.h"
 #include "ble_telemetry.h"
+#include "error_log.h"
 #include "protocol_codec.h"
 
 namespace bike {
@@ -54,6 +55,8 @@ PendingConfigWrite g_pending_config_write = {};
 PendingSafeCommand g_pending_safe_command = {};
 PendingDangerousCommand g_pending_dangerous_command = {};
 DangerousCommandSession g_dangerous_command_session = {};
+ErrorLogBuffer g_error_log_entries;
+bool g_error_log_dirty = false;
 
 bool beginChar(BLECharacteristic& chr) {
   return chr.begin() == ERROR_NONE;
@@ -128,6 +131,27 @@ void onDeviceInfoRead(uint16_t conn_hdl, BLECharacteristic*,
   }
   sd_ble_gatts_rw_authorize_reply(conn_hdl, &reply);
 }
+void stageErrorLog(ErrorLogCode code,
+                   ErrorLogSeverity severity,
+                   uint16_t detail,
+                   uint32_t now_ms) {
+  g_error_log_entries.append(
+      static_cast<uint32_t>(now_ms - g_boot_ms) / 1000u,
+      code, severity, detail);
+  g_error_log_dirty = true;
+}
+
+void publishErrorLogIfDirty() {
+  if (!g_error_log_dirty) return;
+  ErrorLogPacket packet = {};
+  if (!g_error_log_entries.snapshot(packet)) return;
+  const size_t length =
+      encodeErrorLog(packet, g_error_log_buf, sizeof(g_error_log_buf));
+  if (length == 0) return;
+  g_error_log.write(g_error_log_buf, static_cast<uint16_t>(length));
+  g_error_log.notify(g_error_log_buf, static_cast<uint16_t>(length));
+  g_error_log_dirty = false;
+}
 
 void publishCommandResult(uint8_t command_id,
                             CommandStatus status,
@@ -167,10 +191,15 @@ void refreshAdvertisingName(const DeviceConfig& config) {
 void onConfigWrite(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t len) {
   ConfigWriteRejectReason reject = ConfigWriteRejectReason::kNone;
   if (!configWriteQueueStage(g_pending_config_write, data, len, reject)) {
+    const uint16_t detail = static_cast<uint16_t>(reject);
     if (reject == ConfigWriteRejectReason::kBusy) {
+      stageErrorLog(ErrorLogCode::kConfigWriteRejected,
+                    ErrorLogSeverity::kWarn, detail, millis());
       publishCommandResult(kCommandResultConfigWriteId, CommandStatus::kErrBusy);
       return;
     }
+    stageErrorLog(ErrorLogCode::kConfigWriteRejected,
+                  ErrorLogSeverity::kWarn, detail, millis());
     publishCommandResult(kCommandResultConfigWriteId, CommandStatus::kErrRange,
                          static_cast<uint8_t>(ConfigFieldId::kStructVersion));
     return;
@@ -238,6 +267,8 @@ void onBleEvent(ble_evt_t* event) {
     // Bluefruit invokes its security handler before this public event hook.
     // Disconnect immediately to abort the accepted-on-wire pairing exchange.
     g_pairing_allowed_conn_hdl = BLE_CONN_HANDLE_INVALID;
+    stageErrorLog(ErrorLogCode::kPairingRejected, ErrorLogSeverity::kWarn,
+                  conn_hdl, millis());
     Bluefruit.disconnect(conn_hdl);
     return;
   }
@@ -268,6 +299,8 @@ void onDisconnect(uint16_t conn_hdl, uint8_t) {
 
 bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
                   const uint8_t serial[8]) {
+  g_error_log_entries.clear();
+  g_error_log_dirty = false;
   if (g_service.begin() != ERROR_NONE) {
     return false;
   }
@@ -375,15 +408,6 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
       encodeCommandResult(idle, g_command_result_buf, sizeof(g_command_result_buf));
   g_command_result.write(g_command_result_buf, static_cast<uint16_t>(result_len));
 
-  ErrorLogPacket log = {};
-  log.struct_version = kBleStructVersion;
-  log.entry_count = 1;
-  log.entries[0].severity = static_cast<uint8_t>(ErrorLogSeverity::kInfo);
-  const size_t log_len =
-      encodeErrorLog(log, g_error_log_buf, sizeof(g_error_log_buf));
-  if (log_len > 0) {
-    g_error_log.write(g_error_log_buf, static_cast<uint16_t>(log_len));
-  }
   return true;
 }
 
@@ -455,6 +479,14 @@ void BleManager::openPairingWindow(uint16_t duration_s, uint32_t now_ms) {
   g_pairing_window_ms = static_cast<uint32_t>(duration_s) * 1000u;
 }
 
+void BleManager::recordError(ErrorLogCode code,
+                             ErrorLogSeverity severity,
+                             uint16_t detail,
+                             uint32_t now_ms) {
+  if (!ok_) return;
+  stageErrorLog(code, severity, detail, now_ms);
+}
+
 void BleManager::clearBonds() {
   Bluefruit.Periph.clearBonds();
 }
@@ -462,6 +494,7 @@ void BleManager::clearBonds() {
 void BleManager::serviceTelemetry(const TelemetryBuildInput& input,
                                   uint32_t now_ms) {
   if (!ok_) return;
+  publishErrorLogIfDirty();
 
   const bool notify_enabled = g_telemetry.notifyEnabled();
   const TelemetryPublishMode mode =

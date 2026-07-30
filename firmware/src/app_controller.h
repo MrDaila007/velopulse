@@ -39,7 +39,7 @@ class AppController {
   void updateDisplay(uint32_t now_ms);
   void updateBattery(uint32_t now_ms);
   void updateBle(uint32_t now_ms);
-  void processPendingConfigWrite();
+  void processPendingConfigWrite(uint32_t now_ms);
   void processPendingSafeCommand(uint32_t now_ms);
   void processPendingDangerousCommand(uint32_t now_ms);
   void processSerialConsole(uint32_t now_ms);
@@ -70,6 +70,9 @@ class AppController {
   uint8_t selftest_mask_ = 0;
   uint32_t sensor_test_started_ms_ = 0;
   uint32_t sensor_test_duration_ms_ = 0;
+  uint32_t logged_isr_overflow_ = 0;
+  uint32_t logged_sensor_stuck_ = 0;
+  bool critical_battery_active_ = false;
   bool reboot_pending_ = false;
   uint32_t reboot_requested_ms_ = 0;
 };
