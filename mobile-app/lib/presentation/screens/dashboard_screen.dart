@@ -6,12 +6,14 @@ import '../../application/app_states.dart';
 import '../../application/providers.dart';
 import '../../domain/entities/models.dart';
 import '../../domain/services/unit_formatter.dart';
+import '../../l10n/app_localizations.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final strings = AppLocalizations.of(context);
     final session = ref.watch(connectionControllerProvider);
     final telemetry = session.telemetry;
     final imperial = session.deviceConfig?.unitsImperial ?? false;
@@ -42,7 +44,9 @@ class DashboardScreen extends ConsumerWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Соединение потеряно. Последнее обновление: ${_lastSeen(session.lastTelemetryAt)}',
+                        strings.connectionLost(
+                          _lastSeen(strings, session.lastTelemetryAt),
+                        ),
                       ),
                     ),
                   ],
@@ -67,7 +71,7 @@ class DashboardScreen extends ConsumerWidget {
                   mainAxisSpacing: 12,
                   children: <Widget>[
                     _MetricCard(
-                      label: 'Поездка',
+                      label: strings.tripLabel,
                       value: UnitFormatter.distanceCm(
                         telemetry.tripDistanceCm,
                         imperial: imperial,
@@ -75,7 +79,7 @@ class DashboardScreen extends ConsumerWidget {
                       icon: Icons.route,
                     ),
                     _MetricCard(
-                      label: 'Средняя',
+                      label: strings.averageLabel,
                       value: UnitFormatter.speed(
                         telemetry.avgSpeedX100,
                         imperial: imperial,
@@ -83,7 +87,7 @@ class DashboardScreen extends ConsumerWidget {
                       icon: Icons.show_chart,
                     ),
                     _MetricCard(
-                      label: 'Максимальная',
+                      label: strings.maximumLabel,
                       value: UnitFormatter.speed(
                         telemetry.maxSpeedX100,
                         imperial: imperial,
@@ -91,12 +95,12 @@ class DashboardScreen extends ConsumerWidget {
                       icon: Icons.trending_up,
                     ),
                     _MetricCard(
-                      label: 'В движении',
+                      label: strings.movingTimeLabel,
                       value: UnitFormatter.duration(telemetry.movingTimeS),
                       icon: Icons.timer_outlined,
                     ),
                     _MetricCard(
-                      label: 'Одометр',
+                      label: strings.odometerLabel,
                       value: UnitFormatter.odometerM(
                         telemetry.odometerM,
                         imperial: imperial,
@@ -104,9 +108,11 @@ class DashboardScreen extends ConsumerWidget {
                       icon: Icons.straighten,
                     ),
                     _MetricCard(
-                      label: 'Батарея',
-                      value:
-                          '${telemetry.batteryPct}% · ${telemetry.batteryMv} мВ',
+                      label: strings.batteryLabel,
+                      value: strings.batteryValue(
+                        telemetry.batteryMv,
+                        telemetry.batteryPct,
+                      ),
                       icon: telemetry.lowBattery
                           ? Icons.battery_alert
                           : Icons.battery_full,
@@ -125,14 +131,19 @@ class DashboardScreen extends ConsumerWidget {
                 runSpacing: 8,
                 children: <Widget>[
                   _StatusChip(
-                    label: 'Движение',
-                    value: _ride(telemetry.rideState),
+                    label: strings.movementLabel,
+                    value: _ride(strings, telemetry.rideState),
                   ),
                   _StatusChip(
-                    label: 'Датчик',
-                    value: _sensor(telemetry.sensorState),
+                    label: strings.sensorLabel,
+                    value: _sensor(strings, telemetry.sensorState),
                   ),
-                  _StatusChip(label: 'Связь', value: live ? 'есть' : 'нет'),
+                  _StatusChip(
+                    label: strings.linkLabel,
+                    value: live
+                        ? strings.linkAvailable
+                        : strings.linkUnavailable,
+                  ),
                   _StatusChip(
                     label: 'RSSI',
                     value: session.rssi == null ? '—' : '${session.rssi} dBm',
@@ -143,7 +154,7 @@ class DashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Быстрые действия',
+            strings.quickActions,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
@@ -156,12 +167,12 @@ class DashboardScreen extends ConsumerWidget {
                     ? () => _confirmCommand(
                         context,
                         ref,
-                        title: 'Сбросить поездку?',
+                        title: strings.resetTripQuestion,
                         command: DeviceCommandId.resetTrip,
                       )
                     : null,
                 icon: const Icon(Icons.restart_alt),
-                label: const Text('Сбросить поездку'),
+                label: Text(strings.resetTrip),
               ),
               FilledButton.tonalIcon(
                 onPressed: live && !session.commandInFlight
@@ -175,19 +186,23 @@ class DashboardScreen extends ConsumerWidget {
                 icon: Icon(
                   telemetry.displayOn ? Icons.visibility_off : Icons.visibility,
                 ),
-                label: Text(telemetry.displayOn ? 'OLED выкл.' : 'OLED вкл.'),
+                label: Text(
+                  telemetry.displayOn
+                      ? strings.displayOffShort
+                      : strings.displayOnShort,
+                ),
               ),
               OutlinedButton.icon(
                 onPressed: live && !session.commandInFlight
                     ? ref.read(connectionControllerProvider.notifier).refresh
                     : null,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Обновить'),
+                label: Text(strings.refreshAction),
               ),
               OutlinedButton.icon(
                 onPressed: () => context.go('/settings'),
                 icon: const Icon(Icons.tune),
-                label: const Text('Настройки'),
+                label: Text(strings.settingsTab),
               ),
             ],
           ),
@@ -202,21 +217,20 @@ class DashboardScreen extends ConsumerWidget {
     required String title,
     required DeviceCommandId command,
   }) async {
+    final strings = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: const Text(
-          'Команда будет выполнена на подключённом устройстве.',
-        ),
+        content: Text(strings.commandDeviceBody),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Подтвердить'),
+            child: Text(strings.confirm),
           ),
         ],
       ),
@@ -228,23 +242,24 @@ class DashboardScreen extends ConsumerWidget {
       .read(connectionControllerProvider.notifier)
       .sendCommand(DeviceCommand(id: id));
 
-  String _ride(RideState state) => switch (state) {
-    RideState.idle => 'остановка',
-    RideState.moving => 'движение',
-    RideState.paused => 'пауза',
-    RideState.unknown => 'неизвестно',
+  String _ride(AppLocalizations strings, RideState state) => switch (state) {
+    RideState.idle => strings.rideIdle,
+    RideState.moving => strings.rideMoving,
+    RideState.paused => strings.ridePaused,
+    RideState.unknown => strings.unknownValue,
   };
 
-  String _sensor(SensorState state) => switch (state) {
-    SensorState.ok => 'норма',
-    SensorState.idle => 'ожидание',
-    SensorState.stuck => 'залипание',
-    SensorState.noSignal => 'нет сигнала',
-    SensorState.unknown => 'неизвестно',
-  };
+  String _sensor(AppLocalizations strings, SensorState state) =>
+      switch (state) {
+        SensorState.ok => strings.sensorOk,
+        SensorState.idle => strings.sensorIdle,
+        SensorState.stuck => strings.sensorStuck,
+        SensorState.noSignal => strings.sensorNoSignal,
+        SensorState.unknown => strings.unknownValue,
+      };
 
-  String _lastSeen(DateTime? value) {
-    if (value == null) return 'неизвестно';
+  String _lastSeen(AppLocalizations strings, DateTime? value) {
+    if (value == null) return strings.unknownValue;
     final local = value.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}:${local.second.toString().padLeft(2, '0')}';
   }
@@ -257,30 +272,38 @@ class _EmptyDashboard extends StatelessWidget {
   final ConnectionState connection;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Icon(Icons.speed, size: 72),
-          const SizedBox(height: 16),
-          Text(
-            'Нет показателей',
-            style: Theme.of(context).textTheme.headlineSmall,
+  Widget build(BuildContext context) => Builder(
+    builder: (context) {
+      final strings = AppLocalizations.of(context);
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(Icons.speed, size: 72),
+              const SizedBox(height: 16),
+              Text(
+                strings.noMetrics,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                connection is ConnectionIncompatibleProtocol
+                    ? strings.incompatibleTelemetry
+                    : strings.connectToSeeRide,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: onConnect,
+                child: Text(strings.toScanAction),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            connection is ConnectionIncompatibleProtocol
-                ? 'Информация об устройстве доступна, но telemetry протокола несовместима.'
-                : 'Подключите BikeComp, чтобы увидеть данные поездки.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onConnect, child: const Text('К поиску')),
-        ],
-      ),
-    ),
+        ),
+      );
+    },
   );
 }
 
@@ -297,7 +320,10 @@ class _SpeedCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
       child: Column(
         children: <Widget>[
-          Text('СКОРОСТЬ', style: Theme.of(context).textTheme.labelLarge),
+          Text(
+            AppLocalizations.of(context).speedLabel,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
           const SizedBox(height: 8),
           FittedBox(
             child: Text(

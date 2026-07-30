@@ -6,12 +6,14 @@ import '../../application/providers.dart';
 import '../../core/result.dart';
 import '../../domain/entities/models.dart';
 import '../../domain/services/tire_presets.dart';
+import '../../l10n/app_localizations.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final strings = AppLocalizations.of(context);
     final session = ref.watch(connectionControllerProvider);
     final state = ref.watch(configDraftControllerProvider);
     final controller = ref.read(configDraftControllerProvider.notifier);
@@ -26,11 +28,15 @@ class SettingsScreen extends ConsumerWidget {
             children: <Widget>[
               const Icon(Icons.tune, size: 64),
               const SizedBox(height: 16),
-              const Text('Подключите BikeComp, чтобы прочитать настройки.'),
+              Text(strings.connectToReadSettings),
               if (session.deviceInfo != null) ...<Widget>[
                 const SizedBox(height: 12),
                 Text(
-                  '${session.deviceInfo!.model} · протокол ${session.deviceInfo!.protoMajor}.${session.deviceInfo!.protoMinor}',
+                  strings.deviceProtocol(
+                    session.deviceInfo!.protoMajor,
+                    session.deviceInfo!.protoMinor,
+                    session.deviceInfo!.model,
+                  ),
                 ),
               ],
             ],
@@ -50,12 +56,13 @@ class SettingsScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: <Widget>[
-        Text('Настройки', style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          strings.settingsTab,
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: 8),
         Text(
-          writable
-              ? 'Изменения хранятся как черновик до подтверждённой записи.'
-              : 'Просмотр доступен, запись заблокирована состоянием соединения.',
+          writable ? strings.draftDescription : strings.writeBlockedDescription,
         ),
         if (state.hasConflict) ...<Widget>[
           const SizedBox(height: 12),
@@ -66,9 +73,7 @@ class SettingsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const Text(
-                    'Настройки устройства изменились после сохранения черновика.',
-                  ),
+                  Text(strings.draftConflict),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -76,12 +81,12 @@ class SettingsScreen extends ConsumerWidget {
                       FilledButton(
                         onPressed: () =>
                             controller.resolveConflict(keepDraft: true),
-                        child: const Text('Применить черновик'),
+                        child: Text(strings.applyDraftAction),
                       ),
                       TextButton(
                         onPressed: () =>
                             controller.resolveConflict(keepDraft: false),
-                        child: const Text('Отбросить'),
+                        child: Text(strings.discardAction),
                       ),
                     ],
                   ),
@@ -98,7 +103,7 @@ class SettingsScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  'Колесо и единицы',
+                  strings.wheelUnitsSection,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 16),
@@ -109,15 +114,15 @@ class SettingsScreen extends ConsumerWidget {
                       )
                       ? draft.wheelCircumferenceMm
                       : null,
-                  decoration: const InputDecoration(
-                    labelText: 'Размер покрышки',
-                  ),
-                  hint: const Text('Пользовательский'),
+                  decoration: InputDecoration(labelText: strings.tireSizeLabel),
+                  hint: Text(strings.customValue),
                   items: TirePresets.values.entries
                       .map(
                         (entry) => DropdownMenuItem<int>(
                           value: entry.value,
-                          child: Text('${entry.key} · ${entry.value} мм'),
+                          child: Text(
+                            strings.tirePresetValue(entry.value, entry.key),
+                          ),
                         ),
                       )
                       .toList(growable: false),
@@ -132,7 +137,7 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _IntegerField(
                   key: ValueKey('wheel-${draft.wheelCircumferenceMm}'),
-                  label: 'Окружность колеса, мм',
+                  label: strings.wheelCircumferenceLabel,
                   value: draft.wheelCircumferenceMm,
                   error: state.fieldErrors['wheelCircumferenceMm'],
                   onChanged: (value) => controller.update(
@@ -141,9 +146,15 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 SegmentedButton<bool>(
-                  segments: const <ButtonSegment<bool>>[
-                    ButtonSegment<bool>(value: false, label: Text('км / км/ч')),
-                    ButtonSegment<bool>(value: true, label: Text('мили / mph')),
+                  segments: <ButtonSegment<bool>>[
+                    ButtonSegment<bool>(
+                      value: false,
+                      label: Text(strings.metricUnits),
+                    ),
+                    ButtonSegment<bool>(
+                      value: true,
+                      label: Text(strings.imperialUnits),
+                    ),
                   ],
                   selected: <bool>{draft.unitsImperial},
                   onSelectionChanged: (selection) =>
@@ -161,11 +172,11 @@ class SettingsScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  'Дисплей и остановка',
+                  strings.displayStopSection,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
-                Text('Яркость: ${draft.brightnessPct}%'),
+                Text(strings.brightnessValue(draft.brightnessPct)),
                 Slider(
                   value: draft.brightnessPct.clamp(0, 100).toDouble(),
                   min: 0,
@@ -186,7 +197,7 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 _IntegerField(
                   key: ValueKey('stop-${draft.stopTimeoutS}'),
-                  label: 'Пауза после остановки, с',
+                  label: strings.stopTimeoutLabel,
                   value: draft.stopTimeoutS,
                   error: state.fieldErrors['stopTimeoutS'],
                   onChanged: (value) =>
@@ -195,8 +206,8 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _IntegerField(
                   key: ValueKey('display-${draft.displayTimeoutS}'),
-                  label: 'Выключить дисплей через, с',
-                  helper: '0 — никогда',
+                  label: strings.displayTimeoutLabel,
+                  helper: strings.neverHelper,
                   value: draft.displayTimeoutS,
                   error: state.fieldErrors['displayTimeoutS'],
                   onChanged: (value) =>
@@ -205,7 +216,7 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _IntegerField(
                   key: ValueKey('page-${draft.pageSwitchPeriodS}'),
-                  label: 'Переключать страницу каждые, с',
+                  label: strings.pageSwitchLabel,
                   value: draft.pageSwitchPeriodS,
                   error: state.fieldErrors['pageSwitchPeriodS'],
                   onChanged: (value) => controller.update(
@@ -219,7 +230,7 @@ class SettingsScreen extends ConsumerWidget {
         const SizedBox(height: 16),
         if (state.fieldErrors.isNotEmpty)
           Text(
-            'Исправьте ${state.fieldErrors.length} ${_errorWord(state.fieldErrors.length)}.',
+            strings.fixErrors(state.fieldErrors.length),
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         const SizedBox(height: 8),
@@ -244,22 +255,21 @@ class SettingsScreen extends ConsumerWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.save_outlined),
-                label: Text(state.isWriting ? 'Сохраняем…' : 'Сохранить'),
+                label: Text(
+                  state.isWriting ? strings.savingAction : strings.saveAction,
+                ),
               ),
             ),
             const SizedBox(width: 12),
             OutlinedButton(
               onPressed: () => _confirmDefaults(context, controller, draft),
-              child: const Text('По умолчанию'),
+              child: Text(strings.defaultsShortAction),
             ),
           ],
         ),
         if (!state.isDirty) ...<Widget>[
           const SizedBox(height: 8),
-          const Text(
-            'Нет несохранённых изменений.',
-            textAlign: TextAlign.center,
-          ),
+          Text(strings.noUnsavedChanges, textAlign: TextAlign.center),
         ],
       ],
     );
@@ -270,32 +280,33 @@ class SettingsScreen extends ConsumerWidget {
     ConfigDraftController controller,
     DeviceConfig current,
   ) async {
-    final changes = _defaultChanges(current);
+    final strings = AppLocalizations.of(context);
+    final changes = _defaultChanges(strings, current);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Загрузить значения по умолчанию?'),
+        title: Text(strings.loadDefaultsQuestion),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Text('Будет изменён только локальный черновик:'),
+              Text(strings.localDraftOnly),
               const SizedBox(height: 8),
               ...changes.map((change) => Text('• $change')),
               const SizedBox(height: 8),
-              const Text('Одометр и Bluetooth-сопряжения не затрагиваются.'),
+              Text(strings.odometerBondsUntouched),
             ],
           ),
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Загрузить'),
+            child: Text(strings.loadAction),
           ),
         ],
       ),
@@ -303,40 +314,42 @@ class SettingsScreen extends ConsumerWidget {
     if (confirmed == true) controller.resetDefaults();
   }
 
-  List<String> _defaultChanges(DeviceConfig current) {
+  List<String> _defaultChanges(AppLocalizations strings, DeviceConfig current) {
     final defaults = DeviceConfig.defaults;
     final changes = <String>[];
     if (current.wheelCircumferenceMm != defaults.wheelCircumferenceMm) {
       changes.add(
-        'окружность: ${current.wheelCircumferenceMm} → ${defaults.wheelCircumferenceMm} мм',
+        strings.defaultCircumferenceChange(
+          current.wheelCircumferenceMm,
+          defaults.wheelCircumferenceMm,
+        ),
       );
     }
     if (current.unitsImperial != defaults.unitsImperial) {
-      changes.add('единицы измерения');
+      changes.add(strings.measurementUnitsChange);
     }
     if (current.brightnessPct != defaults.brightnessPct) {
       changes.add(
-        'яркость: ${current.brightnessPct} → ${defaults.brightnessPct}%',
+        strings.defaultBrightnessChange(
+          current.brightnessPct,
+          defaults.brightnessPct,
+        ),
       );
     }
     if (current.stopTimeoutS != defaults.stopTimeoutS) {
-      changes.add('таймаут остановки');
+      changes.add(strings.stopTimeoutChange);
     }
     if (current.displayTimeoutS != defaults.displayTimeoutS) {
-      changes.add('таймаут дисплея');
+      changes.add(strings.displayTimeoutChange);
     }
     if (current.pageSwitchPeriodS != defaults.pageSwitchPeriodS) {
-      changes.add('период переключения страниц');
+      changes.add(strings.pagePeriodChange);
     }
     if (changes.isEmpty) {
-      changes.add(
-        'видимые значения уже совпадают; скрытые поля будут восстановлены',
-      );
+      changes.add(strings.visibleSameHiddenRestored);
     }
     return changes;
   }
-
-  String _errorWord(int count) => count == 1 ? 'ошибку' : 'ошибки';
 }
 
 class _IntegerField extends StatelessWidget {

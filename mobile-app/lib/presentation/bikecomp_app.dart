@@ -202,24 +202,28 @@ class ConnectionBadge extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final strings = AppLocalizations.of(context);
     final connection = ref.watch(
       connectionControllerProvider.select((value) => value.connection),
     );
     final (label, color) = switch (connection) {
-      ConnectionReady() => ('Подключено', Colors.green),
-      ConnectionReadOnly() => ('Только чтение', Colors.orange),
-      ConnectionIncompatibleProtocol() => ('Несовместимо', Colors.orange),
-      ConnectionScanning() => ('Поиск', Colors.blue),
+      ConnectionReady() => (strings.connectedStatus, Colors.green),
+      ConnectionReadOnly() => (strings.readOnlyStatus, Colors.orange),
+      ConnectionIncompatibleProtocol() => (
+        strings.incompatibleStatus,
+        Colors.orange,
+      ),
+      ConnectionScanning() => (strings.scanningStatus, Colors.blue),
       ConnectionConnecting() ||
-      ConnectionSynchronizing() => ('Подключение', Colors.blue),
-      ConnectionReconnecting() => ('Переподключение', Colors.orange),
-      ConnectionBluetoothOff() => ('Bluetooth выкл.', Colors.red),
+      ConnectionSynchronizing() => (strings.connectingStatus, Colors.blue),
+      ConnectionReconnecting() => (strings.reconnectingStatus, Colors.orange),
+      ConnectionBluetoothOff() => (strings.bluetoothOffShort, Colors.red),
       ConnectionFailed() ||
-      ConnectionPermissionRequired() => ('Ошибка', Colors.red),
-      _ => ('Не подключено', Colors.grey),
+      ConnectionPermissionRequired() => (strings.errorStatus, Colors.red),
+      _ => (strings.disconnectedStatus, Colors.grey),
     };
     return Semantics(
-      label: 'Состояние соединения: $label',
+      label: strings.connectionSemantics(label),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -237,6 +241,7 @@ class ConnectingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final strings = AppLocalizations.of(context);
     final session = ref.watch(connectionControllerProvider);
     if (session.connection is ConnectionReady ||
         session.connection is ConnectionReadOnly) {
@@ -255,19 +260,25 @@ class ConnectingScreen extends ConsumerWidget {
       },
     );
     final label = switch (session.connection) {
-      ConnectionConnecting() => 'Устанавливаем соединение…',
-      ConnectionSynchronizing(:final stage) => stage.label,
+      ConnectionConnecting() => strings.establishingConnection,
+      ConnectionSynchronizing(:final stage) => switch (stage) {
+        SyncStage.mtu => strings.syncMtu,
+        SyncStage.discovery => strings.syncDiscovery,
+        SyncStage.deviceInfo => strings.syncDeviceInfo,
+        SyncStage.pairing => strings.syncPairing,
+        SyncStage.subscriptions => strings.syncSubscriptions,
+      },
       ConnectionReconnecting(:final attempt, :final delaySeconds) =>
-        'Попытка $attempt через $delaySeconds с',
-      ConnectionIncompatibleProtocol() => 'Версия протокола несовместима',
+        strings.reconnectAttempt(attempt, delaySeconds),
+      ConnectionIncompatibleProtocol() => strings.protocolIncompatible,
       ConnectionFailed(:final error) => error.message,
-      _ => 'Подготовка подключения…',
+      _ => strings.preparingConnection,
     };
     final failed =
         session.connection is ConnectionFailed ||
         session.connection is ConnectionIncompatibleProtocol;
     return Scaffold(
-      appBar: AppBar(title: const Text('Подключение')),
+      appBar: AppBar(title: Text(strings.connectionTitle)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -290,7 +301,7 @@ class ConnectingScreen extends ConsumerWidget {
                 if (failed)
                   FilledButton(
                     onPressed: context.pop,
-                    child: const Text('Вернуться к поиску'),
+                    child: Text(strings.returnToScan),
                   )
                 else
                   TextButton(
@@ -300,7 +311,7 @@ class ConnectingScreen extends ConsumerWidget {
                           .disconnect();
                       if (context.mounted) context.pop();
                     },
-                    child: const Text('Отмена'),
+                    child: Text(strings.cancel),
                   ),
               ],
             ),

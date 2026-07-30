@@ -38,7 +38,7 @@
 ## DoD Э5 — автоматический gate
 
 - [x] Code generation повторяется без diff.
-- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 34 теста проходят.
+- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 36 тестов проходят.
 - [x] Debug и release APK собираются с application ID `app.bikecomp.mobile`,
   minSdk 24 и targetSdk 36.
 - [x] Config draft персистится асинхронно и namespaced по device ID.

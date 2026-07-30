@@ -6,16 +6,7 @@ import '../domain/entities/models.dart';
 
 part 'app_states.freezed.dart';
 
-enum SyncStage {
-  mtu('Согласование MTU'),
-  discovery('Поиск BLE-сервиса'),
-  deviceInfo('Чтение информации'),
-  pairing('Сопряжение и конфигурация'),
-  subscriptions('Подписка на данные');
-
-  const SyncStage(this.label);
-  final String label;
-}
+enum SyncStage { mtu, discovery, deviceInfo, pairing, subscriptions }
 
 @freezed
 sealed class ConnectionState with _$ConnectionState {

@@ -30,7 +30,7 @@ class ScanScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Показываются только устройства с сервисом BikeComp. Сохранённое устройство подключится автоматически.',
+            strings.scanDescription,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
@@ -76,7 +76,11 @@ class ScanScreen extends ConsumerWidget {
                     leading: const CircleAvatar(child: Icon(Icons.pedal_bike)),
                     title: Text(device.name.isEmpty ? 'BikeComp' : device.name),
                     subtitle: Text(
-                      '${device.deviceId}\nRSSI ${device.rssi} dBm · ${_bondLabel(device.bondState)}',
+                      strings.deviceScanDetails(
+                        _bondLabel(strings, device.bondState),
+                        device.deviceId,
+                        device.rssi,
+                      ),
                     ),
                     isThreeLine: true,
                     trailing: FilledButton.tonal(
@@ -95,11 +99,12 @@ class ScanScreen extends ConsumerWidget {
     );
   }
 
-  String _bondLabel(BondState state) => switch (state) {
-    BondState.bonded => 'сопряжено',
-    BondState.none => 'не сопряжено',
-    BondState.unknown => 'сопряжение неизвестно',
-  };
+  String _bondLabel(AppLocalizations strings, BondState state) =>
+      switch (state) {
+        BondState.bonded => strings.bonded,
+        BondState.none => strings.notBonded,
+        BondState.unknown => strings.bondUnknown,
+      };
 }
 
 class _StateCard extends StatelessWidget {
@@ -109,47 +114,48 @@ class _StateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     final (icon, title, body, color) = switch (connection) {
       ConnectionBluetoothOff() => (
         Icons.bluetooth_disabled,
-        'Bluetooth выключен',
-        'Включите Bluetooth, чтобы начать поиск.',
+        strings.bluetoothOff,
+        strings.enableBluetoothBody,
         Colors.red,
       ),
       ConnectionPermissionRequired(:final error) => (
         Icons.admin_panel_settings_outlined,
-        'Нужен доступ',
+        strings.accessRequiredTitle,
         error.message,
         Colors.orange,
       ),
       ConnectionFailed(:final error) => (
         Icons.error_outline,
-        'Не удалось продолжить',
+        strings.unableContinueTitle,
         error.message,
         Colors.red,
       ),
       ConnectionReady() => (
         Icons.bluetooth_connected,
-        'Устройство подключено',
-        'Показатели обновляются в реальном времени.',
+        strings.deviceConnectedTitle,
+        strings.metricsLiveBody,
         Colors.green,
       ),
       ConnectionReadOnly(:final reason) => (
         Icons.visibility_outlined,
-        'Режим только для чтения',
+        strings.readOnlyTitle,
         reason.message,
         Colors.orange,
       ),
       ConnectionIncompatibleProtocol(:final error) => (
         Icons.system_update_alt,
-        'Несовместимый протокол',
+        strings.incompatibleProtocolTitle,
         error.message,
         Colors.orange,
       ),
       _ => (
         Icons.bluetooth_searching,
-        'Готово к поиску',
-        'Разрешения будут запрошены при первом поиске.',
+        strings.readyToScanTitle,
+        strings.permissionsFirstScanBody,
         Theme.of(context).colorScheme.primary,
       ),
     };

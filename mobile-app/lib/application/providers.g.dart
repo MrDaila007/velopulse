@@ -230,7 +230,7 @@ final class ConnectionControllerProvider
 }
 
 String _$connectionControllerHash() =>
-    r'98d78f2e5610ee06dcd13710b7284804842f8984';
+    r'18530b75f82cb74975f1f5ae47027dbf97039559';
 
 abstract class _$ConnectionController extends $Notifier<SessionState> {
   SessionState build();

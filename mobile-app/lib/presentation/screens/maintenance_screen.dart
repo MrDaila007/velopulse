@@ -7,6 +7,7 @@ import '../../application/app_states.dart';
 import '../../application/providers.dart';
 import '../../core/result.dart';
 import '../../domain/entities/models.dart';
+import '../../l10n/app_localizations.dart';
 
 class MaintenanceScreen extends ConsumerStatefulWidget {
   const MaintenanceScreen({super.key});
@@ -55,6 +56,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     final session = ref.watch(connectionControllerProvider);
     final telemetry = session.telemetry;
     final ready = session.connection is ConnectionReady;
@@ -63,30 +65,29 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: <Widget>[
-        Text('Обслуживание', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 8),
-        const Text(
-          'Команда считается выполненной только после подтверждения устройства.',
+        Text(
+          strings.maintenanceTab,
+          style: Theme.of(context).textTheme.headlineSmall,
         ),
+        const SizedBox(height: 8),
+        Text(strings.maintenanceConfirmedOnly),
         const SizedBox(height: 16),
         if (!ready)
           Card(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: const Padding(
+            child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text(
-                'Для команд требуется готовое соединение с совместимым протоколом.',
-              ),
+              child: Text(strings.commandsRequireReady),
             ),
           ),
         if (!ready) const SizedBox(height: 12),
         _ActionTile(
           icon: Icons.restart_alt,
-          title: 'Сбросить поездку',
-          subtitle: 'Обнулить trip, среднюю скорость и время поездки',
+          title: strings.resetTrip,
+          subtitle: strings.resetTripSubtitle,
           enabled: enabled,
           onPressed: () => _confirm(
-            title: 'Сбросить текущую поездку?',
+            title: strings.resetCurrentTripQuestion,
             command: DeviceCommandId.resetTrip,
           ),
         ),
@@ -96,9 +97,9 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
               ? Icons.visibility_off
               : Icons.visibility,
           title: telemetry?.displayOn == true
-              ? 'Выключить OLED'
-              : 'Включить OLED',
-          subtitle: 'Временно изменить состояние экрана',
+              ? strings.displayOff
+              : strings.displayOn,
+          subtitle: strings.displayStateSubtitle,
           enabled: enabled,
           onPressed: () => _send(
             telemetry?.displayOn == true
@@ -109,16 +110,16 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
         const SizedBox(height: 8),
         _ActionTile(
           icon: Icons.grid_view_outlined,
-          title: 'Тест дисплея',
-          subtitle: 'Проверить сегменты и яркость OLED',
+          title: strings.displayTest,
+          subtitle: strings.displayTestSubtitle,
           enabled: enabled,
           onPressed: () => _send(DeviceCommandId.displayTest),
         ),
         const SizedBox(height: 8),
         _ActionTile(
           icon: Icons.save_outlined,
-          title: 'Сохранить во Flash',
-          subtitle: 'Принудительно сохранить текущее состояние',
+          title: strings.forceSave,
+          subtitle: strings.forceSaveSubtitle,
           enabled: enabled,
           onPressed: () => _send(DeviceCommandId.forceSave),
         ),
@@ -135,13 +136,13 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Тест датчика',
+                        strings.sensorTest,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
                     if (session.sensorTestActive)
                       Text(
-                        '$_secondsLeft с',
+                        strings.secondsShort(_secondsLeft),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                   ],
@@ -149,8 +150,8 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                 const SizedBox(height: 12),
                 Text(
                   session.sensorTestActive
-                      ? 'Вращайте колесо. Показатели обновляются с частотой 5 Гц.'
-                      : 'Базовый тест длится 60 секунд и не изменяет настройки.',
+                      ? strings.sensorTestActiveBody
+                      : strings.sensorTestIdleBody,
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -158,20 +159,20 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                   runSpacing: 12,
                   children: <Widget>[
                     _SensorValue(
-                      label: 'Состояние',
+                      label: strings.stateLabel,
                       value: telemetry == null
                           ? '—'
-                          : _sensorLabel(telemetry.sensorState),
+                          : _sensorLabel(strings, telemetry.sensorState),
                     ),
                     _SensorValue(
-                      label: 'Обороты',
+                      label: strings.revolutionsLabel,
                       value: telemetry?.revolutions.toString() ?? '—',
                     ),
                     _SensorValue(
-                      label: 'Возраст импульса',
+                      label: strings.pulseAgeLabel,
                       value: telemetry == null
                           ? '—'
-                          : '${telemetry.lastPulseAgeMs} мс',
+                          : strings.millisecondsShort(telemetry.lastPulseAgeMs),
                     ),
                   ],
                 ),
@@ -185,8 +186,8 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
                   ),
                   label: Text(
                     session.sensorTestActive
-                        ? 'Остановить тест'
-                        : 'Начать тест',
+                        ? strings.stopSensorTest
+                        : strings.startSensorTest,
                   ),
                 ),
               ],
@@ -201,19 +202,20 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     required String title,
     required DeviceCommandId command,
   }) async {
+    final strings = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: const Text('Дождитесь подтверждения устройства.'),
+        content: Text(strings.waitForConfirmation),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена'),
+            child: Text(strings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Подтвердить'),
+            child: Text(strings.confirm),
           ),
         ],
       ),
@@ -221,13 +223,14 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     if (confirmed == true) await _send(command);
   }
 
-  String _sensorLabel(SensorState state) => switch (state) {
-    SensorState.ok => 'норма',
-    SensorState.idle => 'ожидание',
-    SensorState.stuck => 'залипание',
-    SensorState.noSignal => 'нет сигнала',
-    SensorState.unknown => 'неизвестно',
-  };
+  String _sensorLabel(AppLocalizations strings, SensorState state) =>
+      switch (state) {
+        SensorState.ok => strings.sensorOk,
+        SensorState.idle => strings.sensorIdle,
+        SensorState.stuck => strings.sensorStuck,
+        SensorState.noSignal => strings.sensorNoSignal,
+        SensorState.unknown => strings.unknownValue,
+      };
 }
 
 class _ActionTile extends StatelessWidget {

@@ -299,6 +299,7 @@ class ConnectionController extends _$ConnectionController {
       if (appError.kind != AppErrorKind.serviceMissing &&
           appError.kind != AppErrorKind.unsupported) {
         _scheduleReconnect();
+      }
     }
   }
 

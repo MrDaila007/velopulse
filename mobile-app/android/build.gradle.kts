@@ -24,7 +24,7 @@ tasks.register<Delete>("clean") {
 }
 
 // reactive_ble_mobile 5.5.0 declares compileSdk 33, while its current AndroidX
-// dependencies require 34+. Keep the plugin isolated and compile every Android
+// dependencies require 34+. Keep the plugin isolated and compile this Android
 // library against the app's pinned API without modifying the pub cache.
 subprojects {
     if (name == "reactive_ble_mobile") {
