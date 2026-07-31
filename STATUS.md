@@ -5,8 +5,9 @@
 ## Текущий этап
 
 Э4 — BLE-интеграция. Э4.1–4.14 программно реализованы: advertising, команды,
-encryption и 5-минутное pairing window синхронизированы с Android flow. Android MVP
-fake-tested, но не закрыт до hardware gate на реальном телефоне и XIAO.
+encryption и 5-минутное pairing window синхронизированы с Android flow. Базовая
+интеграция Android-приложения с реальным XIAO подтверждена пользователем: новый APK
+обнаруживает BikeComp, подключается и работает. Полный hardware gate Э5 ещё открыт.
 
 ## Готово
 
@@ -130,6 +131,10 @@ fake-tested, но не закрыт до hardware gate на реальном т�
   Config Write, команды и bond persistence этим логом не проверялись. Лог
   заканчивается без disconnect: пока nRF Connect держит единственное peripheral
   connection, firmware штатно не рекламируется и другое приложение его не найдёт.
+- Android hardware smoke от 2026-07-31: после освобождения BLE-соединения в
+  nRF Connect пользователь подтвердил, что новый release APK обнаруживает устройство,
+  подключается и работает. Это закрывает базовую end-to-end интеграцию, но не заменяет
+  измерение поиска ≤5 с, серию 10/10 и остальные пункты аппаратного gate.
 - Прошивка загружалась на XIAO; OLED и импульсы кнопки подтверждены пользователем.
 - Сборка `424fbc7` с общей C++-разметкой загружена на XIAO через `/dev/ttyACM0`.
 - Сборка `4335e65` с энергосбережением OLED загружена через `/dev/ttyACM0`.
@@ -153,13 +158,10 @@ fake-tested, но не закрыт до hardware gate на реальном т�
   приложение их не использует. `flash_write_count` RAM-only до персиста counters.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
   `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.
-- Mobile hardware gate не завершён. Пользователь сообщил, что прежний APK не видел
-  устройство. Аудит подтвердил race старого transport: асинхронный cleanup мог
-  отменить новый scan; race устранена регрессионным тестом. Дополнительно системный
-  service UUID scan filter заменён локальным фильтром. Новый release APK собран, но
-  ещё не установлен на телефон. Нужны поиск ≤5 с, 10/10
-  connect, bonding после reboot, write-then-verify пяти настроек, все MVP-команды,
-  reconnect и permission flows на Android ≤11 и ≥12.
+- Mobile hardware gate не завершён. Исправленный release APK установлен, и базовые
+  discovery/connect подтверждены на реальном телефоне и XIAO. Нужны измерение поиска
+  ≤5 с, 10/10 connect, bonding после reboot, write-then-verify пяти настроек, все
+  MVP-команды, reconnect и permission flows на Android ≤11 и ≥12.
 - `flutter_reactive_ble` 5.5.0 пока применяет legacy Kotlin Gradle Plugin;
   Flutter 3.44.7 собирает APK с предупреждением. CompileSdk библиотеки принудительно
   36; до будущего обновления Flutter нужно отслеживать Built-in Kotlin миграцию.
@@ -168,10 +170,8 @@ fake-tested, но не закрыт до hardware gate на реальном т�
 
 ## Следующий шаг
 
-Сначала отключить `BikeComp-D210` в nRF Connect и закрыть его соединение. Установить
-APK `mobile-app/build/app/outputs/flutter-apk/app-release.apk` на Android и проверить,
-что поиск показывает устройство, затем выполнить gate: новый bond
-в первые 5 минут, reconnect после reboot, закрытое окно, Config Write
-write-then-verify, Telemetry 1 Гц + seq и все MVP-команды. Отдельный ручной долг:
-10× power-loss для закрытия Э3.5. После hardware gate закрыть 5.1–5.15 и перевести
-Э5 из «В работе» в «Завершён».
+Продолжить полный Android hardware gate: измерить поиск ≤5 с и 10/10 подключений,
+проверить новый bond в первые 5 минут, reconnect после reboot, закрытое окно,
+Config Write write-then-verify, Telemetry 1 Гц + seq и все MVP-команды. Отдельный
+ручной долг: 10× power-loss для закрытия Э3.5. После hardware gate закрыть 5.1–5.15
+и перевести Э5 из «В работе» в «Завершён».

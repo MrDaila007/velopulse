@@ -26,14 +26,16 @@ nonce/TTL/binding, encryption и 5-минутное pairing window; 78/78 native
 `open-pairing`). Текущая production загружена на XIAO. Подтверждённая lifecycle race
 старого scan transport устранена; Android UUID scan filter заменён локальным,
 Device Info/pairing/subscriptions упорядочены, link cleanup проверен тестами. Новый
-release APK собран. Дальше Android hardware gate. Э5 проходит fake/automatic
-gate, но остаётся незакрытым до аппаратной приёмки.
+release APK установлен: пользователь подтвердил discovery/connect и работу с реальным
+XIAO. Базовая интеграция с приложением достигнута. Дальше полный Android hardware
+gate. Э5 проходит fake/automatic gate, но остаётся незакрытым до полной аппаратной
+приёмки.
 
 ## Порядок и зависимости
 
 1. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и аппаратные долги Hall/стенда.
 2. BLE Э4.1–4.14 выполнены; завершить оставшийся hardware DoD Э4.
-3. Установить новый APK, проверить discovery и провести Android hardware gate.
+3. Discovery/connect нового APK подтверждены; провести полный Android hardware gate.
 4. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
 5. После hardware gate Э5 начать Э6.
 6. Выполнить soak, power и field tests Э7, затем собрать v1.0.
