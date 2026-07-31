@@ -66,7 +66,11 @@ device.proto_major != app.proto_major  →  ЧТЕНИЕ Device Information ра
 | Scan Response | Complete Local Name, Tx Power |
 | Tx Power | +4 dBm |
 
-Приложение фильтрует по Service UUID (ТЗ §21) и не полагается на имя устройства.
+Service UUID остаётся авторитетным признаком совместимости (ТЗ §21). Для обхода
+ошибок Android native scan filter приложение может запрашивать нефильтрованный scan
+и фильтровать результаты локально. `BikeComp-*` допустим только как discovery fallback,
+если Android не вернул список advertised UUID; до завершения GATT discovery такое
+устройство считается лишь кандидатом и не получает доступ к рабочим экранам.
 
 ## 4. Параметры соединения
 
@@ -85,7 +89,7 @@ device.proto_major != app.proto_major  →  ЧТЕНИЕ Device Information ра
 
 ```text
 App                                          Device
- │ scan (фильтр по Service UUID)               │  реклама
+ │ scan (локальный UUID/default-name filter)    │  реклама
  │────────────────────────────────────────────▶│
  │ connect                                     │
  │────────────────────────────────────────────▶│
@@ -102,6 +106,7 @@ App                                          Device
  │ read Config Read                            │
  │────────────────────────────────────────────▶│
  │◀── Configuration (48 B) ────────────────────│
+ │ [только после успешного encrypted read]     │
  │ subscribe Telemetry, Config Read, Cmd Result│
  │────────────────────────────────────────────▶│
  │◀── Telemetry notify 1 Гц ───────────────────│

@@ -21,11 +21,12 @@
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
 power-loss вручную → M3. BLE Э4.1–4.14 программно выполнен: advertising, команды,
 nonce/TTL/binding, encryption и 5-минутное pairing window; 78/78 native, XIAO build
-и 47/47 Flutter tests проходят. Э4.13 Error Log/sensor-test
+и 50/50 Flutter tests проходят. Э4.13 Error Log/sensor-test
 и Э4.14 Serial-консоль выполнены; Serial проверен на XIAO (`dump-config`, `selftest`,
-`open-pairing`). Текущая production загружена на XIAO. Android UUID scan filter,
-как предполагаемый источник несовместимости, заменён локальным фильтром;
-новый release APK собран. Дальше Android hardware gate. Э5 проходит fake/automatic
+`open-pairing`). Текущая production загружена на XIAO. Подтверждённая lifecycle race
+старого scan transport устранена; Android UUID scan filter заменён локальным,
+Device Info/pairing/subscriptions упорядочены, link cleanup проверен тестами. Новый
+release APK собран. Дальше Android hardware gate. Э5 проходит fake/automatic
 gate, но остаётся незакрытым до аппаратной приёмки.
 
 ## Порядок и зависимости

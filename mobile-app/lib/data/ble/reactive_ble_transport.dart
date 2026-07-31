@@ -32,7 +32,6 @@ class ReactiveBleTransport implements BleTransport {
 
   @override
   Stream<BleScanResult> scan() {
-    unawaited(stopScan());
     final controller = StreamController<BleScanResult>.broadcast();
     _scanController = controller;
     _scanSubscription = _ble
@@ -73,7 +72,6 @@ class ReactiveBleTransport implements BleTransport {
 
   @override
   Stream<BleLinkState> connect(String deviceId) {
-    unawaited(disconnect());
     _deviceId = deviceId;
     final controller = StreamController<BleLinkState>.broadcast();
     _connectionController = controller;
@@ -102,6 +100,7 @@ class ReactiveBleTransport implements BleTransport {
             if (!controller.isClosed) controller.add(BleLinkState.disconnected);
           },
         );
+    controller.onCancel = disconnect;
     return controller.stream;
   }
 

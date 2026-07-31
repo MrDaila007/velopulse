@@ -84,9 +84,12 @@ fake-tested, но не закрыт до hardware gate на реальном т�
   Реализованы protocol v1 Freezed-модели/codecs, полный ConfigValidator,
   `FakeBleTransport`, production `flutter_reactive_ble` transport, Android
   permissions/adapter/location/bond layer, FSM/reconnect, domain repository,
-  write-then-verify и versioned per-device dirty drafts. Discovery выполняет
-  нефильтрованный platform scan с локальной проверкой service UUID и fallback по
-  имени `BikeComp-*`; после connect полный GATT-контракт по-прежнему обязателен.
+  write-then-verify и versioned per-device dirty drafts. Устранена lifecycle race,
+  где `unawaited(stopScan())` закрывал только что созданный scan stream. Discovery
+  выполняет нефильтрованный platform scan с локальной проверкой service UUID и
+  fallback по имени `BikeComp-*`; после connect полный GATT-контракт обязателен.
+  Device Info читается до protected GATT operations; encrypted Config Read завершает
+  pairing до subscriptions. Ошибки sync и cancel освобождают единственный BLE link.
   Dashboard, MVP settings, defaults и maintenance не включают diagnostics/export/
   dangerous commands Э6.
   Воспроизводимый Flutter/JDK/Android SDK/NDK/CMake toolchain лежит в игнорируемой
@@ -108,9 +111,9 @@ fake-tested, но не закрыт до hardware gate на реальном т�
 - DoD Э3.5 reboot на `/dev/ttyACM0`: seed 424242 mm / 77 rev переживает два reboot
   production (`Odometer: source=A, sequence=3`, те же значения оба раза).
 - Mobile automatic gate: `dart format`, `flutter analyze` — no issues;
-  `flutter test` — 47/47; актуальный release APK собран.
+  `flutter test` — 50/50; актуальный release APK собран.
 - Release APK: application ID `app.bikecomp.mobile`, minSdk 24, target/compileSdk 36,
-  54,000,485 байт (`6ef7f3e337be1f8028d0e034bd4f1f83c7239b4ac0cd2c02628b02cc95edadc3`).
+  54,016,869 байт (`2caaa10344229d76b4a8b313be18b31b838e4aa4c2676194857ca70feaaf2bd1`).
 - Android-устройства через ADB и Bluetooth controller на хосте нет;
   локальные результаты не являются аппаратной приёмкой BLE.
 - Текущая production-сборка с E4.5 и E4.13–4.14 загружена на `/dev/ttyACM0`; DFU
@@ -151,8 +154,10 @@ fake-tested, но не закрыт до hardware gate на реальном т�
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
   `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.
 - Mobile hardware gate не завершён. Пользователь сообщил, что прежний APK не видел
-  устройство; системный service UUID scan filter заменён локальным фильтром, новый
-  release APK собран, но ещё не установлен на телефон. Нужны поиск ≤5 с, 10/10
+  устройство. Аудит подтвердил race старого transport: асинхронный cleanup мог
+  отменить новый scan; race устранена регрессионным тестом. Дополнительно системный
+  service UUID scan filter заменён локальным фильтром. Новый release APK собран, но
+  ещё не установлен на телефон. Нужны поиск ≤5 с, 10/10
   connect, bonding после reboot, write-then-verify пяти настроек, все MVP-команды,
   reconnect и permission flows на Android ≤11 и ≥12.
 - `flutter_reactive_ble` 5.5.0 пока применяет legacy Kotlin Gradle Plugin;

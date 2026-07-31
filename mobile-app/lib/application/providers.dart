@@ -154,14 +154,17 @@ class ConnectionController extends _$ConnectionController {
   Timer? _reconnectTimer;
   bool _explicitDisconnect = false;
   bool _foreground = true;
+  bool _handlingUnexpectedDisconnect = false;
   int _reconnectAttempt = 0;
-
-  BleTransport get _transport => ref.read(bleTransportProvider);
-  PreferencesStore get _store => ref.read(preferencesStoreProvider);
-  AndroidBlePlatform get _platform => ref.read(androidBlePlatformProvider);
+  late BleTransport _transport;
+  late PreferencesStore _store;
+  late AndroidBlePlatform _platform;
 
   @override
   SessionState build() {
+    _transport = ref.read(bleTransportProvider);
+    _store = ref.read(preferencesStoreProvider);
+    _platform = ref.read(androidBlePlatformProvider);
     ref.onDispose(_dispose);
     _adapterSubscription = _transport.adapterState.listen(_onAdapterState);
     unawaited(_loadRememberedDevice());
@@ -230,6 +233,7 @@ class ConnectionController extends _$ConnectionController {
         final enriched = found.copyWith(
           bondState: await _platform.bondState(found.deviceId),
         );
+        if (state.connection is! ConnectionScanning) return;
         devices[found.deviceId] = enriched;
         state = state.copyWith(devices: devices.values.toList(growable: false));
         if (_remembered?.id == found.deviceId &&
@@ -259,17 +263,19 @@ class ConnectionController extends _$ConnectionController {
 
   Future<void> connectDevice(BleScanResult device) async {
     _explicitDisconnect = false;
+    _handlingUnexpectedDisconnect = false;
     _reconnectTimer?.cancel();
-    await stopScan();
     state = state.copyWith(
       connection: const ConnectionState.connecting(),
       selectedDevice: device,
       lastError: null,
       lastMessage: null,
     );
+    await stopScan();
+    await _disposeRepository();
+    await _cancelLink();
 
     final connected = Completer<void>();
-    await _linkSubscription?.cancel();
     _linkSubscription = _transport
         .connect(device.deviceId)
         .listen(
@@ -291,6 +297,8 @@ class ConnectionController extends _$ConnectionController {
       await connected.future.timeout(const Duration(seconds: 12));
       await _synchronize(device);
     } on Object catch (error) {
+      await _disposeRepository();
+      await _cancelLink();
       final appError = error is AppError ? error : AppErrors.unknown(error);
       state = state.copyWith(
         connection: ConnectionState.failed(appError),
@@ -321,14 +329,11 @@ class ConnectionController extends _$ConnectionController {
       throw AppErrors.serviceMissing;
     }
 
-    final repository = BikeComputerRepositoryImpl(_transport);
-    _repository = repository;
-    await repository.start();
-    _bindRepository(repository);
-
     state = state.copyWith(
       connection: const ConnectionState.synchronizing(SyncStage.deviceInfo),
     );
+    final repository = BikeComputerRepositoryImpl(_transport);
+    _repository = repository;
     final infoResult = await repository.readDeviceInfo();
     if (infoResult case Failure<DeviceInfo>(:final error)) throw error;
     final info = (infoResult as Success<DeviceInfo>).value;
@@ -344,7 +349,10 @@ class ConnectionController extends _$ConnectionController {
       return;
     }
 
-    if (device.bondState == BondState.none && !info.pairingWindowOpen) {
+    final hasKnownBond =
+        device.bondState == BondState.bonded ||
+        (device.bondState == BondState.unknown && info.bonded);
+    if (!hasKnownBond && !info.pairingWindowOpen) {
       throw AppErrors.notPaired;
     }
 
@@ -362,7 +370,10 @@ class ConnectionController extends _$ConnectionController {
     state = state.copyWith(
       connection: const ConnectionState.synchronizing(SyncStage.subscriptions),
     );
-    await repository.readTelemetry();
+    await repository.start();
+    _bindRepository(repository);
+    final telemetryResult = await repository.readTelemetry();
+    if (telemetryResult case Failure<Telemetry>(:final error)) throw error;
     await _store.rememberDevice(device.deviceId, device.name);
     _remembered = RememberedDevice(id: device.deviceId, name: device.name);
     _reconnectAttempt = 0;
@@ -392,10 +403,40 @@ class ConnectionController extends _$ConnectionController {
     });
   }
 
+  Future<void> _disposeRepository() async {
+    final repository = _repository;
+    _repository = null;
+    final telemetry = _telemetrySubscription;
+    final config = _configSubscription;
+    final rssi = _rssiSubscription;
+    _telemetrySubscription = null;
+    _configSubscription = null;
+    _rssiSubscription = null;
+    final repositoryDisposal = repository?.dispose();
+    await telemetry?.cancel();
+    await config?.cancel();
+    await rssi?.cancel();
+    await repositoryDisposal;
+  }
+
+  Future<void> _cancelLink() async {
+    final link = _linkSubscription;
+    _linkSubscription = null;
+    await link?.cancel();
+    await _transport.disconnect();
+  }
+
   Future<void> _handleUnexpectedDisconnect() async {
-    if (_explicitDisconnect) return;
-    state = state.copyWith(lastError: AppErrors.connectionLost);
-    _scheduleReconnect();
+    if (_explicitDisconnect || _handlingUnexpectedDisconnect) return;
+    _handlingUnexpectedDisconnect = true;
+    try {
+      await _disposeRepository();
+      await _cancelLink();
+      state = state.copyWith(lastError: AppErrors.connectionLost);
+      _scheduleReconnect();
+    } finally {
+      _handlingUnexpectedDisconnect = false;
+    }
   }
 
   void _scheduleReconnect() {
@@ -500,9 +541,8 @@ class ConnectionController extends _$ConnectionController {
   Future<void> disconnect({bool explicit = true}) async {
     _explicitDisconnect = explicit;
     _reconnectTimer?.cancel();
-    await _repository?.dispose();
-    _repository = null;
-    await _transport.disconnect();
+    await _disposeRepository();
+    await _cancelLink();
     state = state.copyWith(
       connection: const ConnectionState.idle(),
       commandInFlight: false,
@@ -529,10 +569,7 @@ class ConnectionController extends _$ConnectionController {
     _reconnectTimer?.cancel();
     unawaited(_adapterSubscription?.cancel());
     unawaited(_scanSubscription?.cancel());
-    unawaited(_linkSubscription?.cancel());
-    unawaited(_telemetrySubscription?.cancel());
-    unawaited(_configSubscription?.cancel());
-    unawaited(_rssiSubscription?.cancel());
-    unawaited(_repository?.dispose());
+    unawaited(_cancelLink());
+    unawaited(_disposeRepository());
   }
 }

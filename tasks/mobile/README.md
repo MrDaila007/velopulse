@@ -11,8 +11,12 @@
 - [ ] 5.3 Реализовать ConfigValidator и boundary tests.
 - [ ] 5.4 Реализовать FakeBleTransport, ride profiles и error injection.
 - [ ] 5.5 Реализовать scan/connect/MTU/discover/read/write/subscribe.
+  (Устранены `unawaited(stopScan/disconnect)` races; cancel link stream отменяет
+  platform connection; transport lifecycle покрыт mock-регрессиями.)
 - [ ] 5.6 Реализовать Android 12+/legacy permissions и adapter states.
 - [ ] 5.7 Реализовать ConnectionController FSM и reconnect policy.
+  (Device Info до protected access; Config Read инициирует/подтверждает pairing до
+  subscriptions; sync failures/dispose освобождают link и repository без утечек.)
 - [ ] 5.8 Создать scan screen, RSSI, UUID filter, remember/forget device.
   (Android native service filter заменён unfiltered scan + локальной проверкой UUID
   и fallback `BikeComp-*`; 5 unit-тестов; повторять hardware scan только после
@@ -41,7 +45,7 @@
 ## DoD Э5 — автоматический gate
 
 - [x] Code generation повторяется без diff.
-- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 47 тестов проходят.
+- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 50 тестов проходят.
 - [x] Debug и release APK собираются с application ID `app.bikecomp.mobile`,
   minSdk 24 и targetSdk 36.
 - [x] Config draft персистится асинхронно и namespaced по device ID.

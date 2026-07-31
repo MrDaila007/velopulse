@@ -3,6 +3,7 @@ import 'package:bikecomp_mobile/application/providers.dart';
 import 'package:bikecomp_mobile/core/app_error.dart';
 import 'package:bikecomp_mobile/data/ble/ble_transport.dart';
 import 'package:bikecomp_mobile/data/ble/fake_ble_transport.dart';
+import 'package:bikecomp_mobile/data/protocol/ble_uuids.dart';
 import 'package:bikecomp_mobile/domain/entities/models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,6 +35,34 @@ Future<(ProviderContainer, FakeBleTransport)> connectWith(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('sync reads Device Info before protected GATT operations', () async {
+    final (container, fake) = await connectWith(FakeBleScenario.normal);
+    addTearDown(() async {
+      container.dispose();
+      await fake.dispose();
+    });
+
+    final deviceInfoRead = fake.operationLog.indexOf(
+      'read:${BleUuids.deviceInfo}',
+    );
+    final configRead = fake.operationLog.indexOf('read:${BleUuids.configRead}');
+    final firstProtectedSubscription = fake.operationLog.indexWhere(
+      (entry) => entry.startsWith('subscribe:'),
+    );
+    final telemetryRead = fake.operationLog.indexOf(
+      'read:${BleUuids.telemetry}',
+    );
+
+    expect(deviceInfoRead, greaterThanOrEqualTo(0));
+    expect(configRead, greaterThan(deviceInfoRead));
+    expect(firstProtectedSubscription, greaterThan(configRead));
+    expect(telemetryRead, greaterThan(firstProtectedSubscription));
+    expect(
+      container.read(connectionControllerProvider).connection,
+      isA<ConnectionReady>(),
+    );
+  });
+
   test('MTU below 51 reaches read-only with domain data available', () async {
     final (container, fake) = await connectWith(FakeBleScenario.mtuTooSmall);
     addTearDown(() async {
@@ -62,6 +91,7 @@ void main() {
       final session = container.read(connectionControllerProvider);
       expect(session.connection, isA<ConnectionFailed>());
       expect(session.lastError?.kind, AppErrorKind.serviceMissing);
+      expect(fake.connected, isFalse);
     },
   );
 
@@ -79,6 +109,13 @@ void main() {
     expect(session.connection, isA<ConnectionFailed>());
     expect(session.lastError?.kind, AppErrorKind.notPaired);
     expect(session.deviceInfo?.pairingWindowOpen, isFalse);
+    expect(fake.operationLog, contains('read:${BleUuids.deviceInfo}'));
+    expect(fake.operationLog, isNot(contains('read:${BleUuids.configRead}')));
+    expect(
+      fake.operationLog.any((entry) => entry.startsWith('subscribe:')),
+      isFalse,
+    );
+    expect(fake.connected, isFalse);
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(
       container.read(connectionControllerProvider).connection,

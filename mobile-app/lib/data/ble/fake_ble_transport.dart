@@ -36,7 +36,10 @@ class FakeBleTransport implements BleTransport {
   int _busyResponses = 0;
   Timer? _telemetryTimer;
   StreamController<BleLinkState>? _linkController;
+  final List<String> operationLog = [];
   final Map<String, StreamController<List<int>>> _notifications = {};
+
+  bool get connected => _connected;
 
   DeviceConfig _config = DeviceConfig.defaults;
   Telemetry _telemetry = const Telemetry(
@@ -121,12 +124,14 @@ class FakeBleTransport implements BleTransport {
 
   @override
   Future<int> requestMtu(int mtu) async {
+    operationLog.add('mtu:$mtu');
     _requireConnected();
     return scenario == FakeBleScenario.mtuTooSmall ? 23 : 247;
   }
 
   @override
   Future<BleDiscovery> discoverServices() async {
+    operationLog.add('discover');
     _requireConnected();
     if (scenario == FakeBleScenario.serviceMissing) {
       return const BleDiscovery(<String>{});
@@ -136,6 +141,7 @@ class FakeBleTransport implements BleTransport {
 
   @override
   Future<List<int>> read(String characteristicUuid) async {
+    operationLog.add('read:$characteristicUuid');
     _requireConnected();
     return switch (characteristicUuid) {
       BleUuids.deviceInfo => ProtocolCodecs.encodeDeviceInfo(_deviceInfo),
@@ -270,9 +276,12 @@ class FakeBleTransport implements BleTransport {
   }
 
   @override
-  Stream<List<int>> subscribe(String characteristicUuid) => _notifications
-      .putIfAbsent(characteristicUuid, StreamController<List<int>>.broadcast)
-      .stream;
+  Stream<List<int>> subscribe(String characteristicUuid) {
+    operationLog.add('subscribe:$characteristicUuid');
+    return _notifications
+        .putIfAbsent(characteristicUuid, StreamController<List<int>>.broadcast)
+        .stream;
+  }
 
   Telemetry _profiledTelemetry() {
     final seq = (_telemetry.seq + 1) & 0xFFFF;
