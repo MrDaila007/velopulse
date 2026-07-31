@@ -1,6 +1,6 @@
 # BikeComp — задачи
 
-Обновлено: 2026-07-31
+Обновлено: 2026-08-01
 
 ## Состояние этапов
 
@@ -38,13 +38,14 @@ gate. Э5 проходит fake/automatic gate, но остаётся незак
 от выгорания: default auto-off + четырёхфазный сдвиг всей разметки на один пиксель
 раз в минуту; native и simulator gate пройдены для обеих панелей.
 Автояркость завершила software gate: LDR manager, EMA/уровни/гистерезис, manual cap,
-invalid fallback, Serial diagnostics и Android UI/patterns реализованы. Текущая
-сборка не загружена: XIAO отсутствует; сборка делителя и калибровка остаются открыты.
+invalid fallback, Serial diagnostics и Android UI/patterns реализованы. Production
+128×64 загружена; отсутствие LDR корректно даёт `raw=0`, `valid=0` и manual cap.
+Сборка делителя, калибровка и повторная загрузка constants остаются открыты.
 
 ## Порядок и зависимости
 
-1. Собрать LDR D2/D3, выбрать 10/22/47 кΩ по raw dark/room/outdoor, измерить ток
-   и загрузить production 128×64.
+1. Собрать LDR D2/D3, выбрать 10/22/47 кΩ по raw dark/room/outdoor, измерить ток,
+   обновить calibration constants и повторно загрузить production 128×64.
 2. Завершить расширенный OLED 128×64 gate: LOW BATT, три patterns, dim/off/wake,
    четыре фазы burn-in shift и pulse smoke.
 3. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и долги Hall/стенда.

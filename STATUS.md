@@ -1,6 +1,6 @@
 # Статус проекта
 
-Обновлено: 2026-07-31
+Обновлено: 2026-08-01
 
 ## Текущий этап
 
@@ -112,9 +112,9 @@ encryption и 5-минутное pairing window синхронизированы
 
 - `pio test -e native`: 81/81 тестов проходят, включая автояркость, advertising,
   safe/dangerous framing, shared fixtures, Config Write, diagnostics и Serial parser.
-- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 424 Б, Flash 171 160 Б.
-- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 16 912 Б,
-  Flash 171 096 Б.
+- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 448 Б, Flash 171 288 Б.
+- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 16 936 Б,
+  Flash 171 224 Б.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
   стабильно после SoftDevice init.
@@ -158,9 +158,10 @@ encryption и 5-минутное pairing window синхронизированы
 - Hardware smoke SSD1306 128×64 от 2026-07-31: primary firmware загружена на XIAO;
   Serial вернул `i2c_err=0`, `isr_ovf=0`, `selftest=0x3F`, `heap/16=12630`;
   крупная разметка и работа экрана подтверждены пользователем.
-- Сборка с автояркостью не загружена: на момент проверки XIAO отсутствовал в
-  `/dev/ttyACM*` и USB. Последней аппаратно подтверждённой остаётся production
-  128×64 до добавления LDR.
+- Production 128×64 с автояркостью загружена через `/dev/ttyACM1` 2026-08-01.
+  Без подключённого LDR три последовательных selftest дали `raw=0`, `valid=0`,
+  `auto_pct=100`, `effective_pct=40`, `i2c_err=0`, `isr_ovf=0`,
+  `selftest=0x3F`: аппаратный disconnected-sensor fallback подтверждён.
 
 ## Ограничения
 

@@ -48,10 +48,10 @@ Production-сборки используют LDR для пяти уровней 
 `brightness_pct` задаёт верхний предел; при `BIKECOMP_AMBIENT_LIGHT=0` оно снова
 задаёт фиксированную яркость. Схема и процедура калибровки неизвестного LDR описаны
 в `docs/05-hardware-design.md §3.1`.
-Контраст вычисляется как `8 + brightness_pct × 247 / 100`; invalid/rail ADC
-возвращает пользовательский максимум. Serial diagnostics выводит `raw`,
-`filtered`, auto/effective percent и признак `valid`.
-
+Перед основным чтением внутренний pull-down проверяет наличие делителя; отсутствующий
+LDR даёт `raw=0`, `valid=0` и возвращает пользовательский максимум. Контраст
+вычисляется как `8 + brightness_pct × 247 / 100`. Serial diagnostics выводит
+`raw`, `filtered`, auto/effective percent и признак `valid`.
 
 Разметка и форматирование находятся в общих C++-модулях `display_layout.cpp` и
 `display_formatter.cpp`. Эти же файлы напрямую компилирует OLED-симулятор для
