@@ -108,9 +108,24 @@ enum DeviceCommandId {
       values.firstWhere((value) => value.code == code, orElse: () => unknown);
 }
 
+enum DisplayTestPattern {
+  fill(0),
+  checkerboard(1),
+  text(2);
+
+  const DisplayTestPattern(this.code);
+  final int code;
+}
+
+DeviceCommand buildDisplayTestCommand(DisplayTestPattern pattern) =>
+    DeviceCommand(
+      id: DeviceCommandId.displayTest,
+      payload: <int>[pattern.code],
+    );
+
 DeviceCommand buildSafeCommand(DeviceCommandId id) {
   final payload = switch (id) {
-    DeviceCommandId.displayTest => const <int>[1],
+    DeviceCommandId.displayTest => <int>[DisplayTestPattern.checkerboard.code],
     DeviceCommandId.sensorTestStart => const <int>[60, 0],
     _ => const <int>[],
   };

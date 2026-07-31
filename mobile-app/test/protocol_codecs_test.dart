@@ -72,6 +72,18 @@ void main() {
       );
     });
 
+    test(
+      'display test builder supports all patterns without format changes',
+      () {
+        for (final pattern in DisplayTestPattern.values) {
+          expect(
+            ProtocolCodecs.encodeCommand(buildDisplayTestCommand(pattern)),
+            <int>[1, DeviceCommandId.displayTest.code, 0, 1, pattern.code],
+          );
+        }
+      },
+    );
+
     for (final name in <String>[
       'result_ok',
       'result_needs_confirm_reset_odo',

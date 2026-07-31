@@ -54,6 +54,35 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
       .read(connectionControllerProvider.notifier)
       .sendCommand(buildSafeCommand(id));
 
+  Future<void> _showDisplayTestPatterns() async {
+    final strings = AppLocalizations.of(context);
+    final pattern = await showDialog<DisplayTestPattern>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(strings.displayPatternTitle),
+        children: <Widget>[
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, DisplayTestPattern.fill),
+            child: Text(strings.displayPatternFill),
+          ),
+          SimpleDialogOption(
+            onPressed: () =>
+                Navigator.pop(context, DisplayTestPattern.checkerboard),
+            child: Text(strings.displayPatternCheckerboard),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, DisplayTestPattern.text),
+            child: Text(strings.displayPatternText),
+          ),
+        ],
+      ),
+    );
+    if (pattern == null || !mounted) return;
+    await ref
+        .read(connectionControllerProvider.notifier)
+        .sendCommand(buildDisplayTestCommand(pattern));
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AppLocalizations.of(context);
@@ -113,7 +142,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
           title: strings.displayTest,
           subtitle: strings.displayTestSubtitle,
           enabled: enabled,
-          onPressed: () => _send(DeviceCommandId.displayTest),
+          onPressed: _showDisplayTestPatterns,
         ),
         const SizedBox(height: 8),
         _ActionTile(

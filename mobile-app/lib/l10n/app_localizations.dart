@@ -100,6 +100,12 @@ abstract class AppLocalizations {
   /// **'Нужен доступ'**
   String get accessRequiredTitle;
 
+  /// No description provided for @ambientBrightnessHelper.
+  ///
+  /// In ru, this message translates to:
+  /// **'Фоторезистор автоматически снижает яркость; ползунок задаёт доступный максимум.'**
+  String get ambientBrightnessHelper;
+
   /// No description provided for @appTitle.
   ///
   /// In ru, this message translates to:
@@ -157,7 +163,7 @@ abstract class AppLocalizations {
   /// No description provided for @brightnessValue.
   ///
   /// In ru, this message translates to:
-  /// **'Яркость: {percent}%'**
+  /// **'Максимальная яркость: {percent}%'**
   String brightnessValue(int percent);
 
   /// No description provided for @cancel.
@@ -247,7 +253,7 @@ abstract class AppLocalizations {
   /// No description provided for @defaultBrightnessChange.
   ///
   /// In ru, this message translates to:
-  /// **'яркость: {current} → {defaults}%'**
+  /// **'макс. яркость: {current} → {defaults}%'**
   String defaultBrightnessChange(int current, int defaults);
 
   /// No description provided for @defaultCircumferenceChange.
@@ -322,6 +328,30 @@ abstract class AppLocalizations {
   /// **'OLED вкл.'**
   String get displayOnShort;
 
+  /// No description provided for @displayPatternCheckerboard.
+  ///
+  /// In ru, this message translates to:
+  /// **'Шахматная сетка'**
+  String get displayPatternCheckerboard;
+
+  /// No description provided for @displayPatternFill.
+  ///
+  /// In ru, this message translates to:
+  /// **'Заливка'**
+  String get displayPatternFill;
+
+  /// No description provided for @displayPatternText.
+  ///
+  /// In ru, this message translates to:
+  /// **'Текст'**
+  String get displayPatternText;
+
+  /// No description provided for @displayPatternTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Выберите тестовый паттерн'**
+  String get displayPatternTitle;
+
   /// No description provided for @displayStateSubtitle.
   ///
   /// In ru, this message translates to:
@@ -343,7 +373,7 @@ abstract class AppLocalizations {
   /// No description provided for @displayTestSubtitle.
   ///
   /// In ru, this message translates to:
-  /// **'Проверить сегменты и яркость OLED'**
+  /// **'Выбрать заливку, сетку или текст'**
   String get displayTestSubtitle;
 
   /// No description provided for @displayTimeoutChange.

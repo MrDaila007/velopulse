@@ -177,6 +177,11 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(strings.brightnessValue(draft.brightnessPct)),
+                const SizedBox(height: 4),
+                Text(
+                  strings.ambientBrightnessHelper,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 Slider(
                   value: draft.brightnessPct.clamp(0, 100).toDouble(),
                   min: 0,

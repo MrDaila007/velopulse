@@ -12,6 +12,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get accessRequiredTitle => 'Нужен доступ';
 
   @override
+  String get ambientBrightnessHelper =>
+      'Фоторезистор автоматически снижает яркость; ползунок задаёт доступный максимум.';
+
+  @override
   String get appTitle => 'BikeComp';
 
   @override
@@ -42,7 +46,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String brightnessValue(int percent) {
-    return 'Яркость: $percent%';
+    return 'Максимальная яркость: $percent%';
   }
 
   @override
@@ -97,7 +101,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String defaultBrightnessChange(int current, int defaults) {
-    return 'яркость: $current → $defaults%';
+    return 'макс. яркость: $current → $defaults%';
   }
 
   @override
@@ -143,6 +147,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get displayOnShort => 'OLED вкл.';
 
   @override
+  String get displayPatternCheckerboard => 'Шахматная сетка';
+
+  @override
+  String get displayPatternFill => 'Заливка';
+
+  @override
+  String get displayPatternText => 'Текст';
+
+  @override
+  String get displayPatternTitle => 'Выберите тестовый паттерн';
+
+  @override
   String get displayStateSubtitle => 'Временно изменить состояние экрана';
 
   @override
@@ -152,7 +168,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get displayTest => 'Тест дисплея';
 
   @override
-  String get displayTestSubtitle => 'Проверить сегменты и яркость OLED';
+  String get displayTestSubtitle => 'Выбрать заливку, сетку или текст';
 
   @override
   String get displayTimeoutChange => 'таймаут дисплея';

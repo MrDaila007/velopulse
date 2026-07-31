@@ -62,6 +62,45 @@ void main() {
     await fake.dispose();
   });
 
+  testWidgets('maintenance offers all three OLED test patterns', (
+    tester,
+  ) async {
+    final fake = FakeBleTransport();
+    addTearDown(fake.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [bleTransportProvider.overrideWithValue(fake)],
+        child: const BikeCompApp(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Искать'));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Подключить'));
+    for (var frame = 0; frame < 10; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    await tester.tap(find.text('Обслуживание'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Тест дисплея'));
+    await tester.tap(find.text('Тест дисплея'));
+    await tester.pump();
+
+    expect(find.text('Выберите тестовый паттерн'), findsOneWidget);
+    expect(find.text('Заливка'), findsOneWidget);
+    expect(find.text('Шахматная сетка'), findsOneWidget);
+    expect(find.text('Текст'), findsOneWidget);
+
+    await tester.tap(find.text('Текст'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Выберите тестовый паттерн'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await fake.dispose();
+  });
+
   testWidgets('settings and maintenance are write-blocked while disconnected', (
     tester,
   ) async {
