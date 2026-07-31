@@ -11,6 +11,8 @@
 - [ ] 1.8 Создать `hardware/wiring.md` и `hardware/images/`.
 - [x] 1.9 Подключить SSD1306 128×64 и выполнить hardware smoke primary-сборки.
   Primary firmware загружена; `i2c_err=0`, `selftest=0x3F`, UI подтверждён пользователем.
+- [ ] 1.10 Собрать LDR-делитель на D2/D3, подобрать 10/22/47 кΩ и зафиксировать
+  raw dark/room/outdoor, плавность автояркости и средний ток.
 
 ## Аппаратный DoD
 
