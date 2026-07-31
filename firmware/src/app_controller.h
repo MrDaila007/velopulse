@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ambient_light_manager.h"
 #include "battery_manager.h"
 #include "ble_manager.h"
 #include "config.h"
@@ -61,6 +62,7 @@ class AppController {
   SpeedCalculator speed_calculator_;
   TripComputer trip_computer_;
   RideStateMachine ride_state_;
+  AmbientLightManager ambient_light_;
   BatteryManager battery_;
   DisplayManager display_;
   BleManager ble_;

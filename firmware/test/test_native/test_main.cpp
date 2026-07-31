@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "ambient_light_model.h"
 #include "battery_model.h"
 #include "ble_advertising.h"
 #include "ble_command.h"
@@ -978,6 +979,72 @@ void test_display_burn_in_guard_cycles_catches_up_and_wraps() {
   guard.configure(0xFFFFFF00u);
   TEST_ASSERT_TRUE(guard.update(59744u));
   TEST_ASSERT_EQUAL_UINT8(1u, guard.phase());
+}
+
+void test_ambient_light_model_normalizes_levels_caps_and_contrast() {
+  TEST_ASSERT_EQUAL_UINT16(0u, AmbientLightModel::normalize(50u, 100u, 3900u));
+  TEST_ASSERT_EQUAL_UINT16(0u, AmbientLightModel::normalize(100u, 100u, 3900u));
+  TEST_ASSERT_EQUAL_UINT16(500u,
+                           AmbientLightModel::normalize(2000u, 100u, 3900u));
+  TEST_ASSERT_EQUAL_UINT16(1000u,
+                           AmbientLightModel::normalize(3900u, 100u, 3900u));
+  TEST_ASSERT_EQUAL_UINT16(0u, AmbientLightModel::normalize(100u, 500u, 500u));
+
+  struct LevelCase {
+    uint16_t raw;
+    uint8_t brightness;
+  };
+  const LevelCase cases[] = {
+      {100u, 5u}, {860u, 15u}, {1810u, 35u},
+      {2760u, 65u}, {3520u, 100u},
+  };
+  for (const LevelCase& test : cases) {
+    AmbientLightModel model;
+    model.configure(100u, 3900u, 0u);
+    TEST_ASSERT_TRUE(model.addSample(test.raw, 0u));
+    TEST_ASSERT_TRUE(model.snapshot().valid);
+    TEST_ASSERT_EQUAL_UINT8(test.brightness, model.snapshot().brightness_pct);
+  }
+
+  TEST_ASSERT_EQUAL_UINT8(10u,
+                          AmbientLightModel::contrastForBrightness(1u));
+  TEST_ASSERT_EQUAL_UINT8(156u,
+                          AmbientLightModel::contrastForBrightness(60u));
+  TEST_ASSERT_EQUAL_UINT8(255u,
+                          AmbientLightModel::contrastForBrightness(100u));
+
+  AmbientLightModel capped;
+  capped.configure(100u, 3900u, 0u);
+  TEST_ASSERT_EQUAL_UINT8(60u, capped.cappedBrightness(60u));
+  TEST_ASSERT_TRUE(capped.addSample(3520u, 0u));
+  TEST_ASSERT_EQUAL_UINT8(60u, capped.cappedBrightness(60u));
+  TEST_ASSERT_FALSE(capped.addSample(100u, 1u));
+  TEST_ASSERT_EQUAL_UINT8(60u, capped.cappedBrightness(60u));
+}
+
+void test_ambient_light_model_ema_hysteresis_dwell_and_invalid_fallback() {
+  AmbientLightModel model;
+  model.configure(100u, 3900u, 0u);
+  TEST_ASSERT_TRUE(model.addSample(100u, 0u));
+  TEST_ASSERT_EQUAL_UINT8(5u, model.snapshot().brightness_pct);
+
+  for (uint8_t i = 1u; i <= 7u; ++i) {
+    model.addSample(3900u, static_cast<uint32_t>(i) * 250u);
+  }
+  TEST_ASSERT_EQUAL_UINT8(5u, model.snapshot().brightness_pct);
+  TEST_ASSERT_TRUE(model.addSample(3900u, 2000u));
+  TEST_ASSERT_EQUAL_UINT8(65u, model.snapshot().brightness_pct);
+
+  for (uint8_t i = 1u; i <= 7u; ++i) {
+    model.addSample(100u, 2000u + static_cast<uint32_t>(i) * 250u);
+  }
+  TEST_ASSERT_EQUAL_UINT8(65u, model.snapshot().brightness_pct);
+  TEST_ASSERT_TRUE(model.addSample(100u, 4000u));
+  TEST_ASSERT_EQUAL_UINT8(15u, model.snapshot().brightness_pct);
+
+  TEST_ASSERT_TRUE(model.addSample(0u, 4250u));
+  TEST_ASSERT_FALSE(model.snapshot().valid);
+  TEST_ASSERT_EQUAL_UINT8(42u, model.cappedBrightness(42u));
 }
 
 void test_battery_raw_conversion_and_calibration() {
@@ -2167,6 +2234,8 @@ int main(int, char**) {
   RUN_TEST(test_display_power_dim_off_wake_disable_and_wrap);
   RUN_TEST(test_display_burn_in_guard_cycles_catches_up_and_wraps);
   RUN_TEST(test_battery_raw_conversion_and_calibration);
+  RUN_TEST(test_ambient_light_model_normalizes_levels_caps_and_contrast);
+  RUN_TEST(test_ambient_light_model_ema_hysteresis_dwell_and_invalid_fallback);
   RUN_TEST(test_battery_soc_table_and_interpolation);
   RUN_TEST(test_battery_ema_monotonicity_and_usb_growth);
   RUN_TEST(test_battery_low_threshold_hysteresis);

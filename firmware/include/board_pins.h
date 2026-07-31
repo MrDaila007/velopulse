@@ -5,6 +5,8 @@
 namespace bike {
 
 constexpr uint8_t kHallPin = D0;
+constexpr uint8_t kAmbientLightAdcPin = A2;
+constexpr uint8_t kAmbientLightPowerPin = D3;
 constexpr uint8_t kDisplaySdaPin = D4;
 constexpr uint8_t kDisplaySclPin = D5;
 // External divider for Super-nRF52840:

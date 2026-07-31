@@ -29,12 +29,15 @@ class DisplayManager {
   void turnOff(uint32_t now_ms);
   void showTestPattern(uint8_t pattern, uint32_t now_ms);
   bool updatePower(uint32_t now_ms);
+  void setAmbientBrightness(uint8_t brightness_pct, bool valid);
   void render(const DisplaySnapshot& snapshot, bool force = false);
   bool isOk() const { return display_ok_; }
   DisplayPowerState powerState() const { return power_.state(); }
+  uint8_t effectiveBrightnessPct() const { return effective_brightness_pct_; }
 
  private:
   void applyPowerHardware();
+  void updateEffectiveBrightness();
 
   DisplayDriver display_;
   PageCarousel carousel_;
@@ -44,6 +47,11 @@ class DisplayManager {
   uint32_t last_render_ms_ = 0;
   uint32_t test_started_ms_ = 0;
   bool test_active_ = false;
+  uint8_t manual_brightness_pct_ = kDefaultBrightnessPct;
+  uint8_t ambient_brightness_pct_ = 100;
+  uint8_t effective_brightness_pct_ = kDefaultBrightnessPct;
+  uint8_t bright_contrast_ = 156;
+  bool ambient_valid_ = false;
 };
 
 }  // namespace bike

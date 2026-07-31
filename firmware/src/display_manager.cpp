@@ -1,11 +1,11 @@
 #include "display_manager.h"
 
+#include "ambient_light_model.h"
 #include "display_layout.h"
 
 namespace bike {
 namespace {
 
-constexpr uint8_t kBrightContrast = 156;
 constexpr uint8_t kDimContrast = 20;
 constexpr uint32_t kDisplayTestDurationMs = 2000u;
 
@@ -55,11 +55,13 @@ bool DisplayManager::begin(const DeviceConfig& config) {
   display_.setI2CAddress(kDisplayI2cAddress << 1u);
   display_ok_ = display_.begin();
   const uint32_t now = millis();
+  manual_brightness_pct_ = config.brightness_pct;
+  updateEffectiveBrightness();
   carousel_.configure(config, now);
   power_.configure(config.display_auto_off ? config.display_timeout_s : 0u, now);
   burn_in_.configure(now);
   if (display_ok_) {
-    display_.setContrast(kBrightContrast);
+    display_.setContrast(bright_contrast_);
     display_.clearBuffer();
     display_.setFont(u8g2_font_6x10_tf);
     if constexpr (kDisplayHeight == 64) {
@@ -77,6 +79,8 @@ bool DisplayManager::begin(const DeviceConfig& config) {
 
 void DisplayManager::applyRuntimeConfig(const DeviceConfig& config,
                                         uint32_t now_ms) {
+  manual_brightness_pct_ = config.brightness_pct;
+  updateEffectiveBrightness();
   carousel_.configure(config, now_ms);
   power_.configure(config.display_auto_off ? config.display_timeout_s : 0u,
                    now_ms);
@@ -136,14 +140,37 @@ bool DisplayManager::updatePower(uint32_t now_ms) {
   return true;
 }
 
+void DisplayManager::setAmbientBrightness(uint8_t brightness_pct, bool valid) {
+  if (brightness_pct > 100u) brightness_pct = 100u;
+  if (brightness_pct < 1u) brightness_pct = 1u;
+  if (ambient_brightness_pct_ == brightness_pct && ambient_valid_ == valid) {
+    return;
+  }
+  ambient_brightness_pct_ = brightness_pct;
+  ambient_valid_ = valid;
+  const uint8_t previous = effective_brightness_pct_;
+  updateEffectiveBrightness();
+  if (previous != effective_brightness_pct_) applyPowerHardware();
+}
+
+void DisplayManager::updateEffectiveBrightness() {
+  effective_brightness_pct_ = manual_brightness_pct_;
+  if (ambient_valid_ && ambient_brightness_pct_ < effective_brightness_pct_) {
+    effective_brightness_pct_ = ambient_brightness_pct_;
+  }
+  bright_contrast_ = AmbientLightModel::contrastForBrightness(
+      effective_brightness_pct_);
+}
+
 void DisplayManager::applyPowerHardware() {
   if (!display_ok_) return;
   if (power_.state() == DisplayPowerState::kBright) {
     display_.setPowerSave(0);
-    display_.setContrast(kBrightContrast);
+    display_.setContrast(bright_contrast_);
   } else if (power_.state() == DisplayPowerState::kDim) {
     display_.setPowerSave(0);
-    display_.setContrast(kDimContrast);
+    display_.setContrast(bright_contrast_ < kDimContrast ? bright_contrast_
+                                                         : kDimContrast);
   } else {
     display_.setPowerSave(1);
   }

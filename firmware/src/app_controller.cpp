@@ -148,6 +148,7 @@ void AppController::begin() {
   Serial.print("OLED 0x3C: ");
   Serial.println(display_ok ? "OK" : "NOT FOUND; counting remains active");
   battery_.begin(config_, millis());
+  ambient_light_.begin(millis());
   Serial.print("Battery: ");
   Serial.print(battery_.snapshot().millivolts);
   Serial.print(" mV, ");
@@ -242,6 +243,20 @@ void AppController::printDiagnostics() const {
     Serial.print(payload[i], HEX);
   }
   Serial.println();
+
+  const AmbientLightSnapshot& ambient = ambient_light_.snapshot();
+  Serial.print("Ambient: enabled=");
+  Serial.print(ambient_light_.enabled() ? 1 : 0);
+  Serial.print(", valid=");
+  Serial.print(ambient.valid ? 1 : 0);
+  Serial.print(", raw=");
+  Serial.print(ambient.raw);
+  Serial.print(", filtered=");
+  Serial.print(ambient.filtered_raw);
+  Serial.print(", auto_pct=");
+  Serial.print(ambient.brightness_pct);
+  Serial.print(", effective_pct=");
+  Serial.println(display_.effectiveBrightnessPct());
 }
 
 void AppController::loop() {
@@ -481,6 +496,11 @@ void AppController::updateState(uint32_t now_ms) {
 }
 
 void AppController::updateDisplay(uint32_t now_ms) {
+  if (ambient_light_.update(now_ms)) {
+    const AmbientLightSnapshot& ambient = ambient_light_.snapshot();
+    display_.setAmbientBrightness(ambient.brightness_pct, ambient.valid);
+  }
+
   if (display_.updatePower(now_ms)) {
     odometer_save_.noteDisplayPower(display_.powerState());
   }
