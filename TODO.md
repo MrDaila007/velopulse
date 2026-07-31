@@ -33,11 +33,14 @@ gate. Э5 проходит fake/automatic gate, но остаётся незак
 
 Два OLED-профиля завершили software gate; primary 128×64 загружена на XIAO и
 подтверждена базовым hardware smoke (`selftest=0x3F`, `i2c_err=0`, пользовательская
-проверка интерфейса). Совместимый 128×32 сохраняет прежние пиксели.
+проверка интерфейса). Совместимый 128×32 сохраняет прежние пиксели. Добавлена защита
+от выгорания: default auto-off + четырёхфазный сдвиг всей разметки на один пиксель
+раз в минуту; native и simulator gate пройдены для обеих панелей.
 
 ## Порядок и зависимости
 
-1. Завершить расширенный OLED 128×64 gate: LOW BATT, patterns, dim/off и pulse smoke.
+1. Завершить расширенный OLED 128×64 gate: LOW BATT, patterns, dim/off, четыре фазы
+   burn-in shift и pulse smoke.
 2. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и долги Hall/стенда.
 3. BLE Э4.1–4.14 выполнены; завершить оставшийся hardware DoD Э4.
 4. Discovery/connect нового APK подтверждены; провести полный Android hardware gate.

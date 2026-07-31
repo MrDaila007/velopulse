@@ -31,6 +31,9 @@ encryption и 5-минутное pairing window синхронизированы
 - `DisplayPower`: приглушение на половине тайм-аута, выключение и пробуждение.
 - `DisplayManager`: управление контрастом и SSD1306 power-save; корректный импульс
   колеса немедленно возвращает экран в яркий режим.
+- `DisplayBurnInGuard`: независимо от auto-off раз в 60 с циклически смещает общий
+  renderer на один пиксель по четырём позициям; работает для 128×64 и 128×32,
+  wrap-safe и не изменяет splash/test patterns.
 - Канонический little-endian codec 48-байтовой `DeviceConfig` без зависимости от
   C++ padding; валидируются все диапазоны, маска/порядок страниц и имя устройства.
 - `StorageManager`: `/cfg_a/b` и `/odo_a/b`, заголовок `BKCP`, version, sequence,
@@ -145,7 +148,7 @@ encryption и 5-минутное pairing window синхронизированы
   и немедленное пробуждение по импульсу кнопки D0.
 - На реальном OLED 128×32 подтверждены постоянная скорость, батарея справа сверху и
   автоматическая смена пяти нижних значений.
-- `./simulator/test.sh`: 5 групп проверок и 18 golden-кадров для 128×32/128×64.
+- `./simulator/test.sh`: 6 групп проверок и 18 golden-кадров для 128×32/128×64.
 - Hardware smoke SSD1306 128×64 от 2026-07-31: primary firmware загружена на XIAO;
   Serial вернул `i2c_err=0`, `isr_ovf=0`, `selftest=0x3F`, `heap/16=12630`;
   крупная разметка и работа экрана подтверждены пользователем.
@@ -154,7 +157,7 @@ encryption и 5-минутное pairing window синхронизированы
 
 - Реальный датчик Холла и повторяемый стенд импульсов ещё не проверены.
 - SSD1306 128×64 подключён и прошёл базовый hardware smoke; ещё не зафиксированы
-  отдельным протоколом `LOW BATT`, все test patterns и полный dim/off цикл.
+  `LOW BATT`, test patterns, полный dim/off цикл и четыре фазы burn-in pixel shift.
 - Штатные NPR-позиции делителя не используются; внешний делитель P0.31 подтверждён.
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
@@ -178,7 +181,8 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Следующий шаг
 
-Завершить расширенную приёмку OLED 128×64: `LOW BATT`, все test patterns,
-dim/off по тайм-ауту и серию импульсов без потерь. Затем продолжить Android hardware
-gate: поиск ≤5 с, 10/10 подключений, bond/reconnect, Config Write, Telemetry и
+Завершить расширенную приёмку OLED 128×64: `LOW BATT`, все test patterns, dim/off по
+тайм-ауту, четыре фазы pixel shift и серию импульсов без потерь. Затем продолжить
+Android hardware gate: поиск ≤5 с, 10/10 подключений, bond/reconnect, Config Write,
+Telemetry и
 MVP-команды. Отдельный долг — 10× power-loss для Э3.5.
