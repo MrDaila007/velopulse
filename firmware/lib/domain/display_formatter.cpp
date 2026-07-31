@@ -50,9 +50,10 @@ DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot,
     case DisplayPage::kOdometer: {
       const uint64_t tenths_km = trip.odometer_mm / 100000u;
       if (tenths_km <= 999999u) {
-        snprintf(frame.lower, sizeof(frame.lower), "%s ODO %llu.%llu km", state,
-                 static_cast<unsigned long long>(tenths_km / 10u),
-                 static_cast<unsigned long long>(tenths_km % 10u));
+        // Use %u — newlib-nano on nRF52 does not support %llu and prints "lu".
+        snprintf(frame.lower, sizeof(frame.lower), "%s ODO %u.%u km", state,
+                 static_cast<unsigned>(tenths_km / 10u),
+                 static_cast<unsigned>(tenths_km % 10u));
       } else {
         snprintf(frame.lower, sizeof(frame.lower), "%s ODO 99999+ km", state);
       }
