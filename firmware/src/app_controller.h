@@ -31,12 +31,14 @@ class AppController {
  private:
   static void pulseTask(void* context, uint32_t now_ms);
   static void stateTask(void* context, uint32_t now_ms);
+  static void ambientTask(void* context, uint32_t now_ms);
   static void displayTask(void* context, uint32_t now_ms);
   static void batteryTask(void* context, uint32_t now_ms);
   static void bleTask(void* context, uint32_t now_ms);
 
   void processPulses(uint32_t now_ms);
   void updateState(uint32_t now_ms);
+  void updateAmbient(uint32_t now_ms);
   void updateDisplay(uint32_t now_ms);
   void updateBattery(uint32_t now_ms);
   void updateBle(uint32_t now_ms);
@@ -67,7 +69,7 @@ class AppController {
   DisplayManager display_;
   BleManager ble_;
   SerialCommandParser serial_command_parser_;
-  ScheduledTask tasks_[5];
+  ScheduledTask tasks_[6];
   Scheduler scheduler_;
   uint8_t selftest_mask_ = 0;
   uint32_t sensor_test_started_ms_ = 0;

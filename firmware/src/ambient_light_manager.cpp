@@ -8,6 +8,7 @@ namespace {
 constexpr uint32_t kSamplePeriodMs = 1000u;
 constexpr uint32_t kSettleTimeMs = 10u;
 constexpr uint8_t kSampleCount = 16u;
+constexpr uint16_t kPresenceMinimumRaw = 4u;
 
 }  // namespace
 
@@ -36,6 +37,9 @@ bool AmbientLightManager::update(uint32_t now_ms) {
     if (static_cast<uint32_t>(now_ms - last_sample_ms_) < kSamplePeriodMs) {
       return false;
     }
+    // A powered divider overcomes this weak pull-down; an absent circuit does not.
+    pinMode(kAmbientLightAdcPin, INPUT_PULLDOWN);
+    presence_checked_ = false;
     digitalWrite(kAmbientLightPowerPin, HIGH);
     power_started_ms_ = now_ms;
     powered_ = true;
@@ -43,6 +47,22 @@ bool AmbientLightManager::update(uint32_t now_ms) {
   }
 
   if (static_cast<uint32_t>(now_ms - power_started_ms_) < kSettleTimeMs) {
+    return false;
+  }
+
+  if (!presence_checked_) {
+    const uint16_t presence_raw =
+        static_cast<uint16_t>(analogRead(kAmbientLightAdcPin));
+    if (presence_raw <= kPresenceMinimumRaw) {
+      digitalWrite(kAmbientLightPowerPin, LOW);
+      pinMode(kAmbientLightAdcPin, INPUT);
+      powered_ = false;
+      last_sample_ms_ = now_ms;
+      return model_.addSample(0u, now_ms);
+    }
+    pinMode(kAmbientLightAdcPin, INPUT);
+    power_started_ms_ = now_ms;
+    presence_checked_ = true;
     return false;
   }
 
@@ -57,6 +77,7 @@ bool AmbientLightManager::update(uint32_t now_ms) {
   }
   digitalWrite(kAmbientLightPowerPin, LOW);
   powered_ = false;
+  presence_checked_ = false;
   last_sample_ms_ = now_ms;
   const uint16_t average =
       static_cast<uint16_t>((sum - minimum - maximum + 7u) / 14u);

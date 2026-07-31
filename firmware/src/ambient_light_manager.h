@@ -43,6 +43,7 @@ class AmbientLightManager {
   uint32_t last_sample_ms_ = 0;
   uint32_t power_started_ms_ = 0;
   bool powered_ = false;
+  bool presence_checked_ = false;
 };
 
 }  // namespace bike

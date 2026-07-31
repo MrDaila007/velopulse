@@ -77,10 +77,11 @@ AppController::AppController()
       ride_state_(static_cast<uint32_t>(config_.stop_timeout_s) * 1000u),
       tasks_{{"pulses", 0, 0, pulseTask, this, 0},
              {"state", 100, 0, stateTask, this, 0},
+             {"ambient", 10, 0, ambientTask, this, 0},
              {"battery", 1000, 0, batteryTask, this, 0},
              {"display", 50, 0, displayTask, this, 0},
              {"ble", 100, 0, bleTask, this, 0}},
-      scheduler_(tasks_, 5) {}
+      scheduler_(tasks_, 6) {}
 
 void AppController::begin() {
   Serial.begin(115200);
@@ -380,6 +381,10 @@ void AppController::stateTask(void* context, uint32_t now_ms) {
   static_cast<AppController*>(context)->updateState(now_ms);
 }
 
+void AppController::ambientTask(void* context, uint32_t now_ms) {
+  static_cast<AppController*>(context)->updateAmbient(now_ms);
+}
+
 void AppController::displayTask(void* context, uint32_t now_ms) {
   static_cast<AppController*>(context)->updateDisplay(now_ms);
 }
@@ -495,12 +500,13 @@ void AppController::updateState(uint32_t now_ms) {
   maybePersistOdometer(now_ms);
 }
 
-void AppController::updateDisplay(uint32_t now_ms) {
-  if (ambient_light_.update(now_ms)) {
-    const AmbientLightSnapshot& ambient = ambient_light_.snapshot();
-    display_.setAmbientBrightness(ambient.brightness_pct, ambient.valid);
-  }
+void AppController::updateAmbient(uint32_t now_ms) {
+  if (!ambient_light_.update(now_ms)) return;
+  const AmbientLightSnapshot& ambient = ambient_light_.snapshot();
+  display_.setAmbientBrightness(ambient.brightness_pct, ambient.valid);
+}
 
+void AppController::updateDisplay(uint32_t now_ms) {
   if (display_.updatePower(now_ms)) {
     odometer_save_.noteDisplayPower(display_.powerState());
   }
