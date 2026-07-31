@@ -34,6 +34,10 @@ encryption и 5-минутное pairing window синхронизированы
 - `DisplayBurnInGuard`: независимо от auto-off раз в 60 с циклически смещает общий
   renderer на один пиксель по четырём позициям; работает для 128×64 и 128×32,
   wrap-safe и не изменяет splash/test patterns.
+- `AmbientLightModel`: EMA 1/8, raw normalization, уровни 5/15/35/65/100%,
+  гистерезис 5%, выдержка 2 с и invalid fallback. `AmbientLightManager` раз в
+  секунду коммутирует D3, на следующем tick усредняет 16 ADC-выборок с min/max
+  rejection; `brightness_pct` остаётся пользовательским максимумом.
 - Канонический little-endian codec 48-байтовой `DeviceConfig` без зависимости от
   C++ padding; валидируются все диапазоны, маска/порядок страниц и имя устройства.
 - `StorageManager`: `/cfg_a/b` и `/odo_a/b`, заголовок `BKCP`, version, sequence,
@@ -96,6 +100,9 @@ encryption и 5-минутное pairing window синхронизированы
   fallback по имени `BikeComp-*`; после connect полный GATT-контракт обязателен.
   Device Info читается до protected GATT operations; encrypted Config Read завершает
   pairing до subscriptions. Ошибки sync и cancel освобождают единственный BLE link.
+  Settings показывает «Максимальная яркость» с пояснением автоматики; Maintenance
+  отправляет fill/checkerboard/text через существующую команду `DISPLAY_TEST`,
+  без изменения BLE wire format.
   Dashboard, MVP settings, defaults и maintenance не включают diagnostics/export/
   dangerous commands Э6.
   Воспроизводимый Flutter/JDK/Android SDK/NDK/CMake toolchain лежит в игнорируемой
@@ -103,12 +110,11 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Проверки
 
-- `pio test -e native`: 78/78 тестов проходят, включая advertising policy,
-  safe/dangerous framing, shared fixtures, Error Log ring/wrap, Config Write,
-  diagnostics и Serial parser.
-- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 384 Б, Flash 165 504 Б.
-- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 16 872 Б,
-  Flash 165 424 Б.
+- `pio test -e native`: 81/81 тестов проходят, включая автояркость, advertising,
+  safe/dangerous framing, shared fixtures, Config Write, diagnostics и Serial parser.
+- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 424 Б, Flash 171 160 Б.
+- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 16 912 Б,
+  Flash 171 096 Б.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
   стабильно после SoftDevice init.
@@ -119,9 +125,9 @@ encryption и 5-минутное pairing window синхронизированы
 - DoD Э3.5 reboot на `/dev/ttyACM0`: seed 424242 mm / 77 rev переживает два reboot
   production (`Odometer: source=A, sequence=3`, те же значения оба раза).
 - Mobile automatic gate: `dart format`, `flutter analyze` — no issues;
-  `flutter test` — 50/50; актуальный release APK собран.
+  `flutter test` — 52/52; актуальный release APK собран.
 - Release APK: application ID `app.bikecomp.mobile`, minSdk 24, target/compileSdk 36,
-  54,016,869 байт (`2caaa10344229d76b4a8b313be18b31b838e4aa4c2676194857ca70feaaf2bd1`).
+  54,049,637 байт (`a31959c20eeb972c60070b30567f6f12bf94fc12a58051a64bc3203e7944f1c2`).
 - Android-устройства через ADB и Bluetooth controller на хосте нет;
   локальные результаты не являются аппаратной приёмкой BLE.
 - Primary production-сборка SSD1306 128×64 загружена на XIAO. Serial smoke:
@@ -152,12 +158,18 @@ encryption и 5-минутное pairing window синхронизированы
 - Hardware smoke SSD1306 128×64 от 2026-07-31: primary firmware загружена на XIAO;
   Serial вернул `i2c_err=0`, `isr_ovf=0`, `selftest=0x3F`, `heap/16=12630`;
   крупная разметка и работа экрана подтверждены пользователем.
+- Сборка с автояркостью не загружена: на момент проверки XIAO отсутствовал в
+  `/dev/ttyACM*` и USB. Последней аппаратно подтверждённой остаётся production
+  128×64 до добавления LDR.
 
 ## Ограничения
 
 - Реальный датчик Холла и повторяемый стенд импульсов ещё не проверены.
 - SSD1306 128×64 подключён и прошёл базовый hardware smoke; ещё не зафиксированы
   `LOW BATT`, test patterns, полный dim/off цикл и четыре фазы burn-in pixel shift.
+- LDR-делитель ещё не собран: raw dark/room/outdoor, итоговый резистор,
+  плавность переходов, максимумы 10/60/100% и средний ток ≤20 мкА ждут
+  аппаратной проверки.
 - Штатные NPR-позиции делителя не используются; внешний делитель P0.31 подтверждён.
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
@@ -181,8 +193,8 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Следующий шаг
 
-Завершить расширенную приёмку OLED 128×64: `LOW BATT`, все test patterns, dim/off по
-тайм-ауту, четыре фазы pixel shift и серию импульсов без потерь. Затем продолжить
-Android hardware gate: поиск ≤5 с, 10/10 подключений, bond/reconnect, Config Write,
-Telemetry и
-MVP-команды. Отдельный долг — 10× power-loss для Э3.5.
+Собрать LDR-делитель, измерить raw dark/room/outdoor, выбрать резистор и загрузить
+production 128×64. Затем завершить OLED gate (`LOW BATT`, три test patterns,
+dim/off/wake, четыре фазы pixel shift, импульсы) и Android gate (поиск ≤5 с,
+10/10 подключений, bond/reconnect, пять write-then-verify и MVP-команды).
+Отдельный долг — 10× power-loss для Э3.5.

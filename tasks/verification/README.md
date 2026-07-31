@@ -25,6 +25,10 @@
 - [ ] Auto pause соответствует timeout ±0.3 с.
 - [ ] OLED auto off работает.
 - [ ] Новый оборот включает OLED менее чем за 300 мс.
+- [ ] OLED auto brightness: raw dark/room/outdoor откалиброваны; максимумы
+  10/60/100% соблюдаются без мерцания.
+- [ ] Цепь LDR потребляет в среднем ≤20 мкА при цикле измерения 1 Гц.
+- [ ] Fill/checkerboard/text и четыре фазы burn-in shift проверены на 128×64.
 - [ ] Battery level сверена на трёх уровнях.
 - [ ] BLE обнаруживается с 5 м.
 - [ ] Все config fields читаются/записываются.
@@ -37,6 +41,7 @@
 - [ ] Scan, connect и reconnect.
 - [ ] Speed, distance, time и battery совпадают с устройством.
 - [ ] Config read/write, wheel circumference, OLED и timeouts.
+- [ ] Maintenance запускает все три OLED test patterns с реальным CommandResult.
 - [ ] Trip reset и результаты всех 12 commands.
 - [ ] Invalid config не отправляется.
 - [ ] Incompatible major блокирует write.

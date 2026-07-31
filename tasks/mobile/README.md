@@ -27,8 +27,10 @@
 - [ ] 5.9 Создать connecting/synchronizing screen.
 - [ ] 5.10 Создать dashboard: gauge, metrics, states и quick actions.
 - [ ] 5.11 Создать MVP settings и tire presets.
+  (Яркость подписана как пользовательский максимум автоматического LDR-регулятора.)
 - [ ] 5.12 Реализовать dirty draft, local persistence и write-then-verify.
 - [ ] 5.13 Создать maintenance: trip reset, OLED, sensor test, defaults.
+  (OLED test позволяет выбрать fill/checkerboard/text без изменения wire format.)
 - [ ] 5.14 Обработать incompatible protocol major.
 - [ ] 5.15 Реализовать typed errors и понятные сообщения.
 
@@ -48,7 +50,7 @@
 ## DoD Э5 — автоматический gate
 
 - [x] Code generation повторяется без diff.
-- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 50 тестов проходят.
+- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 52 теста проходят.
 - [x] Debug и release APK собираются с application ID `app.bikecomp.mobile`,
   minSdk 24 и targetSdk 36.
 - [x] Config draft персистится асинхронно и namespaced по device ID.

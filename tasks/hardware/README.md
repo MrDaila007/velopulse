@@ -13,6 +13,9 @@
   Primary firmware загружена; `i2c_err=0`, `selftest=0x3F`, UI подтверждён пользователем.
 - [ ] 1.10 Собрать LDR-делитель на D2/D3, подобрать 10/22/47 кΩ и зафиксировать
   raw dark/room/outdoor, плавность автояркости и средний ток.
+  Software gate закрыт: EMA 1/8, пять уровней, гистерезис/выдержка, manual cap,
+  invalid fallback и compatibility-флаг проверены native-тестами; текущая прошивка
+  ещё не загружена на XIAO.
 
 ## Аппаратный DoD
 
