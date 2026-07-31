@@ -21,6 +21,7 @@ class DisplayCanvas {
 };
 
 void drawDisplayFrame(DisplayCanvas& canvas, const DisplayFrame& frame,
-                      DisplayProfile profile);
+                      DisplayProfile profile, int8_t x_offset = 0,
+                      int8_t y_offset = 0);
 
 }  // namespace bike

@@ -5,6 +5,7 @@
 #include <U8g2lib.h>
 
 #include "config.h"
+#include "display_burn_in.h"
 #include "display_formatter.h"
 #include "display_profile.h"
 #include "display_power.h"
@@ -38,6 +39,7 @@ class DisplayManager {
   DisplayDriver display_;
   PageCarousel carousel_;
   DisplayPower power_;
+  DisplayBurnInGuard burn_in_;
   bool display_ok_ = false;
   uint32_t last_render_ms_ = 0;
   uint32_t test_started_ms_ = 0;

@@ -22,6 +22,7 @@
 #include "config_codec.h"
 #include "config_validator.h"
 #include "crc32.h"
+#include "display_burn_in.h"
 #include "diagnostics.h"
 #include "error_log.h"
 #include "display_formatter.h"
@@ -940,6 +941,43 @@ void test_display_power_dim_off_wake_disable_and_wrap() {
   TEST_ASSERT_EQUAL(DisplayPowerState::kDim, power.state());
   TEST_ASSERT_TRUE(power.update(0x000006D0u));
   TEST_ASSERT_EQUAL(DisplayPowerState::kOff, power.state());
+}
+
+void test_display_burn_in_guard_cycles_catches_up_and_wraps() {
+  DisplayBurnInGuard guard;
+  guard.configure(1000u);
+  TEST_ASSERT_EQUAL_UINT8(0u, guard.phase());
+  TEST_ASSERT_EQUAL_INT8(0, guard.xOffset());
+  TEST_ASSERT_EQUAL_INT8(0, guard.yOffset());
+  TEST_ASSERT_FALSE(guard.update(60999u));
+
+  TEST_ASSERT_TRUE(guard.update(61000u));
+  TEST_ASSERT_EQUAL_UINT8(1u, guard.phase());
+  TEST_ASSERT_EQUAL_INT8(1, guard.xOffset());
+  TEST_ASSERT_EQUAL_INT8(0, guard.yOffset());
+
+  TEST_ASSERT_TRUE(guard.update(121000u));
+  TEST_ASSERT_EQUAL_UINT8(2u, guard.phase());
+  TEST_ASSERT_EQUAL_INT8(1, guard.xOffset());
+  TEST_ASSERT_EQUAL_INT8(1, guard.yOffset());
+
+  TEST_ASSERT_TRUE(guard.update(181000u));
+  TEST_ASSERT_EQUAL_UINT8(3u, guard.phase());
+  TEST_ASSERT_EQUAL_INT8(0, guard.xOffset());
+  TEST_ASSERT_EQUAL_INT8(1, guard.yOffset());
+
+  TEST_ASSERT_TRUE(guard.update(241000u));
+  TEST_ASSERT_EQUAL_UINT8(0u, guard.phase());
+  TEST_ASSERT_EQUAL_INT8(0, guard.xOffset());
+  TEST_ASSERT_EQUAL_INT8(0, guard.yOffset());
+
+  guard.configure(1000u);
+  TEST_ASSERT_TRUE(guard.update(181000u));
+  TEST_ASSERT_EQUAL_UINT8(3u, guard.phase());
+
+  guard.configure(0xFFFFFF00u);
+  TEST_ASSERT_TRUE(guard.update(59744u));
+  TEST_ASSERT_EQUAL_UINT8(1u, guard.phase());
 }
 
 void test_battery_raw_conversion_and_calibration() {
@@ -2127,6 +2165,7 @@ int main(int, char**) {
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);
   RUN_TEST(test_display_power_dim_off_wake_disable_and_wrap);
+  RUN_TEST(test_display_burn_in_guard_cycles_catches_up_and_wraps);
   RUN_TEST(test_battery_raw_conversion_and_calibration);
   RUN_TEST(test_battery_soc_table_and_interpolation);
   RUN_TEST(test_battery_ema_monotonicity_and_usb_growth);

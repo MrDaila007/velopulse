@@ -56,7 +56,8 @@ bool DisplayManager::begin(const DeviceConfig& config) {
   display_ok_ = display_.begin();
   const uint32_t now = millis();
   carousel_.configure(config, now);
-  power_.configure(config.display_timeout_s, now);
+  power_.configure(config.display_auto_off ? config.display_timeout_s : 0u, now);
+  burn_in_.configure(now);
   if (display_ok_) {
     display_.setContrast(kBrightContrast);
     display_.clearBuffer();
@@ -77,7 +78,8 @@ bool DisplayManager::begin(const DeviceConfig& config) {
 void DisplayManager::applyRuntimeConfig(const DeviceConfig& config,
                                         uint32_t now_ms) {
   carousel_.configure(config, now_ms);
-  power_.configure(config.display_timeout_s, now_ms);
+  power_.configure(config.display_auto_off ? config.display_timeout_s : 0u,
+                   now_ms);
   applyPowerHardware();
 }
 
@@ -155,9 +157,14 @@ void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
   }
   test_active_ = false;
   if (!display_ok_ || power_.state() == DisplayPowerState::kOff) return;
+  const bool shift_changed = burn_in_.update(now);
   const bool page_changed = carousel_.update(now);
-  const uint32_t period = snapshot.trip.ride_state == RideState::kMoving ? 250u : 1000u;
-  if (!force && !page_changed && static_cast<uint32_t>(now - last_render_ms_) < period) return;
+  const uint32_t period =
+      snapshot.trip.ride_state == RideState::kMoving ? 250u : 1000u;
+  if (!force && !shift_changed && !page_changed &&
+      static_cast<uint32_t>(now - last_render_ms_) < period) {
+    return;
+  }
   last_render_ms_ = now;
 
   const bool low_battery_warning =
@@ -169,7 +176,8 @@ void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
   constexpr DisplayProfile kProfile =
       kDisplayHeight == 64 ? DisplayProfile::k128x64
                            : DisplayProfile::k128x32;
-  drawDisplayFrame(canvas, frame, kProfile);
+  drawDisplayFrame(canvas, frame, kProfile, burn_in_.xOffset(),
+                   burn_in_.yOffset());
   display_.sendBuffer();
 }
 

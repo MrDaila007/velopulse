@@ -112,8 +112,9 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc < 2 || argc > 3) {
-    std::cerr << "usage: firmware_renderer SCENARIO [32|64]\n";
+  if (argc < 2 || argc > 5 || argc == 4) {
+    std::cerr <<
+        "usage: firmware_renderer SCENARIO [32|64 [X_OFFSET Y_OFFSET]]\n";
     return 2;
   }
   bike::DisplaySnapshot snapshot;
@@ -124,12 +125,23 @@ int main(int argc, char** argv) {
   }
 
   bike::DisplayProfile profile = bike::DisplayProfile::k128x64;
-  if (argc == 3) {
+  if (argc >= 3) {
     const std::string height = argv[2];
     if (height == "32") {
       profile = bike::DisplayProfile::k128x32;
     } else if (height != "64") {
       std::cerr << "unsupported display height: " << height << '\n';
+      return 2;
+    }
+  }
+
+  int8_t x_offset = 0;
+  int8_t y_offset = 0;
+  if (argc == 5) {
+    x_offset = static_cast<int8_t>(std::stoi(argv[3]));
+    y_offset = static_cast<int8_t>(std::stoi(argv[4]));
+    if (x_offset < 0 || x_offset > 1 || y_offset < 0 || y_offset > 1) {
+      std::cerr << "display offsets must be 0 or 1\n";
       return 2;
     }
   }
@@ -142,6 +154,6 @@ int main(int argc, char** argv) {
                   "MOV VERY LONG METRIC VALUE");
   }
   CommandCanvas canvas;
-  bike::drawDisplayFrame(canvas, frame, profile);
+  bike::drawDisplayFrame(canvas, frame, profile, x_offset, y_offset);
   return 0;
 }

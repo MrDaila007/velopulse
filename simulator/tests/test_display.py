@@ -68,6 +68,15 @@ class DisplaySimulatorTest(unittest.TestCase):
         font_commands = [command for command in long_commands if command[0] == "FONT"]
         self.assertEqual(["FONT", "SMALL"], font_commands[-1])
 
+    def test_burn_in_offset_moves_shared_layout_for_both_profiles(self):
+        for display_height, speed_y in ((32, 21), (64, 47)):
+            with self.subTest(display_height=display_height):
+                commands = firmware_commands(
+                    "average", display_height, x_offset=1, y_offset=1
+                )
+                self.assertIn(["TEXT", "1", str(speed_y + 1), "24.8"], commands)
+                self.assertIn(["FRAME", "92", "1", "12", "8"], commands)
+
     def test_all_scenarios_match_golden_pixels_for_both_profiles(self):
         for display_height in DISPLAY_HEIGHTS:
             for scenario in GOLDEN_SCENARIOS:

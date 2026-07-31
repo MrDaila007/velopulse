@@ -59,14 +59,16 @@ def _ensure_renderer():
         subprocess.run([str(HERE / "build_renderer.sh")], check=True)
 
 
-def firmware_commands(scenario, display_height=64):
+def firmware_commands(scenario, display_height=64, x_offset=0, y_offset=0):
     if scenario not in SCENARIOS:
         raise ValueError(f"Unknown scenario: {scenario}")
     if display_height not in DISPLAY_HEIGHTS:
         raise ValueError(f"Unsupported display height: {display_height}")
+    if x_offset not in (0, 1) or y_offset not in (0, 1):
+        raise ValueError("Display offsets must be 0 or 1")
     _ensure_renderer()
     result = subprocess.run(
-        [str(RENDERER), scenario, str(display_height)],
+        [str(RENDERER), scenario, str(display_height), str(x_offset), str(y_offset)],
         check=True,
         text=True,
         capture_output=True,

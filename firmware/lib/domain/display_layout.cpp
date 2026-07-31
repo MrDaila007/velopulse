@@ -5,6 +5,31 @@
 namespace bike {
 namespace {
 
+class OffsetCanvas final : public DisplayCanvas {
+ public:
+  OffsetCanvas(DisplayCanvas& canvas, int8_t x_offset, int8_t y_offset)
+      : canvas_(canvas), x_offset_(x_offset), y_offset_(y_offset) {}
+
+  void setFont(DisplayFont font) override { canvas_.setFont(font); }
+  void setDrawColor(uint8_t color) override { canvas_.setDrawColor(color); }
+  void drawText(int16_t x, int16_t y, const char* text) override {
+    canvas_.drawText(x + x_offset_, y + y_offset_, text);
+  }
+  void drawFrame(int16_t x, int16_t y, uint8_t width,
+                 uint8_t height) override {
+    canvas_.drawFrame(x + x_offset_, y + y_offset_, width, height);
+  }
+  void drawBox(int16_t x, int16_t y, uint8_t width,
+               uint8_t height) override {
+    canvas_.drawBox(x + x_offset_, y + y_offset_, width, height);
+  }
+
+ private:
+  DisplayCanvas& canvas_;
+  int8_t x_offset_;
+  int8_t y_offset_;
+};
+
 void draw128x32(DisplayCanvas& canvas, const DisplayFrame& frame) {
   canvas.setFont(DisplayFont::kSpeed);
   canvas.drawText(0, 21, frame.speed);
@@ -60,11 +85,13 @@ void draw128x64(DisplayCanvas& canvas, const DisplayFrame& frame) {
 }  // namespace
 
 void drawDisplayFrame(DisplayCanvas& canvas, const DisplayFrame& frame,
-                      DisplayProfile profile) {
+                      DisplayProfile profile, int8_t x_offset,
+                      int8_t y_offset) {
+  OffsetCanvas offset_canvas(canvas, x_offset, y_offset);
   if (profile == DisplayProfile::k128x64) {
-    draw128x64(canvas, frame);
+    draw128x64(offset_canvas, frame);
   } else {
-    draw128x32(canvas, frame);
+    draw128x32(offset_canvas, frame);
   }
 }
 
