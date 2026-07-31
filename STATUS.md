@@ -20,6 +20,8 @@ encryption и 5-минутное pairing window синхронизированы
 - Общий C++-форматтер пяти нижних страниц и индикатора батареи.
 - Общая C++-разметка: прошивка и симулятор исполняют один и тот же код отрисовки.
 - Pixel-golden кадры пяти страниц, IDLE/PAUSE, неизвестного и низкого заряда.
+- Два compile-time OLED-профиля из общего renderer: primary SSD1306 128×64 с
+  Logisoso 38 и совместимый 128×32 с неизменными пикселями; BLE/config не менялись.
 - `BatteryModel`: пересчёт ADC, калибровка, EMA, SoC LUT, монотонность и гистерезис.
 - `BatteryManager`: 16 ADC-выборок и min/max rejection для внешнего делителя на P0.31.
 - Аппаратная документация приведена к фактической схеме NologoTech Super-nRF52840.
@@ -101,7 +103,9 @@ encryption и 5-минутное pairing window синхронизированы
 - `pio test -e native`: 78/78 тестов проходят, включая advertising policy,
   safe/dangerous framing, shared fixtures, Error Log ring/wrap, Config Write,
   diagnostics и Serial parser.
-- `pio run -e xiao_ble_sense`: сборка проходит.
+- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 384 Б, Flash 165 504 Б.
+- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 16 872 Б,
+  Flash 165 424 Б.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
   стабильно после SoftDevice init.
@@ -117,11 +121,10 @@ encryption и 5-минутное pairing window синхронизированы
   54,016,869 байт (`2caaa10344229d76b4a8b313be18b31b838e4aa4c2676194857ca70feaaf2bd1`).
 - Android-устройства через ADB и Bluetooth controller на хосте нет;
   локальные результаты не являются аппаратной приёмкой BLE.
-- Текущая production-сборка с E4.5 и E4.13–4.14 загружена на `/dev/ttyACM0`; DFU
-  success, повторный Serial `selftest` вернул `0x3F`.
-  Аппаратный Serial smoke: `dump-config` вернул default config и 48-byte payload,
-  `selftest` вернул `0x3F`, `open-pairing` подтвердил окно 300 с. `reset-odo`
-  намеренно не исполнялся на пользовательских данных; parser и execution path собраны.
+- Последняя аппаратно проверенная и загруженная production-сборка использует OLED
+  128×32; DFU и повторный Serial `selftest=0x3F` успешны. Новая primary-сборка
+  128×64 собрана, но ещё не загружалась. Serial smoke ранее подтвердил `dump-config`,
+  `selftest` и `open-pairing`; `reset-odo` на пользовательских данных не выполнялся.
 - Ранее: два старта подряд прочитали config/odometer из слота A с `sequence=1`,
   без роста sequence и лишней записи.
 - Пользовательский лог nRF Connect от 2026-07-31 подтверждает обнаружение
@@ -140,13 +143,15 @@ encryption и 5-минутное pairing window синхронизированы
 - Сборка `4335e65` с энергосбережением OLED загружена через `/dev/ttyACM0`.
 - На устройстве подтверждены приглушение через 30 секунд, выключение через 60 секунд
   и немедленное пробуждение по импульсу кнопки D0.
-- На реальном OLED подтверждены постоянная скорость, батарея справа сверху и
+- На реальном OLED 128×32 подтверждены постоянная скорость, батарея справа сверху и
   автоматическая смена пяти нижних значений.
-- `./simulator/test.sh`: 3 набора тестов и 9 golden-кадров проходят.
+- `./simulator/test.sh`: 5 групп проверок и 18 golden-кадров для 128×32/128×64.
 
 ## Ограничения
 
 - Реальный датчик Холла и повторяемый стенд импульсов ещё не проверены.
+- SSD1306 128×64 прошёл software gate, но ещё не подключён и не проверен на XIAO;
+  аппаратное подтверждение интерфейса относится только к совместимому 128×32.
 - Штатные NPR-позиции делителя не используются; внешний делитель P0.31 подтверждён.
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
@@ -170,8 +175,7 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Следующий шаг
 
-Продолжить полный Android hardware gate: измерить поиск ≤5 с и 10/10 подключений,
-проверить новый bond в первые 5 минут, reconnect после reboot, закрытое окно,
-Config Write write-then-verify, Telemetry 1 Гц + seq и все MVP-команды. Отдельный
-ручной долг: 10× power-loss для закрытия Э3.5. После hardware gate закрыть 5.1–5.15
-и перевести Э5 из «В работе» в «Завершён».
+Подключить SSD1306 128×64, загрузить `xiao_ble_sense` и выполнить hardware smoke:
+splash, пять страниц, `LOW BATT`, test patterns, dim/off/wake и импульсы без потерь.
+Затем продолжить Android hardware gate: поиск ≤5 с, 10/10 подключений, bond/reconnect,
+Config Write, Telemetry и MVP-команды. Отдельный долг — 10× power-loss для Э3.5.

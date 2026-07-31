@@ -31,14 +31,19 @@ XIAO. Базовая интеграция с приложением достиг
 gate. Э5 проходит fake/automatic gate, но остаётся незакрытым до полной аппаратной
 приёмки.
 
+Два OLED-профиля завершили software gate: `xiao_ble_sense` теперь primary 128×64,
+`xiao_ble_sense_128x32` сохраняет старый интерфейс; 18 golden-кадров проходят.
+Аппаратно подтверждён только 128×32, для 128×64 нужен отдельный smoke на XIAO.
+
 ## Порядок и зависимости
 
-1. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и аппаратные долги Hall/стенда.
-2. BLE Э4.1–4.14 выполнены; завершить оставшийся hardware DoD Э4.
-3. Discovery/connect нового APK подтверждены; провести полный Android hardware gate.
-4. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
-5. После hardware gate Э5 начать Э6.
-6. Выполнить soak, power и field tests Э7, затем собрать v1.0.
+1. Подключить SSD1306 128×64 и пройти OLED hardware smoke на primary-сборке.
+2. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и долги Hall/стенда.
+3. BLE Э4.1–4.14 выполнены; завершить оставшийся hardware DoD Э4.
+4. Discovery/connect нового APK подтверждены; провести полный Android hardware gate.
+5. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
+6. После hardware gate Э5 начать Э6.
+7. Выполнить soak, power и field tests Э7, затем собрать v1.0.
 
 ## Папки задач
 

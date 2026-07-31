@@ -3,26 +3,25 @@
 [English](README.md) | [Русский](README.ru.md)
 
 VeloPulse is an open-source, battery-powered bicycle computer built around the
-Super-nRF52840 board and a 128×32 SSD1306 OLED display. It measures speed, trip
-distance, average and maximum speed, moving time, wheel revolutions, and the
-total odometer. Configuration and diagnostics through an Android BLE application
-are planned for v1.0.
+Super-nRF52840 board and SSD1306 OLED displays. The primary display is 128×64;
+a compatible 128×32 firmware profile is maintained from the same renderer. It
+measures speed, trip distance, average and maximum speed, moving time, wheel
+revolutions, and the total odometer, with configuration through an Android BLE app.
 
 The original product requirements are available in [`bike-tz.md`](bike-tz.md)
 (Russian).
 
 ## Project status
 
-The current firmware provides wheel-pulse processing, fixed-point trip metrics,
-the OLED interface, battery monitoring, display power saving, and redundant
-InternalFS storage with A/B slots, CRC32, record versions, and corruption recovery.
+The firmware provides wheel-pulse processing, trip metrics, redundant storage,
+complete BLE protocol v1, and compile-time OLED profiles for SSD1306 128×64 and
+128×32. The Flutter Android MVP scans, pairs, synchronizes, and displays live data.
 
-- Native domain tests: 30 passing.
-- nRF52840 production build: passing and verified on hardware.
-- OLED simulator and pixel-golden tests: passing.
-- Storage fallback and reboot recovery: verified on a XIAO-compatible board.
-- Next milestone: wear-aware odometer autosaving during a ride.
-- BLE firmware and the Flutter application are not implemented yet.
+- Native domain tests: 78 passing.
+- Both nRF52840 OLED profiles build successfully; 128×32 is hardware-verified.
+- The simulator verifies 18 pixel-golden frames across both display geometries.
+- Storage fallback and reboot recovery are verified on a XIAO-compatible board.
+- Android discovery/connect is verified with real firmware; the full hardware gate remains.
 
 See [`STATUS.md`](STATUS.md) for verified progress and [`TODO.md`](TODO.md) for the
 project roadmap.
@@ -86,6 +85,8 @@ pio test -e native
 
 # Build production firmware
 pio run -e xiao_ble_sense
+# Build the compatible 128x32 firmware
+pio run -e xiao_ble_sense_128x32
 
 # Upload to a connected board
 pio run -e xiao_ble_sense -t upload
@@ -113,8 +114,8 @@ Additional setup and GUI commands are documented in
 
 ## Mobile application
 
-The Android Flutter application is part of the v1.0 roadmap but has not been
-scaffolded yet. Its architecture and task list are available in:
+The Flutter Android MVP is implemented and successfully connected to real firmware.
+The remaining work is the full hardware acceptance gate and extended v1.0 screens:
 
 - [`docs/04-mobile-app-architecture.md`](docs/04-mobile-app-architecture.md)
 - [`tasks/mobile/README.md`](tasks/mobile/README.md)
