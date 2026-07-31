@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <iostream>
 #include <string>
 
@@ -10,7 +11,22 @@ using namespace bike;
 class CommandCanvas final : public DisplayCanvas {
  public:
   void setFont(DisplayFont font) override {
-    std::cout << "FONT\t" << (font == DisplayFont::kSpeed ? "SPEED" : "SMALL") << '\n';
+    const char* name = "SMALL";
+    switch (font) {
+      case DisplayFont::kSpeed:
+        name = "SPEED";
+        break;
+      case DisplayFont::kSpeedLarge:
+        name = "SPEED_LARGE";
+        break;
+      case DisplayFont::kMetricLarge:
+        name = "METRIC_LARGE";
+        break;
+      case DisplayFont::kSmall:
+      default:
+        break;
+    }
+    std::cout << "FONT\t" << name << '\n';
   }
   void setDrawColor(uint8_t color) override {
     std::cout << "COLOR\t" << static_cast<unsigned>(color) << '\n';
@@ -34,7 +50,8 @@ class CommandCanvas final : public DisplayCanvas {
   }
 };
 
-bool makeScenario(const std::string& name, DisplaySnapshot& snapshot, DisplayPage& page) {
+bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
+                  DisplayPage& page) {
   snapshot.trip.speed_x100 = 2489;
   snapshot.trip.trip_distance_mm = 18420000u;
   snapshot.trip.average_speed_x100 = 1975;
@@ -66,6 +83,26 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot, DisplayPag
     page = DisplayPage::kTrip;
     snapshot.battery.percent = 18;
     snapshot.battery.low_battery = true;
+  } else if (name == "speed_0") {
+    page = DisplayPage::kTrip;
+    snapshot.trip.speed_x100 = 0;
+  } else if (name == "speed_99_9") {
+    page = DisplayPage::kTrip;
+    snapshot.trip.speed_x100 = 9990;
+  } else if (name == "speed_100") {
+    page = DisplayPage::kTrip;
+    snapshot.trip.speed_x100 = 10000;
+  } else if (name == "speed_200") {
+    page = DisplayPage::kTrip;
+    snapshot.trip.speed_x100 = 20000;
+  } else if (name == "battery_empty") {
+    page = DisplayPage::kTrip;
+    snapshot.battery.percent = 0;
+  } else if (name == "battery_full") {
+    page = DisplayPage::kTrip;
+    snapshot.battery.percent = 100;
+  } else if (name == "long_metric") {
+    page = DisplayPage::kTrip;
   } else {
     return false;
   }
@@ -75,8 +112,8 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot, DisplayPag
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 2) {
-    std::cerr << "usage: firmware_renderer SCENARIO\n";
+  if (argc < 2 || argc > 3) {
+    std::cerr << "usage: firmware_renderer SCENARIO [32|64]\n";
     return 2;
   }
   bike::DisplaySnapshot snapshot;
@@ -85,10 +122,26 @@ int main(int argc, char** argv) {
     std::cerr << "unknown scenario: " << argv[1] << '\n';
     return 2;
   }
+
+  bike::DisplayProfile profile = bike::DisplayProfile::k128x64;
+  if (argc == 3) {
+    const std::string height = argv[2];
+    if (height == "32") {
+      profile = bike::DisplayProfile::k128x32;
+    } else if (height != "64") {
+      std::cerr << "unsupported display height: " << height << '\n';
+      return 2;
+    }
+  }
+
   const bool low_battery_warning = std::string(argv[1]) == "low_battery";
-  const bike::DisplayFrame frame =
+  bike::DisplayFrame frame =
       bike::DisplayFormatter::format(snapshot, page, low_battery_warning);
+  if (std::string(argv[1]) == "long_metric") {
+    std::snprintf(frame.lower, sizeof(frame.lower),
+                  "MOV VERY LONG METRIC VALUE");
+  }
   CommandCanvas canvas;
-  bike::drawDisplayFrame(canvas, frame);
+  bike::drawDisplayFrame(canvas, frame, profile);
   return 0;
 }

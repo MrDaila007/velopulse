@@ -14,8 +14,21 @@ class U8g2Canvas final : public DisplayCanvas {
   explicit U8g2Canvas(U8G2& display) : display_(display) {}
 
   void setFont(DisplayFont font) override {
-    display_.setFont(font == DisplayFont::kSpeed ? u8g2_font_logisoso20_tn
-                                                 : u8g2_font_5x8_tf);
+    switch (font) {
+      case DisplayFont::kSpeed:
+        display_.setFont(u8g2_font_logisoso20_tn);
+        break;
+      case DisplayFont::kSpeedLarge:
+        display_.setFont(u8g2_font_logisoso38_tn);
+        break;
+      case DisplayFont::kMetricLarge:
+        display_.setFont(u8g2_font_6x13_tf);
+        break;
+      case DisplayFont::kSmall:
+      default:
+        display_.setFont(u8g2_font_5x8_tf);
+        break;
+    }
   }
   void setDrawColor(uint8_t color) override { display_.setDrawColor(color); }
   void drawText(int16_t x, int16_t y, const char* text) override {
@@ -153,7 +166,10 @@ void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
       snapshot, carousel_.currentPage(), low_battery_warning);
   display_.clearBuffer();
   U8g2Canvas canvas(display_);
-  drawDisplayFrame(canvas, frame);
+  constexpr DisplayProfile kProfile =
+      kDisplayHeight == 64 ? DisplayProfile::k128x64
+                           : DisplayProfile::k128x32;
+  drawDisplayFrame(canvas, frame, kProfile);
   display_.sendBuffer();
 }
 
