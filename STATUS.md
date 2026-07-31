@@ -4,10 +4,9 @@
 
 ## Текущий этап
 
-Э4 — BLE-интеграция. Критичный для приложения путь Э4.1–4.4 и Э4.6–4.14
-программно реализован: команды, encryption и 5-минутное pairing window
-синхронизированы с Android flow. Android MVP fake-tested, но не закрыт до hardware
-gate на реальном телефоне и XIAO; advertising polish Э4.5 остаётся открытым.
+Э4 — BLE-интеграция. Э4.1–4.14 программно реализованы: advertising, команды,
+encryption и 5-минутное pairing window синхронизированы с Android flow. Android MVP
+fake-tested, но не закрыт до hardware gate на реальном телефоне и XIAO.
 
 ## Готово
 
@@ -50,7 +49,7 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
   `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
   возвращается через `GET_DIAGNOSTIC`. Serial dump при старте;
   `AppController::diagnosticSnapshot()`.
-- BLE Э4.1–4.4, Э4.6–4.14: `BleManager` GATT + live Device Info на Read (uptime, flags,
+- BLE Э4.1–4.14: `BleManager` GATT + live Device Info на Read (uptime, flags,
   bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
   `boot_count` в `/boot_cnt`; live Telemetry notify (seq + adaptive 1 Гц /
   0.2 Гц Read refresh; sensor-test 5 Гц); Config Write pending queue +
@@ -58,7 +57,9 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
   single-slot queue и выполнение в main loop (`RESET_TRIP/MAX`, `FORCE_SAVE`, OLED,
   display/sensor/battery tests, diagnostics); корректные `Command Result` status,
   `detail` и 16-byte payload; sensor-test завершается по timeout/disconnect.
-  ADV Flags + Service UUID, Scan Response name + Tx Power; имя `BikeComp-XXXX` →
+  ADV Flags + Service UUID, Scan Response name + Tx Power; fast 30 мс первые 30 с,
+  slow 1000 мс, постоянная реклама по умолчанию либо stop через 5 минут; рестарт
+  после disconnect/движения, runtime-применение имени и policy. Имя `BikeComp-XXXX` →
   serial (`ble_identity`); ack одометра только при успехе Flash; hot-path Serial
   за `BIKECOMP_HOTPATH_SERIAL` (по умолчанию выкл).
   Dangerous Command `0x20–0x40`: двухфазный request/confirm, аппаратный 32-bit
@@ -90,8 +91,9 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
 
 ## Проверки
 
-- `pio test -e native`: 77/77 тестов проходят, включая safe/dangerous framing,
-  shared fixtures, Error Log ring/wrap, Config Write, diagnostics и Serial parser.
+- `pio test -e native`: 78/78 тестов проходят, включая advertising policy,
+  safe/dangerous framing, shared fixtures, Error Log ring/wrap, Config Write,
+  diagnostics и Serial parser.
 - `pio run -e xiao_ble_sense`: сборка проходит.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
@@ -108,12 +110,18 @@ gate на реальном телефоне и XIAO; advertising polish Э4.5 о
   54,000,485 байт (`1d8f99ab7126b27669933aee9e40891ce4b11ffc6a7153ad990d74f865befd73`).
 - Android-устройства через ADB и Bluetooth controller на хосте нет;
   локальные результаты не являются аппаратной приёмкой BLE.
-- Текущая production-сборка с E4.13–4.14 загружена на `/dev/ttyACM0`; DFU success.
+- Текущая production-сборка с E4.5 и E4.13–4.14 загружена на `/dev/ttyACM0`; DFU
+  success, повторный Serial `selftest` вернул `0x3F`.
   Аппаратный Serial smoke: `dump-config` вернул default config и 48-byte payload,
   `selftest` вернул `0x3F`, `open-pairing` подтвердил окно 300 с. `reset-odo`
   намеренно не исполнялся на пользовательских данных; parser и execution path собраны.
 - Ранее: два старта подряд прочитали config/odometer из слота A с `sequence=1`,
   без роста sequence и лишней записи.
+- Пользовательский лог nRF Connect от 2026-07-31 подтверждает обнаружение
+  `BikeComp-D210`, connect, service discovery, bonding и чтение Device Info,
+  Telemetry, Config Read, Command Result и пустого Error Log. Ошибки
+  `GATT READ NOT PERMIT` относятся к попыткам чтения descriptor у write-only chars;
+  Config Write, команды и bond persistence этим логом не проверялись.
 - Прошивка загружалась на XIAO; OLED и импульсы кнопки подтверждены пользователем.
 - Сборка `424fbc7` с общей C++-разметкой загружена на XIAO через `/dev/ttyACM0`.
 - Сборка `4335e65` с энергосбережением OLED загружена через `/dev/ttyACM0`.

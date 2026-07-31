@@ -7,9 +7,11 @@
   (`BleManager`: Bluefruit service + 7 chars, CCCD/User Desc, SECMODE per uuids.md;
   минимальная реклама + Scan Response name/Tx Power; payload/handlers — Э4.5–4.13;
   write stubs → ERR_NOT_SUPPORTED; ADV name resolves BikeComp-XXXX → serial).
-- [ ] 4.5 Реализовать fast/slow advertising и Scan Response.
-  (частично: intervals 30/1000 ms + fast timeout 30 s + name/TxPower уже есть;
-  остаётся polish/DoD Э4.5).
+- [x] 4.5 Реализовать fast/slow advertising и Scan Response.
+  (`ble_advertising`: fast 30 ms / 30 s, slow 1000 ms; постоянная реклама по
+  умолчанию либо timeout 5 мин; Scan Response name/TxPower; безопасный deferred
+  restart после disconnect, restart по движению и runtime refresh config;
+  native policy test, production build/upload и XIAO selftest `0x3F`.)
 - [x] 4.6 Реализовать Device Information, FICR serial, uptime/reset reason.
   (`BleManager` Read-authorize: live `uptime_s` + flags; FICR serial; `mapNrfResetReason`
   из `RESETREAS`; `boot_count` в `/boot_cnt`; pairing window 5 мин /
@@ -45,15 +47,17 @@
   (`ErrorLogBuffer`: RAM-кольцо 16 событий, wire snapshot последних 4; Read/Notify
   обслуживается вне BLE callback. Реальные I²C/Flash/config/pairing/ISR/sensor/
   watchdog/battery события; sensor-test Telemetry 200 мс + timeout/stop/disconnect;
-  77/77 native, production build/upload и XIAO selftest `0x3F`.)
+  78/78 native, production build/upload и XIAO selftest `0x3F`.)
 - [x] 4.14 Добавить `open-pairing`, `dump-config`, `selftest` в Serial.
   (Неблокирующий parser с CR/LF, trim, bounded buffer и overflow recovery;
   `reset-odo` из архитектуры §12.4; config fields + wire payload, diagnostic mask;
-  77/77 native, production build/upload и безопасный Serial smoke на XIAO.)
+  78/78 native, production build/upload и безопасный Serial smoke на XIAO.)
 
 ## DoD Э4
 
-- [ ] nRF Connect читает все характеристики побайтно по спецификации.
+- [x] nRF Connect читает все доступные для Read характеристики побайтно по
+  спецификации (пользовательский лог 2026-07-31: Device Info, Telemetry, Config
+  Read, Command Result, Error Log; service + 7 custom characteristics обнаружены).
 - [ ] Валидная config write применяется и сохраняется.
 - [ ] Невалидная config write возвращает `ERR_RANGE` и верный field.
 - [ ] RESET_TRIP работает через BLE.

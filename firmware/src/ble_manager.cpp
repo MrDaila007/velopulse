@@ -5,6 +5,7 @@
 #include <nrf_soc.h>
 #include <string.h>
 
+#include "ble_advertising.h"
 #include "ble_command.h"
 #include "ble_device_info.h"
 #include "ble_identity.h"
@@ -44,6 +45,8 @@ bool g_display_ok = false;
 bool g_fs_ok = false;
 bool g_usb_connected = false;
 bool g_deep_sleep_supported = false;
+bool g_ble_always_advertise = true;
+bool g_advertising_restart_pending = false;
 
 uint16_t g_telemetry_seq = 0;
 uint32_t g_telemetry_last_publish_ms = 0;
@@ -57,6 +60,8 @@ PendingDangerousCommand g_pending_dangerous_command = {};
 DangerousCommandSession g_dangerous_command_session = {};
 ErrorLogBuffer g_error_log_entries;
 bool g_error_log_dirty = false;
+
+void startAdvertising();
 
 bool beginChar(BLECharacteristic& chr) {
   return chr.begin() == ERROR_NONE;
@@ -295,6 +300,7 @@ void onDisconnect(uint16_t conn_hdl, uint8_t) {
   if (g_pairing_allowed_conn_hdl == conn_hdl) {
     g_pairing_allowed_conn_hdl = BLE_CONN_HANDLE_INVALID;
   }
+  g_advertising_restart_pending = true;
 }
 
 bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
@@ -411,16 +417,26 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
   return true;
 }
 
-void startAdvertising() {
+void configureAdvertising() {
   Bluefruit.setName(g_local_name);
+  Bluefruit.Advertising.clearData();
+  Bluefruit.ScanResponse.clearData();
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
   Bluefruit.Advertising.addService(g_service);
   Bluefruit.ScanResponse.addName();
   Bluefruit.ScanResponse.addTxPower();
-  Bluefruit.Advertising.restartOnDisconnect(true);
-  Bluefruit.Advertising.setIntervalMS(30, 1000);
-  Bluefruit.Advertising.setFastTimeout(30);
-  Bluefruit.Advertising.start(0);
+  Bluefruit.Advertising.restartOnDisconnect(false);
+  Bluefruit.Advertising.setIntervalMS(kAdvertisingFastIntervalMs,
+                                      kAdvertisingSlowIntervalMs);
+  Bluefruit.Advertising.setFastTimeout(kAdvertisingFastTimeoutS);
+}
+
+void startAdvertising() {
+  if (Bluefruit.Periph.connected() != 0 ||
+      Bluefruit.Advertising.isRunning()) {
+    return;
+  }
+  Bluefruit.Advertising.start(advertisingTimeoutS(g_ble_always_advertise));
 }
 
 }  // namespace
@@ -455,6 +471,9 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
     return false;
   }
 
+  g_ble_always_advertise = config.ble_always_advertise;
+  g_advertising_restart_pending = false;
+  configureAdvertising();
   startAdvertising();
   Serial.print("BLE ADV name: ");
   Serial.println(g_local_name);
@@ -479,6 +498,15 @@ void BleManager::openPairingWindow(uint16_t duration_s, uint32_t now_ms) {
   g_pairing_window_ms = static_cast<uint32_t>(duration_s) * 1000u;
 }
 
+void BleManager::noteMovement() {
+  if (!ok_) return;
+  const bool connected = Bluefruit.Periph.connected() != 0;
+  const bool running = Bluefruit.Advertising.isRunning();
+  if (shouldRestartAdvertisingOnMovement(connected, running)) {
+    startAdvertising();
+  }
+}
+
 void BleManager::recordError(ErrorLogCode code,
                              ErrorLogSeverity severity,
                              uint16_t detail,
@@ -494,6 +522,10 @@ void BleManager::clearBonds() {
 void BleManager::serviceTelemetry(const TelemetryBuildInput& input,
                                   uint32_t now_ms) {
   if (!ok_) return;
+  if (g_advertising_restart_pending && Bluefruit.Periph.connected() == 0) {
+    g_advertising_restart_pending = false;
+    startAdvertising();
+  }
   publishErrorLogIfDirty();
 
   const bool notify_enabled = g_telemetry.notifyEnabled();
@@ -540,7 +572,14 @@ void BleManager::publishAppliedConfig(const DeviceConfig& config,
                                       bool config_valid) {
   g_config_valid = config_valid;
   publishConfigRead(config);
+  const bool disconnected = Bluefruit.Periph.connected() == 0;
+  if (disconnected && Bluefruit.Advertising.isRunning()) {
+    Bluefruit.Advertising.stop();
+  }
   refreshAdvertisingName(config);
+  g_ble_always_advertise = config.ble_always_advertise;
+  configureAdvertising();
+  if (disconnected) startAdvertising();
 }
 
 bool BleManager::hasPendingSafeCommand() const {

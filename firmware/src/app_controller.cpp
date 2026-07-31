@@ -448,6 +448,7 @@ void AppController::processPulses(uint32_t now_ms) {
       continue;
     }
 
+    ble_.noteMovement();
     display_.noteActivity(now_ms);
     odometer_save_.noteDisplayPower(display_.powerState());
     applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);

@@ -62,6 +62,7 @@ class BleManager {
                    uint16_t detail,
                    uint32_t now_ms);
   void openPairingWindow(uint16_t duration_s, uint32_t now_ms);
+  void noteMovement();
 
   void clearBonds();
 

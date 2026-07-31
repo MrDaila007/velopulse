@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "battery_model.h"
+#include "ble_advertising.h"
 #include "ble_command.h"
 #include "ble_config_write.h"
 #include "ble_device_info.h"
@@ -115,6 +116,19 @@ void test_error_log_keeps_16_and_snapshots_newest_four_in_order() {
 
   log.clear();
   TEST_ASSERT_FALSE(log.snapshot(packet));
+}
+
+void test_ble_advertising_policy_timeout_and_movement_restart() {
+  TEST_ASSERT_EQUAL_UINT16(30u, kAdvertisingFastIntervalMs);
+  TEST_ASSERT_EQUAL_UINT16(1000u, kAdvertisingSlowIntervalMs);
+  TEST_ASSERT_EQUAL_UINT16(30u, kAdvertisingFastTimeoutS);
+  TEST_ASSERT_EQUAL_UINT16(300u, advertisingTimeoutS(false));
+  TEST_ASSERT_EQUAL_UINT16(0u, advertisingTimeoutS(true));
+
+  TEST_ASSERT_TRUE(shouldRestartAdvertisingOnMovement(false, false));
+  TEST_ASSERT_FALSE(shouldRestartAdvertisingOnMovement(true, false));
+  TEST_ASSERT_FALSE(shouldRestartAdvertisingOnMovement(false, true));
+  TEST_ASSERT_FALSE(shouldRestartAdvertisingOnMovement(true, true));
 }
 
 namespace {
@@ -2108,6 +2122,7 @@ int main(int, char**) {
   RUN_TEST(test_serial_console_parses_supported_commands_and_crlf);
   RUN_TEST(test_serial_console_trims_rejects_and_recovers_after_overflow);
   RUN_TEST(test_error_log_keeps_16_and_snapshots_newest_four_in_order);
+  RUN_TEST(test_ble_advertising_policy_timeout_and_movement_restart);
   RUN_TEST(test_page_carousel_default_period_and_wrap);
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);
