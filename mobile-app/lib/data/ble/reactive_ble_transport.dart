@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 
 import '../protocol/ble_uuids.dart';
+import 'ble_discovery_filter.dart';
 import 'ble_transport.dart';
 
 class ReactiveBleTransport implements BleTransport {
@@ -36,20 +37,27 @@ class ReactiveBleTransport implements BleTransport {
     _scanController = controller;
     _scanSubscription = _ble
         .scanForDevices(
-          withServices: [Uuid.parse(BleUuids.service)],
+          // Filter in Dart: native Android filters can drop advertisements
+          // containing a vendor-specific 128-bit service UUID.
+          withServices: const [],
           scanMode: ScanMode.lowLatency,
           requireLocationServicesEnabled: false,
         )
-        .listen(
-          (device) => controller.add(
+        .listen((device) {
+          if (!isBikeCompAdvertisement(
+            name: device.name,
+            serviceUuids: device.serviceUuids.map((uuid) => uuid.toString()),
+          )) {
+            return;
+          }
+          controller.add(
             BleScanResult(
               deviceId: device.id,
               name: device.name.isEmpty ? 'BikeComp' : device.name,
               rssi: device.rssi,
             ),
-          ),
-          onError: controller.addError,
-        );
+          );
+        }, onError: controller.addError);
     controller.onCancel = stopScan;
     return controller.stream;
   }
@@ -73,7 +81,7 @@ class ReactiveBleTransport implements BleTransport {
     _connectionSubscription = _ble
         .connectToAdvertisingDevice(
           id: deviceId,
-          withServices: [Uuid.parse(BleUuids.service)],
+          withServices: const [],
           prescanDuration: const Duration(seconds: 5),
           servicesWithCharacteristicsToDiscover: {
             Uuid.parse(BleUuids.service): BleUuids.requiredCharacteristics

@@ -2,7 +2,7 @@
 
 ## Э5. MVP-приложение
 
-> На 2026-07-30 код и fake-tested automatic gate готовы. Пункты 5.1–5.15
+> На 2026-07-31 код и fake-tested automatic gate готовы. Пункты 5.1–5.15
 > намеренно остаются незакрытыми до приёмки с firmware Э4.7–Э4.12 и двумя
 > поколениями Android; fake-проверка не считается аппаратным завершением этапа.
 
@@ -14,6 +14,9 @@
 - [ ] 5.6 Реализовать Android 12+/legacy permissions и adapter states.
 - [ ] 5.7 Реализовать ConnectionController FSM и reconnect policy.
 - [ ] 5.8 Создать scan screen, RSSI, UUID filter, remember/forget device.
+  (Android native service filter заменён unfiltered scan + локальной проверкой UUID
+  и fallback `BikeComp-*`; 5 unit-тестов; повторять hardware scan только после
+  disconnect в nRF Connect, который иначе держит единственный peripheral link.)
 - [ ] 5.9 Создать connecting/synchronizing screen.
 - [ ] 5.10 Создать dashboard: gauge, metrics, states и quick actions.
 - [ ] 5.11 Создать MVP settings и tire presets.
@@ -38,7 +41,7 @@
 ## DoD Э5 — автоматический gate
 
 - [x] Code generation повторяется без diff.
-- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 36 тестов проходят.
+- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 47 тестов проходят.
 - [x] Debug и release APK собираются с application ID `app.bikecomp.mobile`,
   minSdk 24 и targetSdk 36.
 - [x] Config draft персистится асинхронно и namespaced по device ID.

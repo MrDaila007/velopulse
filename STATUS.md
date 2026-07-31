@@ -84,8 +84,11 @@ fake-tested, но не закрыт до hardware gate на реальном т�
   Реализованы protocol v1 Freezed-модели/codecs, полный ConfigValidator,
   `FakeBleTransport`, production `flutter_reactive_ble` transport, Android
   permissions/adapter/location/bond layer, FSM/reconnect, domain repository,
-  write-then-verify и versioned per-device dirty drafts. Dashboard, MVP settings,
-  defaults и maintenance не включают diagnostics/export/dangerous commands Э6.
+  write-then-verify и versioned per-device dirty drafts. Discovery выполняет
+  нефильтрованный platform scan с локальной проверкой service UUID и fallback по
+  имени `BikeComp-*`; после connect полный GATT-контракт по-прежнему обязателен.
+  Dashboard, MVP settings, defaults и maintenance не включают diagnostics/export/
+  dangerous commands Э6.
   Воспроизводимый Flutter/JDK/Android SDK/NDK/CMake toolchain лежит в игнорируемой
   `.tooling/` и разворачивается `tool/bootstrap-mobile.sh`.
 
@@ -105,9 +108,9 @@ fake-tested, но не закрыт до hardware gate на реальном т�
 - DoD Э3.5 reboot на `/dev/ttyACM0`: seed 424242 mm / 77 rev переживает два reboot
   production (`Odometer: source=A, sequence=3`, те же значения оба раза).
 - Mobile automatic gate: `dart format`, `flutter analyze` — no issues;
-  `flutter test` — 42/42; актуальный release APK собран.
+  `flutter test` — 47/47; актуальный release APK собран.
 - Release APK: application ID `app.bikecomp.mobile`, minSdk 24, target/compileSdk 36,
-  54,000,485 байт (`1d8f99ab7126b27669933aee9e40891ce4b11ffc6a7153ad990d74f865befd73`).
+  54,000,485 байт (`6ef7f3e337be1f8028d0e034bd4f1f83c7239b4ac0cd2c02628b02cc95edadc3`).
 - Android-устройства через ADB и Bluetooth controller на хосте нет;
   локальные результаты не являются аппаратной приёмкой BLE.
 - Текущая production-сборка с E4.5 и E4.13–4.14 загружена на `/dev/ttyACM0`; DFU
@@ -121,7 +124,9 @@ fake-tested, но не закрыт до hardware gate на реальном т�
   `BikeComp-D210`, connect, service discovery, bonding и чтение Device Info,
   Telemetry, Config Read, Command Result и пустого Error Log. Ошибки
   `GATT READ NOT PERMIT` относятся к попыткам чтения descriptor у write-only chars;
-  Config Write, команды и bond persistence этим логом не проверялись.
+  Config Write, команды и bond persistence этим логом не проверялись. Лог
+  заканчивается без disconnect: пока nRF Connect держит единственное peripheral
+  connection, firmware штатно не рекламируется и другое приложение его не найдёт.
 - Прошивка загружалась на XIAO; OLED и импульсы кнопки подтверждены пользователем.
 - Сборка `424fbc7` с общей C++-разметкой загружена на XIAO через `/dev/ttyACM0`.
 - Сборка `4335e65` с энергосбережением OLED загружена через `/dev/ttyACM0`.
@@ -145,9 +150,11 @@ fake-tested, но не закрыт до hardware gate на реальном т�
   приложение их не использует. `flash_write_count` RAM-only до персиста counters.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
   `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.
-- Mobile hardware gate не выполнялся: нужны поиск ≤5 с, 10/10 connect, bonding
-  после reboot, write-then-verify пяти настроек, все MVP-команды, reconnect и
-  permission flows на Android ≤11 и ≥12 после готовности Э4.7–Э4.12.
+- Mobile hardware gate не завершён. Пользователь сообщил, что прежний APK не видел
+  устройство; системный service UUID scan filter заменён локальным фильтром, новый
+  release APK собран, но ещё не установлен на телефон. Нужны поиск ≤5 с, 10/10
+  connect, bonding после reboot, write-then-verify пяти настроек, все MVP-команды,
+  reconnect и permission flows на Android ≤11 и ≥12.
 - `flutter_reactive_ble` 5.5.0 пока применяет legacy Kotlin Gradle Plugin;
   Flutter 3.44.7 собирает APK с предупреждением. CompileSdk библиотеки принудительно
   36; до будущего обновления Flutter нужно отслеживать Built-in Kotlin миграцию.
@@ -156,7 +163,9 @@ fake-tested, но не закрыт до hardware gate на реальном т�
 
 ## Следующий шаг
 
-Установить актуальный release APK на Android и выполнить hardware gate: новый bond
+Сначала отключить `BikeComp-D210` в nRF Connect и закрыть его соединение. Установить
+APK `mobile-app/build/app/outputs/flutter-apk/app-release.apk` на Android и проверить,
+что поиск показывает устройство, затем выполнить gate: новый bond
 в первые 5 минут, reconnect после reboot, закрытое окно, Config Write
 write-then-verify, Telemetry 1 Гц + seq и все MVP-команды. Отдельный ручной долг:
 10× power-loss для закрытия Э3.5. После hardware gate закрыть 5.1–5.15 и перевести

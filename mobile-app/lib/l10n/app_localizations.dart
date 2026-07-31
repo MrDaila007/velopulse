@@ -751,7 +751,7 @@ abstract class AppLocalizations {
   /// No description provided for @scanDescription.
   ///
   /// In ru, this message translates to:
-  /// **'Показываются только устройства с сервисом BikeComp. Сохранённое устройство подключится автоматически.'**
+  /// **'BikeComp определяется по сервису или стандартному имени. Сохранённое устройство подключится автоматически.'**
   String get scanDescription;
 
   /// No description provided for @scanTab.

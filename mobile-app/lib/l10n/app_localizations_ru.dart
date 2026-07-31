@@ -380,7 +380,7 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get scanDescription =>
-      'Показываются только устройства с сервисом BikeComp. Сохранённое устройство подключится автоматически.';
+      'BikeComp определяется по сервису или стандартному имени. Сохранённое устройство подключится автоматически.';
 
   @override
   String get scanTab => 'Поиск';

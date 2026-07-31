@@ -21,19 +21,20 @@
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
 power-loss вручную → M3. BLE Э4.1–4.14 программно выполнен: advertising, команды,
 nonce/TTL/binding, encryption и 5-минутное pairing window; 78/78 native, XIAO build
-и 42/42 Flutter tests проходят. Э4.13 Error Log/sensor-test
+и 47/47 Flutter tests проходят. Э4.13 Error Log/sensor-test
 и Э4.14 Serial-консоль выполнены; Serial проверен на XIAO (`dump-config`, `selftest`,
-`open-pairing`). Текущая production загружена на XIAO, актуальный release APK собран;
-дальше Android hardware gate. Э5 проходит fake/automatic gate, но остаётся
-незакрытым до аппаратной приёмки.
+`open-pairing`). Текущая production загружена на XIAO. Android UUID scan filter,
+как предполагаемый источник несовместимости, заменён локальным фильтром;
+новый release APK собран. Дальше Android hardware gate. Э5 проходит fake/automatic
+gate, но остаётся незакрытым до аппаратной приёмки.
 
 ## Порядок и зависимости
 
 1. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и аппаратные долги Hall/стенда.
 2. BLE Э4.1–4.14 выполнены; завершить оставшийся hardware DoD Э4.
-3. Провести Android hardware gate на текущей production-прошивке.
+3. Установить новый APK, проверить discovery и провести Android hardware gate.
 4. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
-5. После Э4.12 провести hardware gate Э5, затем начать Э6.
+5. После hardware gate Э5 начать Э6.
 6. Выполнить soak, power и field tests Э7, затем собрать v1.0.
 
 ## Папки задач
