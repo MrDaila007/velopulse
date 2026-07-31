@@ -9,7 +9,8 @@
   Питание/заряд Li-Po подтверждены; аппаратный CHG недоступен.
 - [ ] 1.7 Собрать повторяемый pulse bench.
 - [ ] 1.8 Создать `hardware/wiring.md` и `hardware/images/`.
-- [ ] 1.9 Подключить SSD1306 128×64 и выполнить hardware smoke primary-сборки.
+- [x] 1.9 Подключить SSD1306 128×64 и выполнить hardware smoke primary-сборки.
+  Primary firmware загружена; `i2c_err=0`, `selftest=0x3F`, UI подтверждён пользователем.
 
 ## Аппаратный DoD
 
