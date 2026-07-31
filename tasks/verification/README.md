@@ -23,10 +23,13 @@
 - [ ] Reset trip не сбрасывает odometer.
 - [ ] Auto start работает менее чем за 1 с.
 - [ ] Auto pause соответствует timeout ±0.3 с.
-- [ ] OLED auto off работает.
+- [x] OLED auto off работает.
+  `tools/oled_gate_serial.py` на XIAO: dim на 30 с, off на 60 с, wake через
+  `wake-display` (D0 pulse — отдельная ручная проверка).
 - [ ] Новый оборот включает OLED менее чем за 300 мс.
 - [ ] OLED auto brightness: raw dark/room/outdoor откалиброваны; максимумы
   10/60/100% соблюдаются без мерцания.
+  LDR не подключён (`valid=0`); `tools/ldr_calibrate.py` готов к сборке делителя.
 - [ ] Цепь LDR потребляет в среднем ≤20 мкА при цикле измерения 1 Гц.
 - [ ] Fill/checkerboard/text и четыре фазы burn-in shift проверены на 128×64.
 - [ ] Battery level сверена на трёх уровнях.

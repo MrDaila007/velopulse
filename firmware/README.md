@@ -51,7 +51,13 @@ Production-сборки используют LDR для пяти уровней 
 Перед основным чтением внутренний pull-down проверяет наличие делителя; отсутствующий
 LDR даёт `raw=0`, `valid=0` и возвращает пользовательский максимум. Контраст
 вычисляется как `8 + brightness_pct × 247 / 100`. Serial diagnostics выводит
-`raw`, `filtered`, auto/effective percent и признак `valid`.
+`raw`, `filtered`, auto/effective percent и признак `valid`. Для калибровки:
+`ambient-raw` (лог раз в секунду) и `ambient-stop`.
+
+## Serial console
+
+Команды (115200, CR/LF): `open-pairing`, `dump-config`, `reset-odo`, `selftest`,
+`ambient-raw`, `ambient-stop`, `display-state`, `wake-display`. Скрипты в `tools/`.
 
 Разметка и форматирование находятся в общих C++-модулях `display_layout.cpp` и
 `display_formatter.cpp`. Эти же файлы напрямую компилирует OLED-симулятор для

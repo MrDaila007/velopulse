@@ -110,8 +110,9 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Проверки
 
-- `pio test -e native`: 81/81 тестов проходят, включая автояркость, advertising,
-  safe/dangerous framing, shared fixtures, Config Write, diagnostics и Serial parser.
+- `pio test -e native`: 83/83 тестов проходят, включая автояркость, Serial ambient/
+  display commands, advertising, safe/dangerous framing, shared fixtures, Config Write,
+  diagnostics и Serial parser.
 - `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 448 Б, Flash 171 288 Б.
 - `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 16 936 Б,
   Flash 171 224 Б.
@@ -162,6 +163,9 @@ encryption и 5-минутное pairing window синхронизированы
   Без подключённого LDR три последовательных selftest дали `raw=0`, `valid=0`,
   `auto_pct=100`, `effective_pct=40`, `i2c_err=0`, `isr_ovf=0`,
   `selftest=0x3F`: аппаратный disconnected-sensor fallback подтверждён.
+- Serial gate tools 2026-08-01: `pio test -e native` 83/83; `tools/oled_gate_serial.py`
+  на XIAO подтвердил dim (30 с), off (60 с), wake; `tools/ldr_calibrate.py` — LDR
+  не обнаружен; `tools/android_gate.sh` — format/analyze/52 tests/release APK.
 
 ## Ограничения
 

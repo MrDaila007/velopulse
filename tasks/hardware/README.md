@@ -16,7 +16,9 @@
   Software gate закрыт: EMA 1/8, пять уровней, гистерезис/выдержка, manual cap,
   invalid fallback и compatibility-флаг проверены native-тестами. Production
   загружена на XIAO; без LDR аппаратно подтверждены `raw=0`, `valid=0` и возврат
-  к пользовательскому максимуму. Делитель и калибровка всё ещё открыты.
+  к пользовательскому максимуму. Схема и процедура: `hardware/wiring.md`;
+  калибровка: `tools/ldr_calibrate.py`. Физическая сборка делителя и финальная
+  калибровка constants всё ещё открыты.
 
 ## Аппаратный DoD
 
@@ -24,6 +26,8 @@
 - [x] I²C находит OLED.
 - [x] OLED 128×32 выводит читаемый интерфейс без артефактов.
 - [ ] OLED 128×64: проверить splash, пять страниц, test patterns, dim/off/wake.
+  Serial gate `tools/oled_gate_serial.py` подтвердил dim/off/wake на XIAO 2026-08-01;
+  LOW BATT, test patterns и burn-in shift остаются визуальными.
 - [ ] Hall даёт ровно один pulse на магнит.
 - [ ] 10 медленных проходов дают ровно 10 pulses.
 - [ ] Эквивалент 60 км/ч проходит без потерь.

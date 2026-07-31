@@ -260,6 +260,39 @@ void AppController::printDiagnostics() const {
   Serial.println(display_.effectiveBrightnessPct());
 }
 
+void AppController::printAmbientLine() const {
+  const AmbientLightSnapshot& ambient = ambient_light_.snapshot();
+  Serial.print("Ambient: enabled=");
+  Serial.print(ambient_light_.enabled() ? 1 : 0);
+  Serial.print(", valid=");
+  Serial.print(ambient.valid ? 1 : 0);
+  Serial.print(", raw=");
+  Serial.print(ambient.raw);
+  Serial.print(", filtered=");
+  Serial.print(ambient.filtered_raw);
+  Serial.print(", auto_pct=");
+  Serial.print(ambient.brightness_pct);
+  Serial.print(", effective_pct=");
+  Serial.println(display_.effectiveBrightnessPct());
+}
+
+void AppController::printDisplayState() const {
+  Serial.print("Display: power=");
+  switch (display_.powerState()) {
+    case DisplayPowerState::kBright:
+      Serial.print("bright");
+      break;
+    case DisplayPowerState::kDim:
+      Serial.print("dim");
+      break;
+    case DisplayPowerState::kOff:
+      Serial.print("off");
+      break;
+  }
+  Serial.print(", effective_pct=");
+  Serial.println(display_.effectiveBrightnessPct());
+}
+
 void AppController::loop() {
   wheel_sensor_.pollPin();
   const uint32_t now_ms = millis();
@@ -301,6 +334,28 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         Serial.print("OK selftest mask=0x");
         if (selftest_mask_ < 0x10u) Serial.print('0');
         Serial.println(selftest_mask_, HEX);
+        break;
+
+      case SerialCommand::kAmbientRaw:
+        ambient_raw_logging_ = true;
+        printAmbientLine();
+        Serial.println("OK ambient-raw logging=1");
+        break;
+
+      case SerialCommand::kAmbientStop:
+        ambient_raw_logging_ = false;
+        Serial.println("OK ambient-raw logging=0");
+        break;
+
+      case SerialCommand::kDisplayState:
+        printDisplayState();
+        Serial.println("OK display-state");
+        break;
+
+      case SerialCommand::kWakeDisplay:
+        display_.noteActivity(now_ms);
+        printDisplayState();
+        Serial.println("OK wake-display");
         break;
 
       case SerialCommand::kUnknown:
@@ -504,6 +559,7 @@ void AppController::updateAmbient(uint32_t now_ms) {
   if (!ambient_light_.update(now_ms)) return;
   const AmbientLightSnapshot& ambient = ambient_light_.snapshot();
   display_.setAmbientBrightness(ambient.brightness_pct, ambient.valid);
+  if (ambient_raw_logging_) printAmbientLine();
 }
 
 void AppController::updateDisplay(uint32_t now_ms) {

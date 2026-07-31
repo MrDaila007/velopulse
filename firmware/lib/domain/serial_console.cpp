@@ -25,6 +25,10 @@ SerialCommand parseCommand(const char* value, size_t length) {
       {"dump-config", 11, SerialCommand::kDumpConfig},
       {"reset-odo", 9, SerialCommand::kResetOdometer},
       {"selftest", 8, SerialCommand::kSelftest},
+      {"ambient-raw", 11, SerialCommand::kAmbientRaw},
+      {"ambient-stop", 12, SerialCommand::kAmbientStop},
+      {"display-state", 13, SerialCommand::kDisplayState},
+      {"wake-display", 12, SerialCommand::kWakeDisplay},
   };
 
   for (const CommandName& candidate : kCommands) {

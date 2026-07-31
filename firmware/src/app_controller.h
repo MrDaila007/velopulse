@@ -54,6 +54,8 @@ class AppController {
   bool saveAndApplyOdometer(uint64_t odometer_mm,
                             uint64_t total_revolutions);
   void printDiagnostics() const;
+  void printAmbientLine() const;
+  void printDisplayState() const;
 
   DeviceConfig config_;
   InternalFsBackend storage_backend_;
@@ -79,6 +81,7 @@ class AppController {
   bool critical_battery_active_ = false;
   bool reboot_pending_ = false;
   uint32_t reboot_requested_ms_ = 0;
+  bool ambient_raw_logging_ = false;
 };
 
 }  // namespace bike

@@ -13,6 +13,10 @@ enum class SerialCommand : uint8_t {
   kDumpConfig,
   kResetOdometer,
   kSelftest,
+  kAmbientRaw,
+  kAmbientStop,
+  kDisplayState,
+  kWakeDisplay,
   kUnknown,
 };
 
