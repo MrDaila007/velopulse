@@ -48,8 +48,14 @@ bool DisplayManager::begin(const DeviceConfig& config) {
     display_.setContrast(kBrightContrast);
     display_.clearBuffer();
     display_.setFont(u8g2_font_6x10_tf);
-    display_.drawStr(0, 12, "BikeComp FW " FW_VERSION);
-    display_.drawStr(0, 27, "Button: D0 -> GND");
+    if constexpr (kDisplayHeight == 64) {
+      display_.drawStr(0, 14, "BikeComp FW " FW_VERSION);
+      display_.drawStr(0, 32, "OLED: 128x64");
+      display_.drawStr(0, 50, "Button: D0 -> GND");
+    } else {
+      display_.drawStr(0, 12, "BikeComp FW " FW_VERSION);
+      display_.drawStr(0, 27, "Button: D0 -> GND");
+    }
     display_.sendBuffer();
   }
   return display_ok_;
@@ -80,17 +86,23 @@ void DisplayManager::showTestPattern(uint8_t pattern, uint32_t now_ms) {
   applyPowerHardware();
   display_.clearBuffer();
   if (pattern == 0) {
-    display_.drawBox(0, 0, 128, 32);
+    display_.drawBox(0, 0, kDisplayWidth, kDisplayHeight);
   } else if (pattern == 1) {
-    for (uint8_t y = 0; y < 32; y += 4) {
-      for (uint8_t x = (y / 4u) % 2u == 0 ? 0 : 4; x < 128; x += 8) {
+    for (uint8_t y = 0; y < kDisplayHeight; y += 4) {
+      for (uint8_t x = (y / 4u) % 2u == 0 ? 0 : 4; x < kDisplayWidth; x += 8) {
         display_.drawBox(x, y, 4, 4);
       }
     }
   } else {
     display_.setFont(u8g2_font_6x10_tf);
-    display_.drawStr(0, 12, "BikeComp display");
-    display_.drawStr(0, 27, "TEST: OK 012345");
+    if constexpr (kDisplayHeight == 64) {
+      display_.drawStr(0, 16, "BikeComp display");
+      display_.drawStr(0, 36, "SSD1306 128x64");
+      display_.drawStr(0, 56, "TEST: OK 012345");
+    } else {
+      display_.drawStr(0, 12, "BikeComp display");
+      display_.drawStr(0, 27, "TEST: OK 012345");
+    }
   }
   display_.sendBuffer();
   test_started_ms_ = now_ms;
