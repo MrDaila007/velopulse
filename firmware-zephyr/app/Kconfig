@@ -1,0 +1,38 @@
+mainmenu "BikeComp Zephyr"
+
+source "Kconfig.zephyr"
+
+config FW_VERSION
+	string "Firmware version string"
+	default "0.1.0-zephyr"
+
+config BIKECOMP_DISPLAY_HEIGHT
+	int "OLED height in pixels"
+	default 64
+	range 32 64
+
+config BIKECOMP_AMBIENT_LIGHT
+	bool "Enable ambient light auto-brightness"
+	default y
+
+config BIKECOMP_OPEN_PAIRING
+	bool "Always allow BLE pairing (prototype only)"
+	default n
+
+config BIKECOMP_HOTPATH_SERIAL
+	bool "Verbose pulse/battery serial logging"
+	default n
+
+config BIKECOMP_ZEPHYR_BLE_STUB
+	bool "Use BLE stub instead of full Zephyr BT stack"
+	default y
+	help
+	  Phase-1 migration keeps BLE as a compile-time stub while the Zephyr
+	  GATT service is ported. Disable once ble_manager_zephyr.cpp is complete.
+
+config BIKECOMP_ZEPHYR_DISPLAY_STUB
+	bool "Use headless display stub (no SSD1306 I2C)"
+	default y
+	help
+	  Phase-1 migration keeps OLED rendering disabled. Disable once the
+	  Zephyr SSD1306/U8g2 adapter is complete.

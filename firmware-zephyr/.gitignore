@@ -1,0 +1,5 @@
+/deps/
+/build/
+/.west/
+__pycache__/
+*.pyc

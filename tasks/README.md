@@ -28,3 +28,4 @@
 - `mobile/` — Flutter-приложение.
 - `verification/` — acceptance, soak, field tests и release.
 - `future/` — задачи за пределами v1.0.
+- `firmware/zephyr.md` — миграция на Zephyr RTOS (`firmware-zephyr/`).
