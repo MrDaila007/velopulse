@@ -53,6 +53,7 @@ struct DisplayFrame {
   char speed[16] = {};
   char units[8] = {};
   char lower[32] = {};
+  char battery_voltage[8] = {};
   char battery_percent[5] = {};
   uint8_t battery_fill_width = 0;
   bool low_battery_warning = false;

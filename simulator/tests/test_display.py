@@ -14,14 +14,15 @@ class DisplaySimulatorTest(unittest.TestCase):
     def test_128x32_commands_remain_pixel_compatible(self):
         commands = firmware_commands("average", 32)
         texts = [command[3] for command in commands if command[0] == "TEXT"]
-        self.assertEqual(["24.8", "82%", "km/h", "MOV AVG 19.7 km/h"], texts)
-        self.assertIn(["FRAME", "91", "0", "12", "8"], commands)
+        self.assertEqual(["24.8", "82%", "3.9V", "km/h", "MOV AVG 19.7 km/h"], texts)
+        self.assertIn(["FRAME", "107", "0", "12", "8"], commands)
 
         unknown_texts = [
             command[3]
             for command in firmware_commands("battery_unknown", 32)
             if command[0] == "TEXT"
         ]
+        self.assertIn("--V", unknown_texts)
         self.assertIn("--%", unknown_texts)
 
         low_commands = firmware_commands("low_battery", 32)
@@ -57,12 +58,14 @@ class DisplaySimulatorTest(unittest.TestCase):
                 self.assertIn(["FONT", "SPEED_LARGE"], commands)
 
         empty_commands = firmware_commands("battery_empty", 64)
-        self.assertIn(["TEXT", "107", "7", "0%"], empty_commands)
-        self.assertNotIn(["BOX", "93", "2", "1", "4"], empty_commands)
+        self.assertIn(["TEXT", "91", "7", "0%"], empty_commands)
+        self.assertIn(["TEXT", "91", "16", "3.0V"], empty_commands)
+        self.assertNotIn(["BOX", "109", "2", "1", "4"], empty_commands)
 
         full_commands = firmware_commands("battery_full", 64)
-        self.assertIn(["TEXT", "107", "7", "100%"], full_commands)
-        self.assertIn(["BOX", "93", "2", "8", "4"], full_commands)
+        self.assertIn(["TEXT", "91", "7", "100%"], full_commands)
+        self.assertIn(["TEXT", "91", "16", "4.2V"], full_commands)
+        self.assertIn(["BOX", "109", "2", "8", "4"], full_commands)
 
         long_commands = firmware_commands("long_metric", 64)
         font_commands = [command for command in long_commands if command[0] == "FONT"]
@@ -75,7 +78,7 @@ class DisplaySimulatorTest(unittest.TestCase):
                     "average", display_height, x_offset=1, y_offset=1
                 )
                 self.assertIn(["TEXT", "1", str(speed_y + 1), "24.8"], commands)
-                self.assertIn(["FRAME", "92", "1", "12", "8"], commands)
+                self.assertIn(["FRAME", "108", "1", "12", "8"], commands)
 
     def test_all_scenarios_match_golden_pixels_for_both_profiles(self):
         for display_height in DISPLAY_HEIGHTS:

@@ -1246,11 +1246,13 @@ void test_display_formatter_all_pages_and_battery() {
   snapshot.trip.ride_state = RideState::kMoving;
   snapshot.battery.valid = true;
   snapshot.battery.percent = 82;
+  snapshot.battery.millivolts = 3900;
 
   DisplayFrame frame = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
   TEST_ASSERT_EQUAL_STRING("24.8", frame.speed);
   TEST_ASSERT_EQUAL_STRING("km/h", frame.units);
   TEST_ASSERT_EQUAL_STRING("MOV TRIP 18.42 km", frame.lower);
+  TEST_ASSERT_EQUAL_STRING("3.9V", frame.battery_voltage);
   TEST_ASSERT_EQUAL_STRING("82%", frame.battery_percent);
   TEST_ASSERT_EQUAL_UINT8(6u, frame.battery_fill_width);
 
@@ -1271,12 +1273,15 @@ void test_display_formatter_battery_and_value_limits() {
 
   DisplayFrame frame = DisplayFormatter::format(snapshot, DisplayPage::kOdometer);
   TEST_ASSERT_EQUAL_STRING("PAUSE ODO 99999+ km", frame.lower);
+  TEST_ASSERT_EQUAL_STRING("--V", frame.battery_voltage);
   TEST_ASSERT_EQUAL_STRING("--%", frame.battery_percent);
   TEST_ASSERT_EQUAL_UINT8(0u, frame.battery_fill_width);
 
   snapshot.battery.valid = true;
   snapshot.battery.percent = 255;
+  snapshot.battery.millivolts = 4350;
   frame = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
+  TEST_ASSERT_EQUAL_STRING("4.3V", frame.battery_voltage);
   TEST_ASSERT_EQUAL_STRING("100%", frame.battery_percent);
   TEST_ASSERT_EQUAL_UINT8(8u, frame.battery_fill_width);
 }
@@ -1285,9 +1290,11 @@ void test_display_formatter_low_battery_warning() {
   DisplaySnapshot snapshot;
   snapshot.battery.valid = true;
   snapshot.battery.percent = 18;
+  snapshot.battery.millivolts = 3420;
   snapshot.battery.low_battery = true;
   DisplayFrame frame =
       DisplayFormatter::format(snapshot, DisplayPage::kTrip, true);
+  TEST_ASSERT_EQUAL_STRING("3.4V", frame.battery_voltage);
   TEST_ASSERT_EQUAL_STRING("18%", frame.battery_percent);
   TEST_ASSERT_EQUAL_STRING("LOW BATT", frame.lower);
   TEST_ASSERT_TRUE(frame.low_battery_warning);

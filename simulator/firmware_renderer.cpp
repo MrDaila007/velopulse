@@ -61,6 +61,7 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
   snapshot.trip.ride_state = RideState::kMoving;
   snapshot.battery.valid = true;
   snapshot.battery.percent = 82;
+  snapshot.battery.millivolts = 3900;
 
   if (name == "trip" || name == "moving") page = DisplayPage::kTrip;
   else if (name == "average") page = DisplayPage::kAverage;
@@ -98,9 +99,11 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
   } else if (name == "battery_empty") {
     page = DisplayPage::kTrip;
     snapshot.battery.percent = 0;
+    snapshot.battery.millivolts = 3000;
   } else if (name == "battery_full") {
     page = DisplayPage::kTrip;
     snapshot.battery.percent = 100;
+    snapshot.battery.millivolts = 4200;
   } else if (name == "long_metric") {
     page = DisplayPage::kTrip;
   } else {

@@ -5,6 +5,27 @@
 namespace bike {
 namespace {
 
+constexpr int16_t kBatteryPercentX = 91;
+constexpr int16_t kBatteryPercentY = 7;
+constexpr int16_t kBatteryVoltageX = 91;
+constexpr int16_t kBatteryVoltageY = 16;
+constexpr int16_t kBatteryIconFrameX = 107;
+constexpr int16_t kBatteryIconFillX = 109;
+constexpr int16_t kBatteryIconTipX = 119;
+
+void drawBatteryIcon(DisplayCanvas& canvas, uint8_t fill_width) {
+  canvas.drawFrame(kBatteryIconFrameX, 0, 12, 8);
+  canvas.drawBox(kBatteryIconTipX, 2, 2, 4);
+  if (fill_width != 0) {
+    canvas.drawBox(kBatteryIconFillX, 2, fill_width, 4);
+  }
+}
+
+void drawBatteryLabels(DisplayCanvas& canvas, const DisplayFrame& frame) {
+  canvas.drawText(kBatteryPercentX, kBatteryPercentY, frame.battery_percent);
+  canvas.drawText(kBatteryVoltageX, kBatteryVoltageY, frame.battery_voltage);
+}
+
 class OffsetCanvas final : public DisplayCanvas {
  public:
   OffsetCanvas(DisplayCanvas& canvas, int8_t x_offset, int8_t y_offset)
@@ -35,12 +56,8 @@ void draw128x32(DisplayCanvas& canvas, const DisplayFrame& frame) {
   canvas.drawText(0, 21, frame.speed);
 
   canvas.setFont(DisplayFont::kSmall);
-  canvas.drawFrame(91, 0, 12, 8);
-  canvas.drawBox(103, 2, 2, 4);
-  if (frame.battery_fill_width != 0) {
-    canvas.drawBox(93, 2, frame.battery_fill_width, 4);
-  }
-  canvas.drawText(107, 7, frame.battery_percent);
+  drawBatteryLabels(canvas, frame);
+  drawBatteryIcon(canvas, frame.battery_fill_width);
   canvas.drawText(88, 20, frame.units);
   if (frame.low_battery_warning) {
     canvas.drawBox(0, 22, 44, 10);
@@ -53,12 +70,8 @@ void draw128x32(DisplayCanvas& canvas, const DisplayFrame& frame) {
 }
 
 void drawBattery128x64(DisplayCanvas& canvas, const DisplayFrame& frame) {
-  canvas.drawFrame(91, 0, 12, 8);
-  canvas.drawBox(103, 2, 2, 4);
-  if (frame.battery_fill_width != 0) {
-    canvas.drawBox(93, 2, frame.battery_fill_width, 4);
-  }
-  canvas.drawText(107, 7, frame.battery_percent);
+  drawBatteryLabels(canvas, frame);
+  drawBatteryIcon(canvas, frame.battery_fill_width);
 }
 
 void draw128x64(DisplayCanvas& canvas, const DisplayFrame& frame) {

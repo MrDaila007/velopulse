@@ -68,10 +68,16 @@ DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot,
   }
 
   if (snapshot.battery.valid) {
-    const uint8_t percent = snapshot.battery.percent > 100 ? 100 : snapshot.battery.percent;
-    snprintf(frame.battery_percent, sizeof(frame.battery_percent), "%u%%", percent);
+    const uint8_t percent =
+        snapshot.battery.percent > 100 ? 100 : snapshot.battery.percent;
+    const uint16_t millivolts = snapshot.battery.millivolts;
+    snprintf(frame.battery_voltage, sizeof(frame.battery_voltage), "%u.%uV",
+             millivolts / 1000u, (millivolts % 1000u) / 100u);
+    snprintf(frame.battery_percent, sizeof(frame.battery_percent), "%u%%",
+             percent);
     frame.battery_fill_width = static_cast<uint8_t>((percent * 8u) / 100u);
   } else {
+    snprintf(frame.battery_voltage, sizeof(frame.battery_voltage), "--V");
     snprintf(frame.battery_percent, sizeof(frame.battery_percent), "--%%");
   }
   if (low_battery_warning) {
