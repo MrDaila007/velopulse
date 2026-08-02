@@ -22,14 +22,14 @@ class FirmwareMigrationBackup {
   final String? fwVersion;
 
   Map<String, Object?> toJson() => <String, Object?>{
-        'schema': 1,
-        'deviceId': deviceId,
-        'deviceName': deviceName,
-        'config': config.toJson(),
-        'odometerM': odometerM,
-        'savedAt': savedAt.toUtc().toIso8601String(),
-        if (fwVersion != null) 'fwVersion': fwVersion,
-      };
+    'schema': 1,
+    'deviceId': deviceId,
+    'deviceName': deviceName,
+    'config': config.toJson(),
+    'odometerM': odometerM,
+    'savedAt': savedAt.toUtc().toIso8601String(),
+    if (fwVersion != null) 'fwVersion': fwVersion,
+  };
 
   static FirmwareMigrationBackup? fromJson(Map<String, Object?> json) {
     if (json['schema'] != 1) return null;
@@ -48,7 +48,7 @@ class FirmwareMigrationBackup {
 
 class FirmwareMigrationStore {
   FirmwareMigrationStore({SharedPreferencesAsync? preferences})
-      : _preferences = preferences ?? SharedPreferencesAsync();
+    : _preferences = preferences ?? SharedPreferencesAsync();
 
   static const _backupKey = 'bikecomp.v1.firmware_migration.backup';
 

@@ -566,8 +566,9 @@ class ConnectionController extends _$ConnectionController {
       );
       return Failure<void>(error);
     }
-    final odometerResult =
-        await _repository!.setOdometerMeters(backup.odometerM);
+    final odometerResult = await _repository!.setOdometerMeters(
+      backup.odometerM,
+    );
     switch (odometerResult) {
       case Success<void>():
         state = state.copyWith(
@@ -593,7 +594,8 @@ class ConnectionController extends _$ConnectionController {
       return const Failure<void>(
         AppFailure(
           kind: AppErrorKind.connectionLost,
-          message: 'Подключитесь и дождитесь телеметрии перед резервным копированием',
+          message:
+              'Подключитесь и дождитесь телеметрии перед резервным копированием',
         ),
       );
     }

@@ -115,14 +115,15 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
 
   Future<void> _backupFirmwareData() async {
     final strings = AppLocalizations.of(context);
-    final result =
-        await ref.read(connectionControllerProvider.notifier).backupFirmwareData();
+    final result = await ref
+        .read(connectionControllerProvider.notifier)
+        .backupFirmwareData();
     if (!mounted) return;
     switch (result) {
       case Success<void>():
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.firmwareBackupSuccess)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(strings.firmwareBackupSuccess)));
       case Failure<void>(:final error):
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -138,9 +139,9 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     final backup = await notifier.readFirmwareBackup();
     if (!mounted) return;
     if (backup == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.firmwareBackupMissing)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.firmwareBackupMissing)));
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -169,9 +170,9 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     if (!mounted) return;
     switch (result) {
       case Success<void>():
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.firmwareRestoreSuccess)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(strings.firmwareRestoreSuccess)));
       case Failure<void>(:final error):
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
