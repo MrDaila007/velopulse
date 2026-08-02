@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    name: Firmware
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            firmware/.pio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Run native tests
+        run: pio test -e native
+
+      - name: Build production firmware
+        run: pio run -e xiao_ble_sense -e xiao_ble_sense_128x32
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-binaries
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            firmware/.pio/build/xiao_ble_sense/firmware.hex
+            firmware/.pio/build/xiao_ble_sense/firmware.elf
+            firmware/.pio/build/xiao_ble_sense/firmware.zip
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.hex
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.elf
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.zip
+
+  mobile-app:
+    name: Mobile App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y unzip curl
+
+      - name: Cache mobile toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tooling
+          key: mobile-toolchain-${{ runner.os }}-${{ hashFiles('tool/bootstrap-mobile.sh') }}
+          restore-keys: |
+            mobile-toolchain-${{ runner.os }}-
+
+      - name: Bootstrap mobile toolchain
+        run: ./tool/bootstrap-mobile.sh
+
+      - name: Install dependencies
+        working-directory: mobile-app
+        run: ../tool/flutterw pub get
+
+      - name: Check formatting
+        working-directory: mobile-app
+        run: ../.tooling/flutter/bin/dart format --set-exit-if-changed lib test
+
+      - name: Analyze
+        working-directory: mobile-app
+        run: ../tool/flutterw analyze
+
+      - name: Run tests
+        working-directory: mobile-app
+        run: ../tool/flutterw test
+
+      - name: Build release APK
+        working-directory: mobile-app
+        run: ../tool/flutterw build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-app-apk
+          retention-days: 90
+          if-no-files-found: error
+          path: mobile-app/build/app/outputs/flutter-apk/app-release.apk
+
+  simulator:
+    name: Simulator
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb g++ build-essential git unzip python3-venv python3-tk
+
+      - name: Cache simulator dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            simulator/.vendor
+            simulator/.venv
+          key: simulator-${{ runner.os }}-${{ hashFiles('simulator/setup.sh', 'simulator/requirements.txt') }}
+          restore-keys: |
+            simulator-${{ runner.os }}-
+
+      - name: Set up simulator
+        working-directory: simulator
+        run: ./setup.sh
+
+      - name: Build firmware renderer
+        working-directory: simulator
+        run: CXX=g++ ./build_renderer.sh
+
+      - name: Run golden tests
+        working-directory: simulator
+        run: ./test.sh

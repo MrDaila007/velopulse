@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    name: Firmware
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            firmware/.pio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Run native tests
+        run: pio test -e native
+
+      - name: Build production firmware
+        run: pio run -e xiao_ble_sense -e xiao_ble_sense_128x32
+
+      - name: Stage firmware release files
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir -p release/firmware-128x64 release/firmware-128x32
+          cp firmware/.pio/build/xiao_ble_sense/firmware.hex \
+            firmware/.pio/build/xiao_ble_sense/firmware.elf \
+            firmware/.pio/build/xiao_ble_sense/firmware.zip \
+            release/firmware-128x64/
+          cp firmware/.pio/build/xiao_ble_sense_128x32/firmware.hex \
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.elf \
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.zip \
+            release/firmware-128x32/
+
+      - name: Upload firmware release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-firmware
+          retention-days: 400
+          if-no-files-found: error
+          path: release/
+
+  mobile-app:
+    name: Mobile App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y unzip curl
+
+      - name: Cache mobile toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tooling
+          key: mobile-toolchain-${{ runner.os }}-${{ hashFiles('tool/bootstrap-mobile.sh') }}
+          restore-keys: |
+            mobile-toolchain-${{ runner.os }}-
+
+      - name: Bootstrap mobile toolchain
+        run: ./tool/bootstrap-mobile.sh
+
+      - name: Install dependencies
+        working-directory: mobile-app
+        run: ../tool/flutterw pub get
+
+      - name: Analyze
+        working-directory: mobile-app
+        run: ../tool/flutterw analyze
+
+      - name: Run tests
+        working-directory: mobile-app
+        run: ../tool/flutterw test
+
+      - name: Build release APK
+        working-directory: mobile-app
+        run: ../tool/flutterw build apk --release
+
+      - name: Stage mobile release file
+        run: |
+          mkdir -p release
+          cp mobile-app/build/app/outputs/flutter-apk/app-release.apk \
+            "release/bikecomp-mobile-${{ github.ref_name }}.apk"
+
+      - name: Upload mobile release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-mobile
+          retention-days: 400
+          if-no-files-found: error
+          path: release/
+
+  publish:
+    name: Publish GitHub Release
+    needs: [firmware, mobile-app]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download firmware bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-firmware
+          path: dist/firmware
+
+      - name: Download mobile bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-mobile
+          path: dist/mobile
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/firmware/**/*
+            dist/mobile/**/*
