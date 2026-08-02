@@ -1,0 +1,7 @@
+# power_save enters low-power idle when display is off
+reset
+cfg power_save 1
+power off 0
+power off 1000
+read power_mode
+expect power_mode 1
