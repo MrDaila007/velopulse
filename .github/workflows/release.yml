@@ -77,9 +77,26 @@ jobs:
       - name: Install Zephyr Python dependencies
         run: pip install -r zephyr/scripts/requirements.txt
 
+      - name: Cache Zephyr SDK
+        uses: actions/cache@v4
+        id: sdk-cache
+        with:
+          path: zephyr-sdk-1.0.0
+          key: zephyr-sdk-1.0.0-linux-x86_64-minimal
+
+      - name: Install Zephyr SDK (arm-zephyr-eabi)
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o sdk.tar.xz \
+            https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.0/zephyr-sdk-1.0.0_linux-x86_64_minimal.tar.xz
+          mkdir -p zephyr-sdk-1.0.0
+          tar xf sdk.tar.xz -C zephyr-sdk-1.0.0 --strip-components=1
+          yes | zephyr-sdk-1.0.0/setup.sh -c -t arm-zephyr-eabi
+
       - name: Run ztest domain suite
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk-1.0.0
         run: firmware-zephyr/scripts/test.sh
 
       - name: Stage firmware release files

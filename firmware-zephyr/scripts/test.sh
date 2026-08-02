@@ -27,6 +27,22 @@ if [ ! -f "${ZEPHYR_BASE}/scripts/twister" ]; then
   exit 1
 fi
 
+if [ -z "${ZEPHYR_SDK_INSTALL_DIR:-}" ]; then
+  for candidate in \
+    "${REPO_ROOT}/zephyr-sdk-1.0.0" \
+    /data/zephyr-sdk-1.0.0; do
+    if [ -d "${candidate}" ]; then
+      export ZEPHYR_SDK_INSTALL_DIR="${candidate}"
+      break
+    fi
+  done
+fi
+
+if [ -z "${ZEPHYR_SDK_INSTALL_DIR:-}" ] || [ ! -f "${ZEPHYR_SDK_INSTALL_DIR}/cmake/Zephyr-sdkConfig.cmake" ]; then
+  echo "Zephyr SDK not found. Set ZEPHYR_SDK_INSTALL_DIR (required by Zephyr 4.4 twister)." >&2
+  exit 1
+fi
+
 hide_west_if_incomplete "${REPO_ROOT}"
 
 cd "${REPO_ROOT}"
