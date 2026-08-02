@@ -97,9 +97,11 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     if (!mounted) return;
     switch (result) {
       case Success<String>(:final value):
-        await Share.shareXFiles(
-          <XFile>[XFile(value)],
-          text: strings.exportLog,
+        await SharePlus.instance.share(
+          ShareParams(
+            files: <XFile>[XFile(value)],
+            text: strings.exportLog,
+          ),
         );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
