@@ -177,6 +177,21 @@ class AppLocalizationsRu extends AppLocalizations {
   String get displayTimeoutLabel => 'Выключить дисплей через, с';
 
   @override
+  String get deepSleepTimeoutChange => 'таймаут глубокого сна';
+
+  @override
+  String get deepSleepTimeoutLabel => 'Глубокий сон после выкл. экрана, с';
+
+  @override
+  String get deepSleepEnabledLabel => 'Глубокий сон (System OFF)';
+
+  @override
+  String get powerSaveModeLabel => 'Агрессивное энергосбережение';
+
+  @override
+  String get powerSection => 'Энергосбережение';
+
+  @override
   String get draftConflict =>
       'Настройки устройства изменились после сохранения черновика.';
 

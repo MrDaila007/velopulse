@@ -232,6 +232,48 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
         ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  strings.powerSection,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(strings.powerSaveModeLabel),
+                  value: draft.powerSaveMode,
+                  onChanged: (value) =>
+                      controller.update(draft.withFlag(0x40, value)),
+                ),
+                if (session.deviceInfo?.deepSleepSupported ?? false)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(strings.deepSleepEnabledLabel),
+                    value: draft.deepSleepEnabled,
+                    onChanged: (value) =>
+                        controller.update(draft.withFlag(0x80, value)),
+                  ),
+                const SizedBox(height: 8),
+                _IntegerField(
+                  key: ValueKey('deep-sleep-${draft.deepSleepTimeoutS}'),
+                  label: strings.deepSleepTimeoutLabel,
+                  helper: strings.neverHelper,
+                  value: draft.deepSleepTimeoutS,
+                  error: state.fieldErrors['deepSleepTimeoutS'],
+                  onChanged: (value) => controller.update(
+                    draft.copyWith(deepSleepTimeoutS: value),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 16),
         if (state.fieldErrors.isNotEmpty)
           Text(
@@ -346,6 +388,15 @@ class SettingsScreen extends ConsumerWidget {
     }
     if (current.displayTimeoutS != defaults.displayTimeoutS) {
       changes.add(strings.displayTimeoutChange);
+    }
+    if (current.deepSleepTimeoutS != defaults.deepSleepTimeoutS) {
+      changes.add(strings.deepSleepTimeoutChange);
+    }
+    if (current.powerSaveMode != defaults.powerSaveMode) {
+      changes.add(strings.powerSaveModeLabel);
+    }
+    if (current.deepSleepEnabled != defaults.deepSleepEnabled) {
+      changes.add(strings.deepSleepEnabledLabel);
     }
     if (current.pageSwitchPeriodS != defaults.pageSwitchPeriodS) {
       changes.add(strings.pagePeriodChange);

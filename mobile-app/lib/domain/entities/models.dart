@@ -157,6 +157,7 @@ abstract class DeviceInfo with _$DeviceInfo {
 extension DeviceInfoFlags on DeviceInfo {
   bool get bonded => flags & 0x08 != 0;
   bool get pairingWindowOpen => flags & 0x10 != 0;
+  bool get deepSleepSupported => flags & 0x40 != 0;
 }
 
 @freezed
@@ -227,6 +228,8 @@ abstract class DeviceConfig with _$DeviceConfig {
   bool get displayAutoOff => flags & 0x04 != 0;
   bool get bleAlwaysAdvertise => flags & 0x08 != 0;
   bool get unitsImperial => flags & 0x10 != 0;
+  bool get powerSaveMode => flags & 0x40 != 0;
+  bool get deepSleepEnabled => flags & 0x80 != 0;
 
   DeviceConfig withFlag(int mask, bool enabled) =>
       copyWith(flags: enabled ? flags | mask : flags & ~mask);

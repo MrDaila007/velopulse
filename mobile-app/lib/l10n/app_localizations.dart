@@ -388,6 +388,36 @@ abstract class AppLocalizations {
   /// **'Выключить дисплей через, с'**
   String get displayTimeoutLabel;
 
+  /// No description provided for @deepSleepTimeoutChange.
+  ///
+  /// In ru, this message translates to:
+  /// **'таймаут глубокого сна'**
+  String get deepSleepTimeoutChange;
+
+  /// No description provided for @deepSleepTimeoutLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Глубокий сон после выкл. экрана, с'**
+  String get deepSleepTimeoutLabel;
+
+  /// No description provided for @deepSleepEnabledLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Глубокий сон (System OFF)'**
+  String get deepSleepEnabledLabel;
+
+  /// No description provided for @powerSaveModeLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Агрессивное энергосбережение'**
+  String get powerSaveModeLabel;
+
+  /// No description provided for @powerSection.
+  ///
+  /// In ru, this message translates to:
+  /// **'Энергосбережение'**
+  String get powerSection;
+
   /// No description provided for @draftConflict.
   ///
   /// In ru, this message translates to:
