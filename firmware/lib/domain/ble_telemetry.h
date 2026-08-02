@@ -22,6 +22,9 @@ struct TelemetryBuildInput {
   TripSnapshot trip;
   BatterySnapshot battery;
   bool display_on = true;
+  bool ble_connected = false;
+  bool low_power_idle = false;
+  bool deep_sleep_pending = false;
   bool smoothing_enabled = true;
   bool units_imperial = false;
   bool had_pulse = false;

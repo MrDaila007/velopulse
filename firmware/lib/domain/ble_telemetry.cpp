@@ -70,7 +70,11 @@ PowerState mapTelemetryPowerState(const TelemetryBuildInput& input) {
   if (input.battery.charge_status == ChargeStatus::kCharging) {
     return PowerState::kCharging;
   }
-  if (!input.display_on) return PowerState::kIdleDisplayOff;
+  if (input.ble_connected) return PowerState::kBleConfig;
+  if (input.deep_sleep_pending) return PowerState::kDeepSleepPending;
+  if (!input.display_on || input.low_power_idle) {
+    return PowerState::kIdleDisplayOff;
+  }
   if (input.trip.ride_state == RideState::kPaused) {
     return PowerState::kShortStop;
   }
