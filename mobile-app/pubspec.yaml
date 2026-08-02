@@ -1,5 +1,5 @@
 name: bikecomp_mobile
-description: Android BLE configurator and dashboard for BikeComp.
+description: BLE configurator and dashboard for BikeComp (Android and iOS).
 publish_to: 'none'
 version: 0.1.0+1
 
