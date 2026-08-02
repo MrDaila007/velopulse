@@ -1,3 +1,27 @@
+#ifndef BIKECOMP_HALL_PULLUP
+#define BIKECOMP_HALL_PULLUP 1
+#endif
+
+#ifndef BIKECOMP_HALL_ACTIVE_EDGE
+#define BIKECOMP_HALL_ACTIVE_EDGE (-1)
+#endif
+
+#ifndef BIKECOMP_HALL_ANALOG
+#define BIKECOMP_HALL_ANALOG 0
+#endif
+
+#ifndef BIKECOMP_HALL_ADC_OPEN_MIN
+#define BIKECOMP_HALL_ADC_OPEN_MIN 2500
+#endif
+
+#ifndef BIKECOMP_HALL_ADC_CLOSED_MAX
+#define BIKECOMP_HALL_ADC_CLOSED_MAX 900
+#endif
+
+#ifndef BIKECOMP_HALL_TWO_WIRE
+#define BIKECOMP_HALL_TWO_WIRE 0
+#endif
+
 #include "app_controller.h"
 
 #include <Arduino.h>
@@ -5,6 +29,7 @@
 #include "ble_device_info.h"
 #include "ble_config_write.h"
 #include "ble_telemetry.h"
+#include "board_leds.h"
 #include "board_pins.h"
 #include "config_codec.h"
 #include "board_pins.h"
@@ -92,6 +117,8 @@ void AppController::begin() {
   Serial.print("BikeComp FW ");
   Serial.println(FW_VERSION);
 
+  beginBoardLeds();
+
   const uint32_t resetreas = NRF_POWER->RESETREAS;
   const ResetReason reset_reason = mapNrfResetReason(resetreas);
   // Clear sticky bits so the next boot sees a fresh reason.
@@ -127,6 +154,9 @@ void AppController::begin() {
     }
   }
   printLoadInfo("Config", config_info, config_ok);
+#if BIKECOMP_HALL_ACTIVE_EDGE >= 0
+  config_.active_edge = static_cast<uint8_t>(BIKECOMP_HALL_ACTIVE_EDGE);
+#endif
   printLoadInfo("Odometer", odometer_info, odometer_ok);
   Serial.print("Odometer value: ");
   printUint64(trip_computer_.snapshot().odometer_mm);
@@ -143,7 +173,7 @@ void AppController::begin() {
   ride_state_ = RideStateMachine(
       static_cast<uint32_t>(config_.stop_timeout_s) * 1000u);
 
-  Serial.println("Hall simulator: button D0 -> GND");
+  Serial.println("Hall: reed D0 <-> D1 (drive LOW)");
   wheel_sensor_.begin(kHallPin, interruptMode(config_.active_edge));
   const bool display_ok = display_.begin(config_);
   Serial.print("OLED 0x3C: ");
@@ -276,6 +306,210 @@ void AppController::printAmbientLine() const {
   Serial.println(display_.effectiveBrightnessPct());
 }
 
+void AppController::printHallStatus() const {
+  const DiagnosticSnapshot diag = diagnosticSnapshot();
+  Serial.print("Hall: pin=");
+  Serial.print(kHallPinLabel);
+#if BIKECOMP_HALL_TWO_WIRE
+  Serial.print(" (");
+  Serial.print(kHallSensePinLabel);
+  Serial.print(" / ");
+  Serial.print(kHallDrivePinLabel);
+  Serial.print("=LOW)");
+#endif
+  Serial.print(" level=");
+  Serial.print(wheel_sensor_.pinIsHigh() ? "HIGH" : "LOW");
+#if BIKECOMP_HALL_TWO_WIRE
+  Serial.print(", mode=digital");
+#elif BIKECOMP_HALL_PULLUP
+  Serial.print(", pull=internal");
+#else
+  Serial.print(", pull=none");
+#endif
+  Serial.print(", nrf=");
+  Serial.print(kHallNrfPin);
+  Serial.print(", edge=");
+  switch (config_.active_edge) {
+    case 0:
+      Serial.print("FALLING");
+      break;
+    case 1:
+      Serial.print("RISING");
+      break;
+    default:
+      Serial.print("CHANGE");
+      break;
+  }
+  Serial.print(", raw_pulses=");
+  Serial.print(diag.raw_pulse_count);
+  Serial.print(", accepted=");
+  Serial.print(pulse_filter_.counters().accepted);
+  Serial.print(", debounce_rej=");
+  Serial.print(diag.rejected_debounce);
+  Serial.print(", overspeed_rej=");
+  Serial.print(diag.rejected_overspeed);
+  Serial.print(", isr_ovf=");
+  Serial.print(diag.isr_overflow);
+  Serial.print(", ride=");
+  switch (ride_state_.state()) {
+    case RideState::kIdle:
+      Serial.print("IDLE");
+      break;
+    case RideState::kMoving:
+      Serial.print("MOVING");
+      break;
+    case RideState::kPaused:
+      Serial.print("PAUSED");
+      break;
+  }
+  Serial.print(", revolutions=");
+  Serial.print(trip_computer_.revolutions());
+#if BIKECOMP_HALL_ANALOG
+  Serial.print(", mode=analog, adc=");
+  Serial.print(wheel_sensor_.lastAnalogRaw());
+  Serial.print(", open_th=");
+  Serial.print(BIKECOMP_HALL_ADC_OPEN_MIN);
+  Serial.print(", closed_th=");
+  Serial.print(BIKECOMP_HALL_ADC_CLOSED_MAX);
+#endif
+  Serial.println();
+}
+
+void AppController::printHallAnalogLine() const {
+  Serial.print("Hall analog: pin=");
+  Serial.print(kHallPinLabel);
+  Serial.print(", adc=");
+  Serial.print(wheel_sensor_.lastAnalogRaw());
+  Serial.print(", level=");
+  Serial.print(wheel_sensor_.pinIsHigh() ? "HIGH" : "LOW");
+  Serial.print(", raw_pulses=");
+  Serial.print(wheel_sensor_.rawPulseCount());
+  Serial.print(", accepted=");
+  Serial.println(pulse_filter_.counters().accepted);
+}
+
+void AppController::maybeLogHallAnalog(uint32_t now_ms) {
+  if (!hall_analog_logging_) return;
+  const uint16_t raw = wheel_sensor_.lastAnalogRaw();
+  const bool pin_high = wheel_sensor_.pinIsHigh();
+  const bool changed =
+      raw != hall_analog_last_raw_ || pin_high != hall_watch_last_pin_high_;
+  const bool heartbeat =
+      static_cast<uint32_t>(now_ms - hall_analog_last_ms_) >= 1000u;
+  if (!changed && !heartbeat) return;
+  hall_analog_last_ms_ = now_ms;
+  hall_analog_last_raw_ = raw;
+  hall_watch_last_pin_high_ = pin_high;
+  printHallAnalogLine();
+}
+
+void AppController::maybeLogHallWatch(uint32_t now_ms) {
+  if (!hall_watch_logging_) return;
+  const uint32_t pulses = wheel_sensor_.rawPulseCount();
+  const bool pin_high = wheel_sensor_.pinIsHigh();
+  const bool changed =
+      pulses != hall_watch_last_pulses_ || pin_high != hall_watch_last_pin_high_;
+  const bool heartbeat =
+      static_cast<uint32_t>(now_ms - hall_watch_last_ms_) >= 2000u;
+  if (!changed && !heartbeat) return;
+  hall_watch_last_ms_ = now_ms;
+  hall_watch_last_pulses_ = pulses;
+  hall_watch_last_pin_high_ = pin_high;
+  printHallStatus();
+}
+
+void AppController::restoreHallInterrupt() {
+  wheel_sensor_.resumeInterrupt(interruptMode(config_.active_edge));
+}
+
+void AppController::applyHallEdge(uint8_t active_edge) {
+  if (active_edge > 2u) return;
+  config_.active_edge = active_edge;
+  wheel_sensor_.begin(kHallPin, interruptMode(active_edge));
+}
+
+void AppController::printGpioProbe() {
+  wheel_sensor_.suspendInterrupt();
+
+#if BIKECOMP_HALL_ANALOG
+#if BIKECOMP_HALL_PULLUP
+  pinMode(kHallPin, INPUT_PULLUP);
+#else
+  pinMode(kHallPin, INPUT);
+#endif
+  delay(2);
+  wheel_sensor_.pollPin();
+  restoreHallInterrupt();
+
+  Serial.print("GPIO ");
+  Serial.print(kHallPinLabel);
+  Serial.print(": mode=analog, ADC=");
+  Serial.print(wheel_sensor_.lastAnalogRaw());
+  Serial.print(", level=");
+  Serial.print(wheel_sensor_.pinIsHigh() ? "HIGH" : "LOW");
+  Serial.print(" (open>=");
+  Serial.print(BIKECOMP_HALL_ADC_OPEN_MIN);
+  Serial.print(", closed<=");
+  Serial.print(BIKECOMP_HALL_ADC_CLOSED_MAX);
+  Serial.println(')');
+#else
+  configureHallPins(kHallPin);
+  delay(2);
+
+  auto readMode = [](uint8_t pin, uint8_t mode) -> bool {
+    configureHallPins(kHallPin);
+    pinMode(pin, mode);
+    delay(2);
+    return digitalRead(pin) == HIGH;
+  };
+
+  const bool pullup_high = readMode(kHallPin, INPUT_PULLUP);
+  const bool float_high = readMode(kHallPin, INPUT);
+  const bool pulldown_high = readMode(kHallPin, INPUT_PULLDOWN);
+
+  configureHallPins(kHallPin);
+  restoreHallInterrupt();
+
+  Serial.print("GPIO ");
+  Serial.print(kHallPinLabel);
+#if BIKECOMP_HALL_TWO_WIRE
+  Serial.print(" (");
+  Serial.print(kHallSensePinLabel);
+  Serial.print(" / ");
+  Serial.print(kHallDrivePinLabel);
+  Serial.print("=LOW)");
+#endif
+  Serial.print(": PULLUP=");
+  Serial.print(pullup_high ? "HIGH" : "LOW");
+  Serial.print(", FLOAT=");
+  Serial.print(float_high ? "HIGH" : "LOW");
+  Serial.print(", PULLDOWN=");
+  Serial.println(pulldown_high ? "HIGH" : "LOW");
+#endif
+}
+
+void AppController::maybeLogGpioWatch(uint32_t now_ms) {
+  if (!gpio_watch_logging_) return;
+  const bool high = digitalRead(kHallPin) == HIGH;
+  const bool changed = high != gpio_watch_last_high_;
+  const bool heartbeat =
+      static_cast<uint32_t>(now_ms - gpio_watch_last_ms_) >= 1000u;
+  if (!changed && !heartbeat) return;
+  gpio_watch_last_ms_ = now_ms;
+  gpio_watch_last_high_ = high;
+  Serial.print("GPIO ");
+  Serial.print(kHallPinLabel);
+#if BIKECOMP_HALL_TWO_WIRE
+  Serial.print(" (");
+  Serial.print(kHallSensePinLabel);
+  Serial.print(" / ");
+  Serial.print(kHallDrivePinLabel);
+  Serial.print("=LOW)");
+#endif
+  Serial.print(": mode=INPUT level=");
+  Serial.println(high ? "HIGH" : "LOW");
+}
+
 void AppController::printDisplayState() const {
   Serial.print("Display: power=");
   switch (display_.powerState()) {
@@ -356,6 +590,102 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         display_.noteActivity(now_ms);
         printDisplayState();
         Serial.println("OK wake-display");
+        break;
+
+      case SerialCommand::kHallStatus:
+        printHallStatus();
+        Serial.println("OK hall-status");
+        break;
+
+      case SerialCommand::kHallWatch:
+        hall_analog_logging_ = false;
+        hall_watch_logging_ = true;
+        hall_watch_last_ms_ = now_ms;
+        hall_watch_last_pulses_ = wheel_sensor_.rawPulseCount();
+        hall_watch_last_pin_high_ = wheel_sensor_.pinIsHigh();
+        printHallStatus();
+        Serial.println("OK hall-watch logging=1");
+        break;
+
+      case SerialCommand::kHallStop:
+        hall_watch_logging_ = false;
+        Serial.println("OK hall-watch logging=0");
+        break;
+
+      case SerialCommand::kHallRising:
+        applyHallEdge(1);
+        printHallStatus();
+        Serial.println("OK hall-rising");
+        break;
+
+      case SerialCommand::kHallFalling:
+        applyHallEdge(0);
+        printHallStatus();
+        Serial.println("OK hall-falling");
+        break;
+
+      case SerialCommand::kHallChange:
+        applyHallEdge(2);
+        printHallStatus();
+        Serial.println("OK hall-change");
+        break;
+
+      case SerialCommand::kHallAnalog:
+        hall_watch_logging_ = false;
+        hall_analog_logging_ = true;
+        hall_analog_last_ms_ = now_ms;
+        hall_analog_last_raw_ = wheel_sensor_.lastAnalogRaw();
+        hall_watch_last_pin_high_ = wheel_sensor_.pinIsHigh();
+        printHallAnalogLine();
+        Serial.println("OK hall-analog logging=1");
+        break;
+
+      case SerialCommand::kHallAnalogStop:
+        hall_analog_logging_ = false;
+        Serial.println("OK hall-analog logging=0");
+        break;
+
+      case SerialCommand::kGpioProbe:
+        hall_watch_logging_ = false;
+        hall_analog_logging_ = false;
+        gpio_watch_logging_ = false;
+        printGpioProbe();
+        Serial.println("OK gpio-probe");
+        break;
+
+      case SerialCommand::kGpioWatch:
+        hall_watch_logging_ = false;
+        wheel_sensor_.suspendInterrupt();
+        configureHallPins(kHallPin);
+        gpio_watch_logging_ = true;
+        gpio_watch_last_ms_ = now_ms;
+        gpio_watch_last_high_ = digitalRead(kHallPin) == HIGH;
+        Serial.print("GPIO ");
+        Serial.print(kHallPinLabel);
+#if BIKECOMP_HALL_TWO_WIRE
+        Serial.print(" (");
+        Serial.print(kHallSensePinLabel);
+        Serial.print(" / ");
+        Serial.print(kHallDrivePinLabel);
+        Serial.print("=LOW)");
+#endif
+        Serial.print(": mode=");
+#if BIKECOMP_HALL_TWO_WIRE
+        Serial.print("digital");
+#elif BIKECOMP_HALL_PULLUP
+        Serial.print("PULLUP");
+#else
+        Serial.print("INPUT");
+#endif
+        Serial.print(" level=");
+        Serial.println(gpio_watch_last_high_ ? "HIGH" : "LOW");
+        Serial.println("OK gpio-watch logging=1 (ISR off)");
+        break;
+
+      case SerialCommand::kGpioStop:
+        gpio_watch_logging_ = false;
+        restoreHallInterrupt();
+        Serial.println("OK gpio-watch logging=0 (polling on)");
         break;
 
       case SerialCommand::kUnknown:
@@ -512,6 +842,9 @@ bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
 
 
 void AppController::processPulses(uint32_t now_ms) {
+  maybeLogGpioWatch(now_ms);
+  maybeLogHallWatch(now_ms);
+  maybeLogHallAnalog(now_ms);
   PulseEvent event;
   while (wheel_sensor_.pop(event)) {
     const PulseDecision decision = pulse_filter_.process(event.timestamp_us, event.returned_passive);
@@ -859,6 +1192,7 @@ void AppController::updateBle(uint32_t now_ms) {
   input.last_pulse_ms = ride_state_.lastPulseMs();
   input.now_ms = now_ms;
   ble_.serviceTelemetry(input, now_ms);
+  updateBoardStatusLed(ble_.bleAdvertising(), ble_.bleConnected(), now_ms);
 }
 
 }  // namespace bike

@@ -18,6 +18,7 @@ class TripComputer {
                                uint64_t total_revolutions);
 
   const TripSnapshot& snapshot();
+  uint32_t revolutions() const { return snapshot_.revolutions; }
   uint64_t totalRevolutions() const { return total_revolutions_; }
 
  private:

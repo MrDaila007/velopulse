@@ -1,5 +1,6 @@
 #include "ambient_light_manager.h"
 
+#include "board_leds.h"
 #include "board_pins.h"
 
 namespace bike {
@@ -40,6 +41,7 @@ bool AmbientLightManager::update(uint32_t now_ms) {
     // A powered divider overcomes this weak pull-down; an absent circuit does not.
     pinMode(kAmbientLightAdcPin, INPUT_PULLDOWN);
     presence_checked_ = false;
+    suppressBoardLeds();
     digitalWrite(kAmbientLightPowerPin, HIGH);
     power_started_ms_ = now_ms;
     powered_ = true;
@@ -55,6 +57,7 @@ bool AmbientLightManager::update(uint32_t now_ms) {
         static_cast<uint16_t>(analogRead(kAmbientLightAdcPin));
     if (presence_raw <= kPresenceMinimumRaw) {
       digitalWrite(kAmbientLightPowerPin, LOW);
+      restoreBoardChargeIndicator();
       pinMode(kAmbientLightAdcPin, INPUT);
       powered_ = false;
       last_sample_ms_ = now_ms;
@@ -76,6 +79,7 @@ bool AmbientLightManager::update(uint32_t now_ms) {
     sum += raw;
   }
   digitalWrite(kAmbientLightPowerPin, LOW);
+  restoreBoardChargeIndicator();
   powered_ = false;
   presence_checked_ = false;
   last_sample_ms_ = now_ms;

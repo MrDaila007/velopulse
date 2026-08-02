@@ -458,6 +458,8 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
     return false;
   }
 
+  Bluefruit.autoConnLed(false);
+
   Bluefruit.setEventCallback(onBleEvent);
   Bluefruit.Security.setPairCompleteCallback(onPairComplete);
   Bluefruit.setTxPower(4);
@@ -505,6 +507,20 @@ void BleManager::noteMovement() {
   if (shouldRestartAdvertisingOnMovement(connected, running)) {
     startAdvertising();
   }
+}
+
+bool BleManager::statusLedActive() const {
+  return bleAdvertising() || bleConnected();
+}
+
+bool BleManager::bleAdvertising() const {
+  if (!ok_) return false;
+  return Bluefruit.Advertising.isRunning();
+}
+
+bool BleManager::bleConnected() const {
+  if (!ok_) return false;
+  return Bluefruit.Periph.connected() != 0;
 }
 
 void BleManager::recordError(ErrorLogCode code,

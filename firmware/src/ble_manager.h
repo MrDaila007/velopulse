@@ -64,6 +64,10 @@ class BleManager {
   void openPairingWindow(uint16_t duration_s, uint32_t now_ms);
   void noteMovement();
 
+  bool statusLedActive() const;
+  bool bleAdvertising() const;
+  bool bleConnected() const;
+
   void clearBonds();
 
   bool hasPendingConfigWrite() const;

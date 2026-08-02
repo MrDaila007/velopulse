@@ -17,6 +17,17 @@ enum class SerialCommand : uint8_t {
   kAmbientStop,
   kDisplayState,
   kWakeDisplay,
+  kHallStatus,
+  kHallWatch,
+  kHallStop,
+  kHallRising,
+  kHallFalling,
+  kHallChange,
+  kHallAnalog,
+  kHallAnalogStop,
+  kGpioProbe,
+  kGpioWatch,
+  kGpioStop,
   kUnknown,
 };
 

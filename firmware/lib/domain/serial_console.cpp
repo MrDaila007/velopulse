@@ -29,6 +29,17 @@ SerialCommand parseCommand(const char* value, size_t length) {
       {"ambient-stop", 12, SerialCommand::kAmbientStop},
       {"display-state", 13, SerialCommand::kDisplayState},
       {"wake-display", 12, SerialCommand::kWakeDisplay},
+      {"hall-status", 11, SerialCommand::kHallStatus},
+      {"hall-watch", 10, SerialCommand::kHallWatch},
+      {"hall-stop", 9, SerialCommand::kHallStop},
+      {"hall-rising", 11, SerialCommand::kHallRising},
+      {"hall-falling", 12, SerialCommand::kHallFalling},
+      {"hall-change", 11, SerialCommand::kHallChange},
+      {"hall-analog", 11, SerialCommand::kHallAnalog},
+      {"hall-analog-stop", 16, SerialCommand::kHallAnalogStop},
+      {"gpio-probe", 10, SerialCommand::kGpioProbe},
+      {"gpio-watch", 10, SerialCommand::kGpioWatch},
+      {"gpio-stop", 9, SerialCommand::kGpioStop},
   };
 
   for (const CommandName& candidate : kCommands) {

@@ -133,6 +133,68 @@ void test_serial_console_parses_display_commands() {
   TEST_ASSERT_EQUAL(sizeof(expected) / sizeof(expected[0]), found);
 }
 
+void test_serial_console_parses_hall_commands() {
+  SerialCommandParser parser;
+  const char* commands = "hall-status\nhall-watch\nhall-stop\n";
+  const SerialCommand expected[] = {
+      SerialCommand::kHallStatus,
+      SerialCommand::kHallWatch,
+      SerialCommand::kHallStop,
+  };
+  size_t found = 0;
+  for (size_t i = 0; commands[i] != '\0'; ++i) {
+    const SerialCommand command = parser.feed(commands[i]);
+    if (command != SerialCommand::kNone) {
+      TEST_ASSERT_LESS_THAN(sizeof(expected) / sizeof(expected[0]), found);
+      TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(expected[found]),
+                              static_cast<uint8_t>(command));
+      ++found;
+    }
+  }
+  TEST_ASSERT_EQUAL(sizeof(expected) / sizeof(expected[0]), found);
+}
+
+void test_serial_console_parses_hall_analog_commands() {
+  SerialCommandParser parser;
+  const char* commands = "hall-analog\nhall-analog-stop\n";
+  const SerialCommand expected[] = {
+      SerialCommand::kHallAnalog,
+      SerialCommand::kHallAnalogStop,
+  };
+  size_t found = 0;
+  for (size_t i = 0; commands[i] != '\0'; ++i) {
+    const SerialCommand command = parser.feed(commands[i]);
+    if (command != SerialCommand::kNone) {
+      TEST_ASSERT_LESS_THAN(sizeof(expected) / sizeof(expected[0]), found);
+      TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(expected[found]),
+                              static_cast<uint8_t>(command));
+      ++found;
+    }
+  }
+  TEST_ASSERT_EQUAL(sizeof(expected) / sizeof(expected[0]), found);
+}
+
+void test_serial_console_parses_gpio_commands() {
+  SerialCommandParser parser;
+  const char* commands = "gpio-probe\ngpio-watch\ngpio-stop\n";
+  const SerialCommand expected[] = {
+      SerialCommand::kGpioProbe,
+      SerialCommand::kGpioWatch,
+      SerialCommand::kGpioStop,
+  };
+  size_t found = 0;
+  for (size_t i = 0; commands[i] != '\0'; ++i) {
+    const SerialCommand command = parser.feed(commands[i]);
+    if (command != SerialCommand::kNone) {
+      TEST_ASSERT_LESS_THAN(sizeof(expected) / sizeof(expected[0]), found);
+      TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(expected[found]),
+                              static_cast<uint8_t>(command));
+      ++found;
+    }
+  }
+  TEST_ASSERT_EQUAL(sizeof(expected) / sizeof(expected[0]), found);
+}
+
 void test_error_log_keeps_16_and_snapshots_newest_four_in_order() {
   ErrorLogBuffer log;
   ErrorLogPacket packet = {};
@@ -2268,6 +2330,9 @@ int main(int, char**) {
   RUN_TEST(test_serial_console_trims_rejects_and_recovers_after_overflow);
   RUN_TEST(test_serial_console_parses_ambient_commands);
   RUN_TEST(test_serial_console_parses_display_commands);
+  RUN_TEST(test_serial_console_parses_hall_commands);
+  RUN_TEST(test_serial_console_parses_hall_analog_commands);
+  RUN_TEST(test_serial_console_parses_gpio_commands);
   RUN_TEST(test_error_log_keeps_16_and_snapshots_newest_four_in_order);
   RUN_TEST(test_ble_advertising_policy_timeout_and_movement_restart);
   RUN_TEST(test_page_carousel_default_period_and_wrap);

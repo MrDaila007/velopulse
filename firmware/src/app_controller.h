@@ -56,6 +56,14 @@ class AppController {
   void printDiagnostics() const;
   void printAmbientLine() const;
   void printDisplayState() const;
+  void printHallStatus() const;
+  void printHallAnalogLine() const;
+  void maybeLogHallWatch(uint32_t now_ms);
+  void maybeLogHallAnalog(uint32_t now_ms);
+  void printGpioProbe();
+  void maybeLogGpioWatch(uint32_t now_ms);
+  void restoreHallInterrupt();
+  void applyHallEdge(uint8_t active_edge);
 
   DeviceConfig config_;
   InternalFsBackend storage_backend_;
@@ -82,6 +90,16 @@ class AppController {
   bool reboot_pending_ = false;
   uint32_t reboot_requested_ms_ = 0;
   bool ambient_raw_logging_ = false;
+  bool hall_watch_logging_ = false;
+  uint32_t hall_watch_last_ms_ = 0;
+  uint32_t hall_watch_last_pulses_ = 0;
+  bool hall_watch_last_pin_high_ = true;
+  bool hall_analog_logging_ = false;
+  uint32_t hall_analog_last_ms_ = 0;
+  uint16_t hall_analog_last_raw_ = 0;
+  bool gpio_watch_logging_ = false;
+  uint32_t gpio_watch_last_ms_ = 0;
+  bool gpio_watch_last_high_ = true;
 };
 
 }  // namespace bike
