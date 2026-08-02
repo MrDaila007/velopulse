@@ -25,6 +25,7 @@
 ```bash
 pio test -e native
 pio run -e xiao_ble_sense
+pio run -e xiao_ble_sense_deep_sleep   # +BIKECOMP_FEATURE_DEEP_SLEEP=1
 pio run -e xiao_ble_sense_128x32
 pio run -e xiao_ble_sense -t upload
 pio device monitor -b 115200
@@ -58,7 +59,8 @@ LDR даёт `raw=0`, `valid=0` и возвращает пользователь
 ## Serial console
 
 Команды (115200, CR/LF): `open-pairing`, `dump-config`, `reset-odo`, `selftest`,
-`ambient-raw`, `ambient-stop`, `display-state`, `wake-display`. Скрипты в `tools/`.
+`ambient-raw`, `ambient-stop`, `display-state`, `wake-display`, `power-status`, `status`,
+`test-on` / `test-off` (USB regression protocol, см. `tools/usb_regression.py`). Скрипты в `tools/`.
 
 Разметка и форматирование находятся в общих C++-модулях `display_layout.cpp` и
 `display_formatter.cpp`. Эти же файлы напрямую компилирует OLED-симулятор для
@@ -69,3 +71,18 @@ LDR даёт `raw=0`, `valid=0` и возвращает пользователь
 Внешний делитель подключается: `BAT+ → 1 MΩ → P0.31 → 1 MΩ → GND`. P0.31 —
 задняя площадка платы. Калибровка пока номинальная:
 `scale=1000`, `offset=0`; диагностический Serial выводит raw, spread, mV, percent и VBUS.
+
+## Энергосбережение
+
+- `power_save_mode` (config flags bit 6) — немедленный low-power idle после выключения OLED.
+- `deep_sleep_timeout_s` — задержка до low-power idle (0 = выкл); при `deep_sleep_enabled`
+  телеметрия показывает `kDeepSleepPending`.
+- `BIKECOMP_FEATURE_DEEP_SLEEP=1` (профиль `xiao_ble_sense_deep_sleep`) — System OFF с
+  пробуждением от магнита на D1 или USB.
+
+USB regression (host sends fixture lines, firmware executes and answers OK/FAIL):
+
+```bash
+python3 tools/usb_regression.py --port /dev/ttyACM0
+python3 -m unittest tools/test_usb_regression.py
+```

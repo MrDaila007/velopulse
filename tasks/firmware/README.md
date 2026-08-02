@@ -44,5 +44,5 @@
 - [ ] Реализовать boot count и reset reason.
 - [ ] Добавить watchdog и контролируемую инъекцию зависания.
 - [ ] Добавить диагностический snapshot всех counters.
-- [ ] Добавить feature-flag deep sleep и wake от GPIO/USB.
+- [x] Добавить feature-flag deep sleep и wake от GPIO/USB (код; полевая верификация — Э7).
 - [ ] Исключить длительные блокировки из production loop и проверить ISR review.

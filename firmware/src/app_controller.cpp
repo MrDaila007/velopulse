@@ -34,6 +34,8 @@
 #include "config_codec.h"
 #include "board_pins.h"
 #include "boot_counter.h"
+#include "platform/deep_sleep.h"
+#include "serial_usb_test.h"
 
 #ifndef BIKECOMP_HOTPATH_SERIAL
 #define BIKECOMP_HOTPATH_SERIAL 0
@@ -45,6 +47,13 @@
 
 namespace bike {
 namespace {
+
+constexpr size_t kTaskPulses = 0;
+constexpr size_t kTaskState = 1;
+constexpr size_t kTaskAmbient = 2;
+constexpr size_t kTaskBattery = 3;
+constexpr size_t kTaskDisplay = 4;
+constexpr size_t kTaskBle = 5;
 
 int interruptMode(uint8_t active_edge) {
   if (active_edge == 1) return RISING;
@@ -191,6 +200,12 @@ void AppController::begin() {
   ride_state_.reset(millis());
   odometer_save_.noteRideState(ride_state_.state(), millis());
   odometer_save_.noteDisplayPower(display_.powerState());
+  configurePowerManager();
+  applySchedulerPeriods(millis());
+  if (deepSleepWakeFromSleep()) {
+    Serial.print("wake_source=");
+    Serial.println(deepSleepWakeSourceName());
+  }
 
   BleBootSeed ble_seed;
   ble_seed.config_from_flash =
@@ -532,7 +547,387 @@ void AppController::loop() {
   const uint32_t now_ms = millis();
   processSerialConsole(now_ms);
   scheduler_.run(now_ms);
-  yield();
+  updatePowerManager(now_ms);
+
+  if (power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
+    const uint32_t next_due = scheduler_.nextDueMs(now_ms);
+    if (next_due > now_ms && next_due != UINT32_MAX) {
+      const uint32_t delay_ms = next_due - now_ms;
+      if (delay_ms > 1u) delay(delay_ms);
+    }
+  } else {
+    yield();
+  }
+}
+
+void AppController::configurePowerManager() {
+  PowerManagerConfig pm_config;
+  pm_config.power_save_mode = config_.power_save_mode;
+  pm_config.deep_sleep_enabled = config_.deep_sleep_enabled;
+  pm_config.deep_sleep_timeout_s = config_.deep_sleep_timeout_s;
+  power_manager_.configure(pm_config);
+  power_manager_.setBleAlwaysAdvertise(config_.ble_always_advertise);
+}
+
+PowerManagerInput AppController::buildPowerManagerInput(
+    uint32_t now_ms) const {
+  PowerManagerInput input;
+  input.ride_state = ride_state_.state();
+  if (usb_test_mode_) {
+    input.display_power = usb_test_display_power_;
+    input.now_ms = usb_test_now_ms_;
+  } else {
+    input.display_power = display_.powerState();
+    input.now_ms = now_ms;
+  }
+  input.ble_connected = usb_test_mode_ ? false : ble_.bleConnected();
+  input.charging =
+      battery_.snapshot().charge_status == ChargeStatus::kCharging;
+  input.sensor_test_active =
+      usb_test_mode_ ? false : ble_.sensorTestActive();
+  input.display_test_active =
+      usb_test_mode_ ? false : display_.displayTestActive();
+  return input;
+}
+
+void AppController::applySchedulerPeriods(uint32_t now_ms) {
+  const SchedulerPeriods periods = power_manager_.schedulerPeriods();
+  scheduler_.setTaskPeriod(kTaskPulses, periods.pulses_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskState, periods.state_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskAmbient, periods.ambient_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskBattery, periods.battery_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskDisplay, periods.display_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskBle, periods.ble_ms, now_ms);
+}
+
+void AppController::handlePowerManagerResult(
+    const PowerManagerUpdateResult& result, uint32_t now_ms) {
+  if (result.request_deep_sleep_save) {
+    odometer_save_.requestDeepSleepSave();
+    maybePersistOdometer(now_ms);
+  }
+  if (result.mode_changed &&
+      power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
+    ble_.applyPowerSaveAdvertising(power_manager_.aggressiveBlePowerSave());
+  }
+  if (result.request_enter_deep_sleep) {
+    tryEnterDeepSleep(now_ms);
+  }
+}
+
+void AppController::tryEnterDeepSleep(uint32_t now_ms) {
+#if defined(BIKECOMP_FEATURE_DEEP_SLEEP) && BIKECOMP_FEATURE_DEEP_SLEEP
+  if (!config_.deep_sleep_enabled || power_manager_.sleepBlocked()) return;
+
+  odometer_save_.requestDeepSleepSave();
+  const uint64_t odometer_mm = trip_computer_.snapshot().odometer_mm;
+  const OdometerSaveTrigger trigger =
+      odometer_save_.evaluate(odometer_mm, now_ms);
+  if (trigger != OdometerSaveTrigger::kNone &&
+      !persistOdometer(trigger)) {
+    return;
+  }
+
+  display_.turnOff(now_ms);
+  ble_.stopAdvertising();
+  wheel_sensor_.suspendInterrupt();
+
+  if (digitalRead(kHallSensePin) == LOW) {
+    Serial.println("WARN deep-sleep: hall already LOW; wake on magnet release");
+  }
+
+  const bool sense_low = config_.active_edge != 1u;
+  deepSleepPrepareAndEnter(kHallSenseNrfGpio, sense_low);
+#else
+  (void)now_ms;
+#endif
+}
+
+void AppController::updatePowerManager(uint32_t now_ms) {
+  if (!usb_test_mode_ && ble_.bleConnected()) display_.noteActivity(now_ms);
+
+  const PowerManagerUpdateResult result =
+      power_manager_.update(buildPowerManagerInput(now_ms));
+  handlePowerManagerResult(result, now_ms);
+  if (!usb_test_mode_) {
+    applySchedulerPeriods(now_ms);
+    ble_.applyPowerSaveAdvertising(power_manager_.aggressiveBlePowerSave());
+  }
+}
+
+void AppController::printPowerStatus() const {
+  Serial.print("Power: mode=");
+  Serial.print(systemPowerModeName(power_manager_.systemMode()));
+  Serial.print(", deep_sleep_armed=");
+  Serial.print(power_manager_.deepSleepArmed() ? '1' : '0');
+  Serial.print(", blocked=");
+  Serial.print(powerSleepBlockReasonName(power_manager_.blockReason()));
+  Serial.print(", display_off_ms=");
+  Serial.print(power_manager_.displayOffSinceMs());
+  Serial.print(", low_power_entries=");
+  Serial.println(power_manager_.lowPowerIdleEntryCount());
+}
+
+void AppController::printStatus() {
+  const TripSnapshot trip = trip_computer_.snapshot();
+  const BatterySnapshot battery = battery_.snapshot();
+  const DiagnosticSnapshot diag = diagnosticSnapshot();
+  const char* ride = "IDLE";
+  switch (trip.ride_state) {
+    case RideState::kMoving:
+      ride = "MOVING";
+      break;
+    case RideState::kPaused:
+      ride = "PAUSED";
+      break;
+    default:
+      break;
+  }
+  const char* display = "bright";
+  switch (display_.powerState()) {
+    case DisplayPowerState::kDim:
+      display = "dim";
+      break;
+    case DisplayPowerState::kOff:
+      display = "off";
+      break;
+    default:
+      break;
+  }
+  Serial.print("Status: speed_x100=");
+  Serial.print(trip.speed_x100);
+  Serial.print(" avg_speed_x100=");
+  Serial.print(trip.average_speed_x100);
+  Serial.print(" max_speed_x100=");
+  Serial.print(trip.max_speed_x100);
+  Serial.print(" trip_mm=");
+  Serial.print(trip.trip_distance_mm);
+  Serial.print(" odo_mm=");
+  printUint64(trip.odometer_mm);
+  Serial.print(" rev=");
+  Serial.print(trip.revolutions);
+  Serial.print(" total_rev=");
+  printUint64(trip_computer_.totalRevolutions());
+  Serial.print(" moving_ms=");
+  Serial.print(trip.moving_time_ms);
+  Serial.print(" ride=");
+  Serial.print(ride);
+  Serial.print(" battery_mv=");
+  Serial.print(battery.millivolts);
+  Serial.print(" battery_pct=");
+  Serial.print(battery.percent);
+  Serial.print(" battery_valid=");
+  Serial.print(battery.valid ? 1 : 0);
+  Serial.print(" usb=");
+  Serial.print(battery.usb_present ? 1 : 0);
+  Serial.print(" display=");
+  Serial.print(display);
+  Serial.print(" hall=");
+  Serial.print(wheel_sensor_.pinIsHigh() ? "HIGH" : "LOW");
+  Serial.print(" raw_pulses=");
+  Serial.print(diag.raw_pulse_count);
+  Serial.print(" accepted=");
+  Serial.print(pulse_filter_.counters().accepted);
+  Serial.print(" debounce_rej=");
+  Serial.print(diag.rejected_debounce);
+  Serial.print(" overspeed_rej=");
+  Serial.print(diag.rejected_overspeed);
+  Serial.print(" power_mode=");
+  Serial.print(systemPowerModeName(power_manager_.systemMode()));
+  Serial.print(" deep_sleep_armed=");
+  Serial.print(power_manager_.deepSleepArmed() ? 1 : 0);
+  Serial.print(" usb_test=");
+  Serial.println(usb_test_mode_ ? 1 : 0);
+}
+
+void AppController::applyAcceptedPulse(const PulseDecision& decision,
+                                       uint32_t timestamp_us,
+                                       uint32_t now_ms) {
+  if (!usb_test_mode_) {
+    ble_.noteMovement();
+    power_manager_.noteActivity(now_ms);
+    display_.noteActivity(now_ms);
+    odometer_save_.noteDisplayPower(display_.powerState());
+  }
+  applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
+  uint16_t speed = 0;
+  if (!decision.first_pulse) {
+    const bool smooth =
+        usb_test_mode_ ? usb_test_smoothing_enabled_ : config_.smoothing_enabled;
+    speed = speed_calculator_.onInterval(
+        config_.wheel_circumference_mm, decision.interval_us, timestamp_us,
+        smooth, config_.smoothing_window);
+  }
+  if (usb_test_mode_) {
+    trip_computer_.onRevolutionForTest(config_.wheel_circumference_mm, speed);
+  } else {
+    trip_computer_.onRevolution(config_.wheel_circumference_mm, speed);
+  }
+  if (!usb_test_mode_) {
+    maybePersistOdometer(now_ms);
+  }
+}
+
+void AppController::enterUsbTestMode(uint32_t now_ms) {
+  if (!usb_test_backup_valid_) {
+    usb_test_backup_trip_ = trip_computer_.snapshot();
+    usb_test_backup_total_revolutions_ = trip_computer_.totalRevolutions();
+    usb_test_backup_valid_ = true;
+  }
+  usb_test_mode_ = true;
+  usb_test_line_len_ = 0;
+  resetUsbTestSession(now_ms);
+}
+
+void AppController::exitUsbTestMode() {
+  if (usb_test_backup_valid_) {
+    trip_computer_.restoreSnapshot(usb_test_backup_trip_,
+                                 usb_test_backup_total_revolutions_);
+    odometer_save_.markSaved(usb_test_backup_trip_.odometer_mm);
+    usb_test_backup_valid_ = false;
+  }
+  usb_test_mode_ = false;
+  usb_test_line_len_ = 0;
+  if (usb_test_smoothing_saved_) {
+    config_.smoothing_enabled = usb_test_smoothing_enabled_;
+  }
+}
+
+void AppController::resetUsbTestSession(uint32_t now_ms) {
+  pulse_filter_.reset();
+  speed_calculator_.reset();
+  ride_state_.reset(now_ms);
+  trip_computer_.resetTrip();
+  usb_test_last_ts_us_ = 1000000u;
+  usb_test_has_timestamp_ = false;
+  usb_test_display_power_ = DisplayPowerState::kBright;
+  usb_test_now_ms_ = now_ms;
+  usb_test_smoothing_enabled_ = config_.smoothing_enabled;
+  usb_test_smoothing_saved_ = true;
+  PowerManagerConfig pm_config;
+  pm_config.power_save_mode = config_.power_save_mode;
+  pm_config.deep_sleep_enabled = config_.deep_sleep_enabled;
+  pm_config.deep_sleep_timeout_s = config_.deep_sleep_timeout_s;
+  power_manager_.configure(pm_config);
+}
+
+bool AppController::injectUsbTestPulse(uint32_t interval_us,
+                                       uint32_t now_ms,
+                                       char* detail,
+                                       size_t detail_len) {
+  uint32_t timestamp_us = usb_test_last_ts_us_;
+  if (!usb_test_has_timestamp_) {
+    usb_test_has_timestamp_ = true;
+  } else {
+    timestamp_us = usb_test_last_ts_us_ + interval_us;
+    usb_test_now_ms_ += interval_us / 1000u;
+    if (usb_test_now_ms_ <= now_ms) {
+      usb_test_now_ms_ = now_ms + 1u;
+    }
+  }
+  usb_test_last_ts_us_ = timestamp_us;
+
+  const PulseDecision decision =
+      pulse_filter_.process(timestamp_us, true);
+  if (!decision.accepted) {
+    snprintf(detail, detail_len, "rejected=%u",
+             static_cast<unsigned>(decision.rejection));
+    return true;
+  }
+  applyAcceptedPulse(decision, timestamp_us, usb_test_now_ms_);
+  snprintf(detail, detail_len, "interval=%lu speed_x100=%u rev=%lu",
+           decision.first_pulse ? 0UL
+                                : static_cast<unsigned long>(decision.interval_us),
+           trip_computer_.snapshot().speed_x100,
+           static_cast<unsigned long>(trip_computer_.snapshot().revolutions));
+  return true;
+}
+
+void AppController::fillUsbTestSnapshot(UsbTestSnapshot& out) {
+  out = {};
+  const TripSnapshot trip = trip_computer_.snapshot();
+  out.speed_x100 = trip.speed_x100;
+  out.revolutions = trip.revolutions;
+  out.ride_state = trip.ride_state;
+  out.accepted_pulses = pulse_filter_.counters().accepted;
+  out.rejected_debounce = pulse_filter_.counters().rejected_debounce;
+  out.rejected_overspeed = pulse_filter_.counters().rejected_overspeed;
+  out.power_mode = power_manager_.systemMode();
+  out.deep_sleep_armed = power_manager_.deepSleepArmed();
+}
+
+void AppController::usbHookReset(void* context, uint32_t now_ms) {
+  static_cast<AppController*>(context)->resetUsbTestSession(now_ms);
+}
+
+bool AppController::usbHookInject(void* context,
+                                  uint32_t interval_us,
+                                  uint32_t now_ms,
+                                  char* detail,
+                                  size_t detail_len) {
+  return static_cast<AppController*>(context)->injectUsbTestPulse(
+      interval_us, now_ms, detail, detail_len);
+}
+
+void AppController::usbHookSmooth(void* context, bool enabled) {
+  static_cast<AppController*>(context)->usb_test_smoothing_enabled_ = enabled;
+}
+
+void AppController::usbHookSnapshot(void* context, UsbTestSnapshot* out) {
+  static_cast<AppController*>(context)->fillUsbTestSnapshot(*out);
+}
+
+bool AppController::usbHookPowerFixture(void* context,
+                                       DisplayPowerState display_power,
+                                       uint32_t now_ms) {
+  auto* self = static_cast<AppController*>(context);
+  self->usb_test_display_power_ = display_power;
+  self->usb_test_now_ms_ = now_ms;
+  return true;
+}
+
+void AppController::usbHookUpdatePower(void* context, uint32_t now_ms) {
+  auto* self = static_cast<AppController*>(context);
+  PowerManagerInput input;
+  input.ride_state = self->ride_state_.state();
+  input.display_power = self->usb_test_display_power_;
+  input.ble_connected = false;
+  input.charging = false;
+  input.sensor_test_active = false;
+  input.display_test_active = false;
+  input.now_ms = now_ms;
+  self->power_manager_.update(input);
+  self->usb_test_now_ms_ = now_ms;
+}
+
+void AppController::usbHookSetPowerSave(void* context, bool enabled) {
+  auto* self = static_cast<AppController*>(context);
+  PowerManagerConfig pm_config;
+  pm_config.power_save_mode = enabled;
+  pm_config.deep_sleep_enabled = self->config_.deep_sleep_enabled;
+  pm_config.deep_sleep_timeout_s = self->config_.deep_sleep_timeout_s;
+  self->power_manager_.configure(pm_config);
+  self->power_manager_.setBleAlwaysAdvertise(self->config_.ble_always_advertise);
+}
+
+UsbTestHooks AppController::usbTestHooks() {
+  UsbTestHooks hooks = {};
+  hooks.context = this;
+  hooks.reset = usbHookReset;
+  hooks.inject_pulse = usbHookInject;
+  hooks.set_smoothing = usbHookSmooth;
+  hooks.snapshot = usbHookSnapshot;
+  hooks.set_power_fixture = usbHookPowerFixture;
+  hooks.update_power = usbHookUpdatePower;
+  hooks.set_power_save = usbHookSetPowerSave;
+  return hooks;
+}
+
+void AppController::processUsbTestLine(const char* line, uint32_t now_ms) {
+  const UsbTestResult result = handleUsbTestLine(line, usbTestHooks(), now_ms);
+  char buffer[kUsbTestResponseMax + 8] = {};
+  formatUsbTestResult(result, buffer, sizeof(buffer));
+  Serial.println(buffer);
 }
 
 void AppController::processSerialConsole(uint32_t now_ms) {
@@ -541,9 +936,31 @@ void AppController::processSerialConsole(uint32_t now_ms) {
   while (Serial.available() > 0) {
     const int value = Serial.read();
     if (value < 0) break;
+    const char ch = static_cast<char>(value);
 
-    const SerialCommand command =
-        serial_command_parser_.feed(static_cast<char>(value));
+    if (usb_test_mode_) {
+      if (ch == '\r' || ch == '\n') {
+        if (usb_test_line_len_ > 0) {
+          usb_test_line_[usb_test_line_len_] = '\0';
+          if (strcmp(usb_test_line_, "test-off") == 0) {
+            exitUsbTestMode();
+            Serial.println("OK test-off");
+          } else {
+            processUsbTestLine(usb_test_line_, now_ms);
+            usb_test_line_len_ = 0;
+          }
+        }
+      } else if (usb_test_line_len_ + 1u < kUsbTestLineMax) {
+        usb_test_line_[usb_test_line_len_++] = ch;
+      }
+      continue;
+    }
+
+    const SerialCommand command = serial_command_parser_.feed(ch);
+    if (command != SerialCommand::kNone &&
+        command != SerialCommand::kUnknown) {
+      power_manager_.noteActivity(now_ms);
+    }
     switch (command) {
       case SerialCommand::kNone:
         break;
@@ -688,6 +1105,26 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         Serial.println("OK gpio-watch logging=0 (polling on)");
         break;
 
+      case SerialCommand::kPowerStatus:
+        printPowerStatus();
+        Serial.println("OK power-status");
+        break;
+
+      case SerialCommand::kStatus:
+        printStatus();
+        Serial.println("OK status");
+        break;
+
+      case SerialCommand::kTestOn:
+        enterUsbTestMode(now_ms);
+        Serial.println("OK test-on");
+        break;
+
+      case SerialCommand::kTestOff:
+        exitUsbTestMode();
+        Serial.println("OK test-off");
+        break;
+
       case SerialCommand::kUnknown:
         Serial.println("ERROR unknown-command");
         break;
@@ -786,10 +1223,13 @@ void AppController::applyRideUpdate(const RideUpdate& update, uint32_t now_ms) {
   if (update.moving_delta_ms != 0) trip_computer_.addMovingTime(update.moving_delta_ms);
   trip_computer_.setRideState(update.state);
   if (update.state != RideState::kMoving) trip_computer_.setCurrentSpeed(0);
-  odometer_save_.noteRideState(update.state, now_ms);
+  if (!usb_test_mode_) {
+    odometer_save_.noteRideState(update.state, now_ms);
+  }
 }
 
 void AppController::maybePersistOdometer(uint32_t now_ms) {
+  if (usb_test_mode_) return;
   const uint64_t odometer_mm = trip_computer_.snapshot().odometer_mm;
   const OdometerSaveTrigger trigger =
       odometer_save_.evaluate(odometer_mm, now_ms);
@@ -847,7 +1287,8 @@ void AppController::processPulses(uint32_t now_ms) {
   maybeLogHallAnalog(now_ms);
   PulseEvent event;
   while (wheel_sensor_.pop(event)) {
-    const PulseDecision decision = pulse_filter_.process(event.timestamp_us, event.returned_passive);
+    const PulseDecision decision =
+        pulse_filter_.process(event.timestamp_us, event.returned_passive);
     if (!decision.accepted) {
 #if BIKECOMP_HOTPATH_SERIAL
       Serial.print("Pulse rejected: ");
@@ -856,36 +1297,27 @@ void AppController::processPulses(uint32_t now_ms) {
       continue;
     }
 
-    ble_.noteMovement();
-    display_.noteActivity(now_ms);
-    odometer_save_.noteDisplayPower(display_.powerState());
-    applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
-    uint16_t speed = 0;
-    if (!decision.first_pulse) {
-      speed = speed_calculator_.onInterval(config_.wheel_circumference_mm,
-                                           decision.interval_us,
-                                           event.timestamp_us,
-                                           config_.smoothing_enabled,
-                                           config_.smoothing_window);
-    }
-    trip_computer_.onRevolution(config_.wheel_circumference_mm, speed);
-    maybePersistOdometer(now_ms);
+    applyAcceptedPulse(decision, event.timestamp_us, now_ms);
 
 #if BIKECOMP_HOTPATH_SERIAL
     Serial.print("Revolution ");
     Serial.print(trip_computer_.snapshot().revolutions);
     Serial.print(", speed x100=");
-    Serial.println(speed);
+    Serial.println(trip_computer_.snapshot().speed_x100);
 #endif
   }
 }
 
 void AppController::updateState(uint32_t now_ms) {
-  applyRideUpdate(ride_state_.update(now_ms), now_ms);
+  const uint32_t effective_ms = usb_test_mode_ ? usb_test_now_ms_ : now_ms;
+  applyRideUpdate(ride_state_.update(effective_ms), effective_ms);
+  const uint32_t now_us = usb_test_mode_ ? usb_test_last_ts_us_ : micros();
   const uint16_t speed = speed_calculator_.updateForTimeout(
-      micros(), static_cast<uint32_t>(config_.stop_timeout_s) * 1000000u);
-  if (ride_state_.state() == RideState::kMoving) trip_computer_.setCurrentSpeed(speed);
-  maybePersistOdometer(now_ms);
+      now_us, static_cast<uint32_t>(config_.stop_timeout_s) * 1000000u);
+  if (ride_state_.state() == RideState::kMoving) {
+    trip_computer_.setCurrentSpeed(speed);
+  }
+  maybePersistOdometer(effective_ms);
 }
 
 void AppController::updateAmbient(uint32_t now_ms) {
@@ -896,7 +1328,7 @@ void AppController::updateAmbient(uint32_t now_ms) {
 }
 
 void AppController::updateDisplay(uint32_t now_ms) {
-  if (display_.updatePower(now_ms)) {
+  if (!usb_test_mode_ && display_.updatePower(now_ms)) {
     odometer_save_.noteDisplayPower(display_.powerState());
   }
   maybePersistOdometer(now_ms);
@@ -910,8 +1342,10 @@ void AppController::updateDisplay(uint32_t now_ms) {
 void AppController::updateBattery(uint32_t now_ms) {
   if (!battery_.update(now_ms)) return;
   const BatterySnapshot& snapshot = battery_.snapshot();
-  odometer_save_.noteUsbPresent(snapshot.usb_present);
-  odometer_save_.noteBatteryPercent(snapshot.percent, snapshot.valid);
+  if (!usb_test_mode_) {
+    odometer_save_.noteUsbPresent(snapshot.usb_present);
+    odometer_save_.noteBatteryPercent(snapshot.percent, snapshot.valid);
+  }
   ble_.noteUsbPresent(snapshot.usb_present);
   maybePersistOdometer(now_ms);
   const bool critical = snapshot.valid && snapshot.percent <= 5u;
@@ -946,6 +1380,7 @@ void AppController::applyConfig(const DeviceConfig& new_config) {
   odometer_save_.configure(config_.odometer_save_interval_m);
   display_.applyRuntimeConfig(config_, millis());
   battery_.applyRuntimeConfig(config_, millis());
+  configurePowerManager();
   if (config_.active_edge != previous_edge) {
     wheel_sensor_.begin(kHallPin, interruptMode(config_.active_edge));
   }
@@ -1186,6 +1621,11 @@ void AppController::updateBle(uint32_t now_ms) {
   input.trip = trip_computer_.snapshot();
   input.battery = battery_.snapshot();
   input.display_on = display_.powerState() != DisplayPowerState::kOff;
+  input.ble_connected = ble_.bleConnected();
+  input.low_power_idle =
+      power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle;
+  input.deep_sleep_pending =
+      power_manager_.deepSleepArmed() && config_.deep_sleep_enabled;
   input.smoothing_enabled = config_.smoothing_enabled;
   input.units_imperial = config_.units_imperial;
   input.had_pulse = ride_state_.hasPulse();

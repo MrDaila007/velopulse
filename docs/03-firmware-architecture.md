@@ -313,19 +313,31 @@ avg_speed_x100 = (trip_distance_mm * 360UL) / moving_time_ms       // при mov
   приглушённый режим; содержимое и частота обновления не меняются.
 * `SHORT_STOP → IDLE_DISPLAY_OFF`: истёк полный `display_timeout_s` (0 = «никогда»).
   Перед выключением дисплея — принудительная запись одометра (ТЗ §9.2).
-* `IDLE_DISPLAY_OFF → DEEP_SLEEP`: истёк `deep_sleep_timeout_s`; при `FEATURE_DEEP_SLEEP=0`
-  переход заменяется на «низкочастотный idle» (loop 10 Гц, медленная реклама).
+* `IDLE_DISPLAY_OFF → LOW_POWER_IDLE`: `power_save_mode` **или** истёк `deep_sleep_timeout_s`
+  после выключения дисплея. Реализовано в `PowerManager` (`lib/domain/power_manager.*`).
+* `LOW_POWER_IDLE`: scheduler замедляется (10–5000 мс), между итерациями `loop()` — `delay()`
+  до ближайшей задачи; при `power_save_mode` BLE-реклама останавливается.
+* `LOW_POWER_IDLE → DEEP_SLEEP`: при `BIKECOMP_FEATURE_DEEP_SLEEP=1` и `deep_sleep_enabled`
+  в конфиге — `sd_power_system_off()` после сохранения одометра (`platform/deep_sleep_nrf52.cpp`).
+  При `BIKECOMP_FEATURE_DEEP_SLEEP=0` телеметрия сообщает `kDeepSleepPending`, но остаётся
+  low-power idle (ADR-009).
 * Пробуждение из `DEEP_SLEEP`: GPIO SENSE на пине Холла, подключение USB (ТЗ §10.2).
 * `CHARGING` определяется по `PIN_CHG` + наличию VBUS; в этом состоянии deep sleep запрещён,
   дисплей показывает индикацию заряда.
 
 ### 7.3. Реализация глубокого сна
 
-Архитектурно предусмотрен интерфейс `PowerManager::enterDeepSleep()`; в v1.0 за флагом
-`FEATURE_DEEP_SLEEP` (по умолчанию **выключен**, ТЗ §10.2 это допускает). Внутри:
-`sd_power_system_off()` с предварительной настройкой `nrf_gpio_cfg_sense_input` на пине
-Холла и записью всех персистентных данных. Пробуждение = аппаратный reset → при старте
-`reset_reason` показывает `WAKE_FROM_SLEEP`, счётчики восстанавливаются из Flash.
+`PowerManager` (host-testable) управляет `SystemPowerMode` и блокировками сна.
+Платформенный адаптер `src/platform/deep_sleep_nrf52.cpp` вызывает
+`sd_power_system_off()` с `nrf_gpio_cfg_sense_input` на P0.03 (D1) и резервным
+пробуждением по USB (VBUS / CHG). Сборка с глубоким сном:
+
+```bash
+pio run -e xiao_ble_sense_deep_sleep -t upload
+```
+
+По умолчанию `BIKECOMP_FEATURE_DEEP_SLEEP` **выключен**; `deep_sleep_enabled` в
+конфиге тоже `0`. Диагностика: serial-команда `power-status`.
 
 ## 8. DisplayManager
 

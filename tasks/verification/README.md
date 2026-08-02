@@ -3,7 +3,10 @@
 ## Задачи
 
 - [ ] 7.1 Измерить current во всех режимах и убрать лишние wakeups.
+  Реализовано: `PowerManager` low-power idle, `power-status`, замедленный scheduler.
+  Ожидаемый idle с OLED off: 0.6–1.5 мА (ADR-009). Замер на стенде — вручную.
 - [ ] 7.2 Проверить deep sleep и wake от Hall/USB.
+  Код: `xiao_ble_sense_deep_sleep`, GPIO SENSE P0.03 + VBUS. 50 циклов — вручную.
 - [ ] 7.3 Выполнить 100 BLE connect/disconnect и connection 2 ч.
 - [ ] 7.4 Выполнить 500 save cycles и проверить flash counters.
 - [ ] 7.5 Проверить vibration, bumps, Hall gaps и false pulses.

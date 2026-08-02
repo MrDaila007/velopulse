@@ -8,10 +8,12 @@
 #include "display_manager.h"
 #include "internal_fs_backend.h"
 #include "odometer_save_policy.h"
+#include "power_manager.h"
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
 #include "serial_console.h"
+#include "serial_usb_test.h"
 #include "speed_calculator.h"
 #include "storage_manager.h"
 #include "trip_computer.h"
@@ -64,6 +66,43 @@ class AppController {
   void maybeLogGpioWatch(uint32_t now_ms);
   void restoreHallInterrupt();
   void applyHallEdge(uint8_t active_edge);
+  void configurePowerManager();
+  PowerManagerInput buildPowerManagerInput(uint32_t now_ms) const;
+  void updatePowerManager(uint32_t now_ms);
+  void applySchedulerPeriods(uint32_t now_ms);
+  void handlePowerManagerResult(const PowerManagerUpdateResult& result,
+                                uint32_t now_ms);
+  void tryEnterDeepSleep(uint32_t now_ms);
+  void printPowerStatus() const;
+  void printStatus();
+  void processUsbTestLine(const char* line, uint32_t now_ms);
+  void resetUsbTestSession(uint32_t now_ms);
+  bool injectUsbTestPulse(uint32_t interval_us,
+                          uint32_t now_ms,
+                          char* detail,
+                          size_t detail_len);
+  void fillUsbTestSnapshot(UsbTestSnapshot& out);
+  void applyAcceptedPulse(const PulseDecision& decision,
+                          uint32_t timestamp_us,
+                          uint32_t now_ms);
+
+  void exitUsbTestMode();
+  void enterUsbTestMode(uint32_t now_ms);
+
+  static void usbHookReset(void* context, uint32_t now_ms);
+  static bool usbHookInject(void* context,
+                            uint32_t interval_us,
+                            uint32_t now_ms,
+                            char* detail,
+                            size_t detail_len);
+  static void usbHookSmooth(void* context, bool enabled);
+  static void usbHookSnapshot(void* context, UsbTestSnapshot* out);
+  static bool usbHookPowerFixture(void* context,
+                                  DisplayPowerState display_power,
+                                  uint32_t now_ms);
+  static void usbHookUpdatePower(void* context, uint32_t now_ms);
+  static void usbHookSetPowerSave(void* context, bool enabled);
+  UsbTestHooks usbTestHooks();
 
   DeviceConfig config_;
   InternalFsBackend storage_backend_;
@@ -78,6 +117,7 @@ class AppController {
   BatteryManager battery_;
   DisplayManager display_;
   BleManager ble_;
+  PowerManager power_manager_;
   SerialCommandParser serial_command_parser_;
   ScheduledTask tasks_[6];
   Scheduler scheduler_;
@@ -100,6 +140,18 @@ class AppController {
   bool gpio_watch_logging_ = false;
   uint32_t gpio_watch_last_ms_ = 0;
   bool gpio_watch_last_high_ = true;
+  bool usb_test_mode_ = false;
+  bool usb_test_smoothing_saved_ = false;
+  bool usb_test_smoothing_enabled_ = true;
+  char usb_test_line_[kUsbTestLineMax] = {};
+  size_t usb_test_line_len_ = 0;
+  uint32_t usb_test_last_ts_us_ = 1000000u;
+  bool usb_test_has_timestamp_ = false;
+  DisplayPowerState usb_test_display_power_ = DisplayPowerState::kBright;
+  uint32_t usb_test_now_ms_ = 0;
+  bool usb_test_backup_valid_ = false;
+  TripSnapshot usb_test_backup_trip_ = {};
+  uint64_t usb_test_backup_total_revolutions_ = 0;
 };
 
 }  // namespace bike

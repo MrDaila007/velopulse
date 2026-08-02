@@ -30,11 +30,13 @@
 #include "display_power.h"
 #include "odometer_save_policy.h"
 #include "page_carousel.h"
+#include "power_manager.h"
 #include "protocol_codec.h"
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
 #include "serial_console.h"
+#include "serial_usb_test.h"
 #include "speed_calculator.h"
 #include "speed_interval_guard.h"
 #include "storage_manager.h"
@@ -91,6 +93,17 @@ void test_serial_console_trims_rejects_and_recovers_after_overflow() {
     result = parser.feed(recovered[i]);
   }
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kDumpConfig),
+                          static_cast<uint8_t>(result));
+}
+
+void test_serial_console_parses_status_command() {
+  SerialCommandParser parser;
+  SerialCommand result = SerialCommand::kNone;
+  const char* command = "status\n";
+  for (size_t i = 0; command[i] != '\0'; ++i) {
+    result = parser.feed(command[i]);
+  }
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kStatus),
                           static_cast<uint8_t>(result));
 }
 
@@ -959,6 +972,29 @@ void test_trip_restores_only_persistent_totals() {
   TEST_ASSERT_EQUAL_UINT64(9876543211ull, trip.totalRevolutions());
 }
 
+void test_trip_test_revolution_skips_persistent_totals() {
+  TripComputer trip;
+  trip.restorePersistentTotals(50000ull, 100ull);
+  trip.onRevolutionForTest(2100, 2520);
+  trip.onRevolutionForTest(2100, 3000);
+  TEST_ASSERT_EQUAL_UINT32(2u, trip.snapshot().revolutions);
+  TEST_ASSERT_EQUAL_UINT32(4200u, trip.snapshot().trip_distance_mm);
+  TEST_ASSERT_EQUAL_UINT16(3000u, trip.snapshot().max_speed_x100);
+  TEST_ASSERT_EQUAL_UINT64(50000ull, trip.snapshot().odometer_mm);
+  TEST_ASSERT_EQUAL_UINT64(100ull, trip.totalRevolutions());
+}
+
+void test_trip_restore_snapshot_reverts_session() {
+  TripComputer trip;
+  trip.restorePersistentTotals(1000ull, 10ull);
+  const TripSnapshot backup = trip.snapshot();
+  trip.onRevolutionForTest(2100, 1500);
+  trip.restoreSnapshot(backup, 10ull);
+  TEST_ASSERT_EQUAL_UINT32(0u, trip.snapshot().revolutions);
+  TEST_ASSERT_EQUAL_UINT64(1000ull, trip.snapshot().odometer_mm);
+  TEST_ASSERT_EQUAL_UINT64(10ull, trip.totalRevolutions());
+}
+
 void test_ride_state_transitions_and_paused_time() {
   RideStateMachine ride(3000);
   ride.reset(1000);
@@ -1654,6 +1690,216 @@ void test_fill_telemetry_packet_moving_and_idle() {
                           packet.sensor_state);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PowerState::kIdleDisplayOff),
                           packet.power_state);
+}
+
+void test_map_telemetry_power_state_extended() {
+  TelemetryBuildInput input;
+  input.battery.charge_status = ChargeStatus::kCharging;
+  TEST_ASSERT_EQUAL(PowerState::kCharging, mapTelemetryPowerState(input));
+
+  input.battery.charge_status = ChargeStatus::kNotCharging;
+  input.ble_connected = true;
+  TEST_ASSERT_EQUAL(PowerState::kBleConfig, mapTelemetryPowerState(input));
+
+  input.ble_connected = false;
+  input.deep_sleep_pending = true;
+  TEST_ASSERT_EQUAL(PowerState::kDeepSleepPending,
+                    mapTelemetryPowerState(input));
+
+  input.deep_sleep_pending = false;
+  input.display_on = false;
+  TEST_ASSERT_EQUAL(PowerState::kIdleDisplayOff,
+                    mapTelemetryPowerState(input));
+
+  input.display_on = true;
+  input.trip.ride_state = RideState::kPaused;
+  TEST_ASSERT_EQUAL(PowerState::kShortStop, mapTelemetryPowerState(input));
+
+  input.trip.ride_state = RideState::kMoving;
+  TEST_ASSERT_EQUAL(PowerState::kActive, mapTelemetryPowerState(input));
+}
+
+void test_power_manager_power_save_and_timeout() {
+  PowerManager manager;
+  PowerManagerConfig config;
+  config.power_save_mode = true;
+  config.deep_sleep_enabled = false;
+  config.deep_sleep_timeout_s = 900;
+  manager.configure(config);
+
+  PowerManagerInput input;
+  input.display_power = DisplayPowerState::kOff;
+  input.now_ms = 1000;
+  PowerManagerUpdateResult result = manager.update(input);
+  TEST_ASSERT_TRUE(result.mode_changed);
+  TEST_ASSERT_EQUAL(SystemPowerMode::kLowPowerIdle, manager.systemMode());
+  TEST_ASSERT_FALSE(manager.deepSleepArmed());
+
+  manager.noteActivity(2000);
+  TEST_ASSERT_EQUAL(SystemPowerMode::kNormal, manager.systemMode());
+
+  config.power_save_mode = false;
+  config.deep_sleep_timeout_s = 60;
+  manager.configure(config);
+  input.now_ms = 0;
+  manager.update(input);
+  TEST_ASSERT_EQUAL(SystemPowerMode::kNormal, manager.systemMode());
+
+  input.now_ms = 59000;
+  manager.update(input);
+  TEST_ASSERT_EQUAL(SystemPowerMode::kNormal, manager.systemMode());
+
+  input.now_ms = 60000;
+  result = manager.update(input);
+  TEST_ASSERT_EQUAL(SystemPowerMode::kLowPowerIdle, manager.systemMode());
+  TEST_ASSERT_TRUE(manager.deepSleepArmed());
+}
+
+void test_power_manager_deep_sleep_timeout_zero_and_ble_block() {
+  PowerManager manager;
+  PowerManagerConfig config;
+  config.deep_sleep_timeout_s = 0;
+  manager.configure(config);
+
+  PowerManagerInput input;
+  input.display_power = DisplayPowerState::kOff;
+  input.now_ms = 100000;
+  manager.update(input);
+  TEST_ASSERT_EQUAL(SystemPowerMode::kNormal, manager.systemMode());
+
+  config.deep_sleep_timeout_s = 60;
+  manager.configure(config);
+  input.ble_connected = true;
+  manager.update(input);
+  TEST_ASSERT_EQUAL(SystemPowerMode::kNormal, manager.systemMode());
+  TEST_ASSERT_EQUAL(PowerSleepBlockReason::kBleConnected,
+                    manager.blockReason());
+}
+
+void test_power_manager_deep_sleep_save_request() {
+  PowerManager manager;
+  PowerManagerConfig config;
+  config.deep_sleep_enabled = true;
+  config.deep_sleep_timeout_s = 10;
+  manager.configure(config);
+
+  PowerManagerInput input;
+  input.display_power = DisplayPowerState::kOff;
+  input.now_ms = 0;
+  manager.update(input);
+  PowerManagerUpdateResult result = manager.update(input);
+  TEST_ASSERT_FALSE(result.request_deep_sleep_save);
+
+  input.now_ms = 10000;
+  result = manager.update(input);
+  TEST_ASSERT_TRUE(result.request_deep_sleep_save);
+  TEST_ASSERT_TRUE(manager.deepSleepArmed());
+}
+
+struct MockUsbTestState {
+  uint32_t speed_x100 = 0;
+  uint32_t revolutions = 0;
+  uint32_t accepted = 0;
+  bool smooth = false;
+  bool power_save = false;
+  DisplayPowerState display = DisplayPowerState::kBright;
+};
+
+void mockUsbReset(void* context, uint32_t now_ms) {
+  auto* state = static_cast<MockUsbTestState*>(context);
+  (void)now_ms;
+  state->speed_x100 = 0;
+  state->revolutions = 0;
+  state->accepted = 0;
+}
+
+bool mockUsbInject(void* context,
+                   uint32_t interval_us,
+                   uint32_t now_ms,
+                   char* detail,
+                   size_t detail_len) {
+  auto* state = static_cast<MockUsbTestState*>(context);
+  (void)interval_us;
+  (void)now_ms;
+  ++state->accepted;
+  ++state->revolutions;
+  if (state->accepted > 1) state->speed_x100 = 3600;
+  snprintf(detail, detail_len, "interval=%lu", static_cast<unsigned long>(interval_us));
+  return true;
+}
+
+void mockUsbSmooth(void* context, bool enabled) {
+  static_cast<MockUsbTestState*>(context)->smooth = enabled;
+}
+
+void mockUsbSnapshot(void* context, UsbTestSnapshot* out) {
+  const auto* state = static_cast<const MockUsbTestState*>(context);
+  out->speed_x100 = static_cast<uint16_t>(state->speed_x100);
+  out->revolutions = state->revolutions;
+  out->ride_state = RideState::kMoving;
+  out->accepted_pulses = state->accepted;
+}
+
+bool mockUsbPowerFixture(void* context,
+                         DisplayPowerState display_power,
+                         uint32_t now_ms) {
+  auto* state = static_cast<MockUsbTestState*>(context);
+  (void)now_ms;
+  state->display = display_power;
+  return true;
+}
+
+void mockUsbUpdatePower(void* context, uint32_t now_ms) {
+  auto* state = static_cast<MockUsbTestState*>(context);
+  (void)now_ms;
+  if (state->power_save && state->display == DisplayPowerState::kOff) {
+    state->speed_x100 = 0;
+  }
+}
+
+void mockUsbSetPowerSave(void* context, bool enabled) {
+  static_cast<MockUsbTestState*>(context)->power_save = enabled;
+}
+
+void test_serial_usb_test_speed_and_expect() {
+  MockUsbTestState state;
+  UsbTestHooks hooks = {};
+  hooks.context = &state;
+  hooks.reset = mockUsbReset;
+  hooks.inject_pulse = mockUsbInject;
+  hooks.set_smoothing = mockUsbSmooth;
+  hooks.snapshot = mockUsbSnapshot;
+  hooks.set_power_fixture = mockUsbPowerFixture;
+  hooks.update_power = mockUsbUpdatePower;
+  hooks.set_power_save = mockUsbSetPowerSave;
+
+  UsbTestResult reset = handleUsbTestLine("reset", hooks, 0);
+  TEST_ASSERT_EQUAL(UsbTestStatus::kOk, reset.status);
+
+  UsbTestResult pulse = handleUsbTestLine("pulse 210000", hooks, 0);
+  TEST_ASSERT_EQUAL(UsbTestStatus::kOk, pulse.status);
+
+  UsbTestResult expect_ok = handleUsbTestLine("expect revolutions 1", hooks, 0);
+  TEST_ASSERT_EQUAL(UsbTestStatus::kOk, expect_ok.status);
+
+  UsbTestResult expect_bad = handleUsbTestLine("expect speed_x100 9999", hooks, 0);
+  TEST_ASSERT_EQUAL(UsbTestStatus::kFail, expect_bad.status);
+}
+
+void test_scheduler_next_due_and_set_period() {
+  int calls = 0;
+  auto callback = [](void* context, uint32_t) {
+    ++(*static_cast<int*>(context));
+  };
+  ScheduledTask tasks[] = {{"task", 100, 0, callback, &calls, 0}};
+  Scheduler scheduler(tasks, 1);
+  scheduler.run(0);
+  TEST_ASSERT_EQUAL(1, calls);
+  TEST_ASSERT_EQUAL_UINT32(100u, scheduler.nextDueMs(0));
+  scheduler.setTaskPeriod(0, 200, 50);
+  TEST_ASSERT_EQUAL_UINT32(50u, scheduler.nextDueMs(50));
+  scheduler.run(50);
+  TEST_ASSERT_EQUAL_UINT32(250u, scheduler.nextDueMs(50));
 }
 
 void test_ride_state_tracks_last_pulse() {
@@ -2366,10 +2612,13 @@ int main(int, char**) {
   RUN_TEST(test_speed_gap_reset_clears_guard);
   RUN_TEST(test_trip_accumulation_average_and_reset);
   RUN_TEST(test_trip_restores_only_persistent_totals);
+  RUN_TEST(test_trip_test_revolution_skips_persistent_totals);
+  RUN_TEST(test_trip_restore_snapshot_reverts_session);
   RUN_TEST(test_ride_state_transitions_and_paused_time);
   RUN_TEST(test_scheduler_period_and_wrap);
   RUN_TEST(test_serial_console_parses_supported_commands_and_crlf);
   RUN_TEST(test_serial_console_trims_rejects_and_recovers_after_overflow);
+  RUN_TEST(test_serial_console_parses_status_command);
   RUN_TEST(test_serial_console_parses_ambient_commands);
   RUN_TEST(test_serial_console_parses_display_commands);
   RUN_TEST(test_serial_console_parses_hall_commands);
@@ -2404,6 +2653,12 @@ int main(int, char**) {
   RUN_TEST(test_boot_count_increments_and_persists);
   RUN_TEST(test_telemetry_publish_mode_and_intervals);
   RUN_TEST(test_fill_telemetry_packet_moving_and_idle);
+  RUN_TEST(test_map_telemetry_power_state_extended);
+  RUN_TEST(test_power_manager_power_save_and_timeout);
+  RUN_TEST(test_power_manager_deep_sleep_timeout_zero_and_ble_block);
+  RUN_TEST(test_power_manager_deep_sleep_save_request);
+  RUN_TEST(test_serial_usb_test_speed_and_expect);
+  RUN_TEST(test_scheduler_next_due_and_set_period);
   RUN_TEST(test_ride_state_tracks_last_pulse);
   RUN_TEST(test_config_write_parse_valid_and_range_error);
   RUN_TEST(test_config_write_pending_queue_single_slot);
