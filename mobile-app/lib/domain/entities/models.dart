@@ -261,3 +261,67 @@ abstract class CommandResult with _$CommandResult {
   factory CommandResult.fromJson(Map<String, Object?> json) =>
       _$CommandResultFromJson(json);
 }
+
+class DiagnosticSnapshot {
+  const DiagnosticSnapshot({
+    required this.rawPulseCount,
+    required this.rejectedDebounce,
+    required this.rejectedOverspeed,
+    required this.isrOverflow,
+    required this.flashWriteCount,
+    required this.freeHeapBytes,
+    required this.i2cErrorCount,
+    required this.selftestMask,
+  });
+
+  final int rawPulseCount;
+  final int rejectedDebounce;
+  final int rejectedOverspeed;
+  final int isrOverflow;
+  final int flashWriteCount;
+  final int freeHeapBytes;
+  final int i2cErrorCount;
+  final int selftestMask;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'rawPulseCount': rawPulseCount,
+    'rejectedDebounce': rejectedDebounce,
+    'rejectedOverspeed': rejectedOverspeed,
+    'isrOverflow': isrOverflow,
+    'flashWriteCount': flashWriteCount,
+    'freeHeapBytes': freeHeapBytes,
+    'i2cErrorCount': i2cErrorCount,
+    'selftestMask': selftestMask,
+  };
+}
+
+class ErrorLogEntry {
+  const ErrorLogEntry({
+    required this.uptimeS,
+    required this.code,
+    required this.severity,
+    required this.detail,
+  });
+
+  final int uptimeS;
+  final int code;
+  final int severity;
+  final int detail;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'uptimeS': uptimeS,
+    'code': code,
+    'severity': severity,
+    'detail': detail,
+  };
+}
+
+class ErrorLogBatch {
+  const ErrorLogBatch({required this.entries});
+
+  final List<ErrorLogEntry> entries;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'entries': entries.map((entry) => entry.toJson()).toList(growable: false),
+  };
+}

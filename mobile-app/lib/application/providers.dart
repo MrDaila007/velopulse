@@ -9,7 +9,9 @@ import '../data/ble/ble_transport.dart';
 import '../data/ble/fake_ble_transport.dart';
 import '../data/ble/reactive_ble_transport.dart';
 import '../data/local/preferences_store.dart';
+import '../data/log_exporter.dart';
 import '../data/protocol/ble_uuids.dart';
+import '../data/ride_log_recorder.dart';
 import '../domain/entities/models.dart';
 import '../domain/validators/config_validator.dart';
 import '../platform/android_ble_platform.dart';
@@ -159,6 +161,7 @@ class ConnectionController extends _$ConnectionController {
   late BleTransport _transport;
   late PreferencesStore _store;
   late AndroidBlePlatform _platform;
+  final RideLogRecorder _rideLog = RideLogRecorder();
 
   @override
   SessionState build() {
@@ -265,6 +268,7 @@ class ConnectionController extends _$ConnectionController {
     _explicitDisconnect = false;
     _handlingUnexpectedDisconnect = false;
     _reconnectTimer?.cancel();
+    _rideLog.clear();
     state = state.copyWith(
       connection: const ConnectionState.connecting(),
       selectedDevice: device,
@@ -390,6 +394,7 @@ class ConnectionController extends _$ConnectionController {
     unawaited(_configSubscription?.cancel());
     unawaited(_rssiSubscription?.cancel());
     _telemetrySubscription = repository.telemetry.listen((telemetry) {
+      _rideLog.record(telemetry, rssi: state.rssi);
       state = state.copyWith(
         telemetry: telemetry,
         lastTelemetryAt: DateTime.now(),
@@ -564,6 +569,44 @@ class ConnectionController extends _$ConnectionController {
 
   void clearMessage() =>
       state = state.copyWith(lastMessage: null, lastError: null);
+
+  int get rideLogSampleCount => _rideLog.samples.length;
+
+  Future<Result<String>> exportSessionLog() async {
+    if (_repository == null) {
+      return const Failure<String>(
+        AppFailure(
+          kind: AppErrorKind.connectionLost,
+          message: 'Экспорт доступен только при подключении',
+        ),
+      );
+    }
+    final diagnosticResult = await _repository!.getDiagnostic();
+    final errorLogResult = await _repository!.readErrorLog();
+    if (diagnosticResult case Failure<DiagnosticSnapshot>(:final error)) {
+      return Failure<String>(error);
+    }
+    if (errorLogResult case Failure<ErrorLogBatch>(:final error)) {
+      return Failure<String>(error);
+    }
+    try {
+      final file = await LogExporter.write(
+        exportedAt: DateTime.now(),
+        deviceId: state.selectedDevice?.deviceId,
+        deviceInfo: state.deviceInfo,
+        config: state.deviceConfig,
+        diagnostic: (diagnosticResult as Success<DiagnosticSnapshot>).value,
+        errorLog: (errorLogResult as Success<ErrorLogBatch>).value,
+        samples: _rideLog.samples,
+        rssi: state.rssi,
+        connectionState: state.connection,
+        sensorTestActive: state.sensorTestActive,
+      );
+      return Success(file.path);
+    } on Object catch (error) {
+      return Failure<String>(AppErrors.unknown(error));
+    }
+  }
 
   void _dispose() {
     _reconnectTimer?.cancel();

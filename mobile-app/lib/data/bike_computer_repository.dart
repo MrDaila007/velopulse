@@ -17,6 +17,8 @@ abstract interface class BikeComputerRepository {
   Future<Result<DeviceInfo>> readDeviceInfo();
   Future<Result<DeviceConfig>> readConfig();
   Future<Result<Telemetry>> readTelemetry();
+  Future<Result<DiagnosticSnapshot>> getDiagnostic();
+  Future<Result<ErrorLogBatch>> readErrorLog();
   Future<Result<void>> writeConfig(DeviceConfig config);
   Future<Result<CommandResult>> sendCommand(DeviceCommand command);
   Future<void> setTelemetrySubscribed(bool value);
@@ -129,6 +131,55 @@ class BikeComputerRepositoryImpl implements BikeComputerRepository {
     );
     _telemetry.add(value);
     return value;
+  });
+
+  @override
+  Future<Result<DiagnosticSnapshot>> getDiagnostic() => _enqueue(() async {
+    final response = _nextResult(DeviceCommandId.getDiagnostic);
+    try {
+      await _transport.writeWithResponse(
+        BleUuids.command,
+        ProtocolCodecs.encodeCommand(
+          const DeviceCommand(id: DeviceCommandId.getDiagnostic),
+        ),
+      );
+      final result = await response;
+      if (result.status != CommandStatus.ok) {
+        return Failure<DiagnosticSnapshot>(_resultError(result));
+      }
+      if (result.payload.length != ProtocolCodecs.diagnosticPayloadSize) {
+        return Failure<DiagnosticSnapshot>(
+          AppErrors.malformed(
+            'Diagnostic payload: ожидалось '
+            '${ProtocolCodecs.diagnosticPayloadSize} байт, '
+            'получено ${result.payload.length}',
+          ),
+        );
+      }
+      return Success(ProtocolCodecs.decodeDiagnostic(result.payload));
+    } on TimeoutException {
+      return const Failure<DiagnosticSnapshot>(
+        AppFailure(
+          kind: AppErrorKind.writeTimeout,
+          message: 'Устройство не ответило на GET_DIAGNOSTIC',
+          action: 'Повторить',
+        ),
+      );
+    } on Object catch (error) {
+      response.ignore();
+      return Failure<DiagnosticSnapshot>(AppErrors.unknown(error));
+    }
+  });
+
+  @override
+  Future<Result<ErrorLogBatch>> readErrorLog() => _guard(() async {
+    try {
+      return ProtocolCodecs.decodeErrorLog(
+        await _transport.read(BleUuids.errorLog),
+      );
+    } on StateError {
+      return const ErrorLogBatch(entries: <ErrorLogEntry>[]);
+    }
   });
 
   Future<CommandResult> _nextResult(DeviceCommandId command) => _commandResults

@@ -36,6 +36,7 @@
 #include "scheduler.h"
 #include "serial_console.h"
 #include "speed_calculator.h"
+#include "speed_interval_guard.h"
 #include "storage_manager.h"
 #include "storage_migration.h"
 #include "trip_computer.h"
@@ -887,7 +888,7 @@ void test_speed_smoothing_windows_two_and_five() {
   TEST_ASSERT_EQUAL_UINT16(2160u, two.onInterval(2100, 400000, 700000, true, 2));
   SpeedCalculator five;
   for (uint32_t i = 1; i <= 5; ++i) {
-    five.onInterval(2100, i * 100000u, i * 100000u, true, 5);
+    five.onInterval(2100, 300000, i * 300000u, true, 5);
   }
   TEST_ASSERT_EQUAL_UINT16(2520u, five.speedX100());
 }
@@ -897,6 +898,36 @@ void test_speed_boundary_circumferences() {
   TEST_ASSERT_EQUAL_UINT16(1800u, speed.onInterval(500, 100000, 100000, false, 2));
   speed.reset();
   TEST_ASSERT_EQUAL_UINT16(10800u, speed.onInterval(3000, 100000, 100000, false, 5));
+}
+
+void test_speed_gap_long_interval_corrected() {
+  SpeedCalculator speed;
+  TEST_ASSERT_EQUAL_UINT16(2520u, speed.onInterval(2100, 300000, 300000, false, 3));
+  TEST_ASSERT_EQUAL_UINT16(2520u, speed.onInterval(2100, 900000, 1200000, false, 3));
+  TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
+}
+
+void test_speed_gap_short_spike_corrected() {
+  SpeedCalculator speed;
+  TEST_ASSERT_EQUAL_UINT16(2520u, speed.onInterval(2100, 300000, 300000, false, 3));
+  TEST_ASSERT_EQUAL_UINT16(2520u, speed.onInterval(2100, 100000, 400000, false, 3));
+  TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
+}
+
+void test_speed_gap_revolutions_unaffected() {
+  TripComputer trip;
+  trip.onRevolution(2100, 0);
+  trip.onRevolution(2100, 2520);
+  TEST_ASSERT_EQUAL_UINT32(2u, trip.snapshot().revolutions);
+}
+
+void test_speed_gap_reset_clears_guard() {
+  SpeedCalculator speed;
+  speed.onInterval(2100, 300000, 300000, false, 3);
+  speed.onInterval(2100, 900000, 1200000, false, 3);
+  TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
+  speed.reset();
+  TEST_ASSERT_EQUAL_UINT32(0u, speed.speedIntervalCorrectedCount());
 }
 
 void test_trip_accumulation_average_and_reset() {
@@ -2322,6 +2353,10 @@ int main(int, char**) {
   RUN_TEST(test_speed_fixed_point_smoothing_and_timeout);
   RUN_TEST(test_speed_smoothing_windows_two_and_five);
   RUN_TEST(test_speed_boundary_circumferences);
+  RUN_TEST(test_speed_gap_long_interval_corrected);
+  RUN_TEST(test_speed_gap_short_spike_corrected);
+  RUN_TEST(test_speed_gap_revolutions_unaffected);
+  RUN_TEST(test_speed_gap_reset_clears_guard);
   RUN_TEST(test_trip_accumulation_average_and_reset);
   RUN_TEST(test_trip_restores_only_persistent_totals);
   RUN_TEST(test_ride_state_transitions_and_paused_time);

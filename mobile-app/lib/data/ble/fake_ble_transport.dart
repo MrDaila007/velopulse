@@ -149,6 +149,7 @@ class FakeBleTransport implements BleTransport {
         _profiledTelemetry(),
       ),
       BleUuids.configRead => ProtocolCodecs.encodeConfig(_config),
+      BleUuids.errorLog => _encodeErrorLog(),
       BleUuids.commandResult => ProtocolCodecs.encodeCommandResult(
         const CommandResult(
           structVersion: 1,
@@ -240,6 +241,13 @@ class FakeBleTransport implements BleTransport {
       case DeviceCommandId.sensorTestStop:
         _sensorTest = false;
         _restartTelemetryTimer();
+      case DeviceCommandId.getDiagnostic:
+        _emitResult(
+          DeviceCommandId.getDiagnostic,
+          CommandStatus.ok,
+          payload: _encodeDiagnostic(),
+        );
+        return;
       default:
         break;
     }
@@ -254,6 +262,7 @@ class FakeBleTransport implements BleTransport {
     DeviceCommandId command,
     CommandStatus status, {
     int detail = 0,
+    List<int> payload = const <int>[],
   }) {
     _emit(
       BleUuids.commandResult,
@@ -264,11 +273,55 @@ class FakeBleTransport implements BleTransport {
           status: status,
           detail: detail,
           token: 0,
-          payload: const <int>[],
+          payload: payload,
         ),
       ),
     );
   }
+
+  List<int> _encodeDiagnostic() {
+    final snapshot = DiagnosticSnapshot(
+      rawPulseCount: _telemetry.revolutions + 12,
+      rejectedDebounce: 1,
+      rejectedOverspeed: 0,
+      isrOverflow: 0,
+      flashWriteCount: 42,
+      freeHeapBytes: 8192,
+      i2cErrorCount: 0,
+      selftestMask: 0x3F,
+    );
+    return <int>[
+      snapshot.rawPulseCount & 0xFF,
+      (snapshot.rawPulseCount >> 8) & 0xFF,
+      (snapshot.rawPulseCount >> 16) & 0xFF,
+      (snapshot.rawPulseCount >> 24) & 0xFF,
+      snapshot.rejectedDebounce & 0xFF,
+      (snapshot.rejectedDebounce >> 8) & 0xFF,
+      snapshot.rejectedOverspeed & 0xFF,
+      (snapshot.rejectedOverspeed >> 8) & 0xFF,
+      snapshot.isrOverflow & 0xFF,
+      (snapshot.isrOverflow >> 8) & 0xFF,
+      snapshot.flashWriteCount & 0xFF,
+      (snapshot.flashWriteCount >> 8) & 0xFF,
+      (snapshot.freeHeapBytes ~/ 16) & 0xFF,
+      ((snapshot.freeHeapBytes ~/ 16) >> 8) & 0xFF,
+      snapshot.i2cErrorCount,
+      snapshot.selftestMask,
+    ];
+  }
+
+  List<int> _encodeErrorLog() => const <int>[
+    1,
+    1,
+    120,
+    0,
+    0,
+    0,
+    0x05,
+    0,
+    0,
+    0,
+  ];
 
   void _emit(String uuid, List<int> bytes) {
     final controller = _notifications[uuid];

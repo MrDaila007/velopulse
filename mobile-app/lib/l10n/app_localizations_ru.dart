@@ -194,6 +194,20 @@ class AppLocalizationsRu extends AppLocalizations {
   String get establishingConnection => 'Устанавливаем соединение…';
 
   @override
+  String get exportLog => 'Сохранить лог';
+
+  @override
+  String get exportLogEmpty =>
+      'Телеметрия ещё не записана — в лог попадут только данные устройства';
+
+  @override
+  String get exportLogSubtitle =>
+      'Экспорт телеметрии, диагностики и журнала ошибок';
+
+  @override
+  String get exportLogSuccess => 'Лог сохранён — выберите, куда отправить';
+
+  @override
   String fixErrors(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

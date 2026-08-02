@@ -418,6 +418,30 @@ abstract class AppLocalizations {
   /// **'Устанавливаем соединение…'**
   String get establishingConnection;
 
+  /// No description provided for @exportLog.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сохранить лог'**
+  String get exportLog;
+
+  /// No description provided for @exportLogEmpty.
+  ///
+  /// In ru, this message translates to:
+  /// **'Телеметрия ещё не записана — в лог попадут только данные устройства'**
+  String get exportLogEmpty;
+
+  /// No description provided for @exportLogSubtitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Экспорт телеметрии, диагностики и журнала ошибок'**
+  String get exportLogSubtitle;
+
+  /// No description provided for @exportLogSuccess.
+  ///
+  /// In ru, this message translates to:
+  /// **'Лог сохранён — выберите, куда отправить'**
+  String get exportLogSuccess;
+
   /// No description provided for @fixErrors.
   ///
   /// In ru, this message translates to:

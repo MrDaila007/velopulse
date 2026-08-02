@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../application/app_states.dart';
 import '../../application/providers.dart';
+import '../../core/app_error.dart';
 import '../../core/result.dart';
 import '../../domain/entities/models.dart';
 import '../../l10n/app_localizations.dart';
@@ -83,6 +85,37 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
         .sendCommand(buildDisplayTestCommand(pattern));
   }
 
+  Future<void> _exportSessionLog() async {
+    final strings = AppLocalizations.of(context);
+    final notifier = ref.read(connectionControllerProvider.notifier);
+    if (notifier.rideLogSampleCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.exportLogEmpty)),
+      );
+    }
+    final result = await notifier.exportSessionLog();
+    if (!mounted) return;
+    switch (result) {
+      case Success<String>(:final value):
+        await Share.shareXFiles(
+          <XFile>[XFile(value)],
+          text: strings.exportLog,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(strings.exportLogSuccess)),
+        );
+      case Failure<String>(:final error):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is AppError ? error.message : error.toString(),
+            ),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AppLocalizations.of(context);
@@ -90,6 +123,7 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     final telemetry = session.telemetry;
     final ready = session.connection is ConnectionReady;
     final enabled = ready && !session.commandInFlight;
+    final canExportLog = ready && !session.commandInFlight;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -151,6 +185,14 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
           subtitle: strings.forceSaveSubtitle,
           enabled: enabled,
           onPressed: () => _send(DeviceCommandId.forceSave),
+        ),
+        const SizedBox(height: 8),
+        _ActionTile(
+          icon: Icons.upload_file_outlined,
+          title: strings.exportLog,
+          subtitle: strings.exportLogSubtitle,
+          enabled: canExportLog,
+          onPressed: _exportSessionLog,
         ),
         const SizedBox(height: 16),
         Card(

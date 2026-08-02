@@ -15,6 +15,7 @@ abstract final class ProtocolCodecs {
   static const deviceInfoSize = 48;
   static const telemetrySize = 36;
   static const configSize = 48;
+  static const diagnosticPayloadSize = 16;
 
   static ByteData _data(List<int> bytes, int v1Size, String name) {
     if (bytes.isEmpty) throw ProtocolCodecException('$name: пустой пакет');
@@ -277,5 +278,65 @@ abstract final class ProtocolCodecs {
     data.setUint8(8, value.payload.length);
     out.setRange(9, out.length, value.payload);
     return out;
+  }
+
+  static DiagnosticSnapshot decodeDiagnostic(List<int> bytes) {
+    if (bytes.length != diagnosticPayloadSize) {
+      throw ProtocolCodecException(
+        'Diagnostic: ожидалось $diagnosticPayloadSize байт, получено ${bytes.length}',
+      );
+    }
+    final data = ByteData.sublistView(Uint8List.fromList(bytes));
+    return DiagnosticSnapshot(
+      rawPulseCount: data.getUint32(0, Endian.little),
+      rejectedDebounce: data.getUint16(4, Endian.little),
+      rejectedOverspeed: data.getUint16(6, Endian.little),
+      isrOverflow: data.getUint16(8, Endian.little),
+      flashWriteCount: data.getUint16(10, Endian.little),
+      freeHeapBytes: data.getUint16(12, Endian.little) * 16,
+      i2cErrorCount: data.getUint8(14),
+      selftestMask: data.getUint8(15),
+    );
+  }
+
+  static ErrorLogBatch decodeErrorLog(List<int> bytes) {
+    if (bytes.isEmpty) {
+      throw const ProtocolCodecException('Error Log: пустой пакет');
+    }
+    final version = bytes.first;
+    if (version != 1) {
+      throw ProtocolCodecException(
+        'Error Log: версия $version не поддерживается',
+      );
+    }
+    if (bytes.length < 2) {
+      throw const ProtocolCodecException('Error Log: нет entry_count');
+    }
+    final entryCount = bytes[1];
+    if (entryCount < 1 || entryCount > 4) {
+      throw ProtocolCodecException(
+        'Error Log: entry_count=$entryCount вне диапазона 1…4',
+      );
+    }
+    final expected = 2 + entryCount * 8;
+    if (bytes.length != expected) {
+      throw ProtocolCodecException(
+        'Error Log: ожидалось $expected байт, получено ${bytes.length}',
+      );
+    }
+    final entries = <ErrorLogEntry>[];
+    for (var index = 0; index < entryCount; index++) {
+      final offset = 2 + index * 8;
+      final data = ByteData.sublistView(Uint8List.fromList(bytes));
+      entries.add(
+        ErrorLogEntry(
+          uptimeS: data.getUint32(offset, Endian.little),
+          code: data.getUint8(offset + 4),
+          severity: data.getUint8(offset + 5),
+          detail: data.getUint16(offset + 6, Endian.little),
+        ),
+      );
+    }
+    return ErrorLogBatch(entries: List.unmodifiable(entries));
   }
 }

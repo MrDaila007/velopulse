@@ -97,6 +97,40 @@ void main() {
     }
   });
 
+  group('diagnostic and error log', () {
+    test('decodeDiagnostic maps 16-byte payload', () {
+      final value = ProtocolCodecs.decodeDiagnostic(<int>[
+        0x2A, 0x00, 0x00, 0x00,
+        0x03, 0x00,
+        0x01, 0x00,
+        0x02, 0x00,
+        0x2A, 0x00,
+        0x20, 0x00,
+        0x01,
+        0x3F,
+      ]);
+      expect(value.rawPulseCount, 42);
+      expect(value.freeHeapBytes, 0x20 * 16);
+    });
+
+    test('decodeErrorLog maps notify batch', () {
+      final batch = ProtocolCodecs.decodeErrorLog(<int>[
+        1,
+        1,
+        10,
+        0,
+        0,
+        0,
+        0x05,
+        1,
+        0x0A,
+        0x00,
+      ]);
+      expect(batch.entries, hasLength(1));
+      expect(batch.entries.single.code, 0x05);
+    });
+  });
+
   group('strict framing and compatibility', () {
     test('v1 fixed structures reject malformed length', () {
       expect(
