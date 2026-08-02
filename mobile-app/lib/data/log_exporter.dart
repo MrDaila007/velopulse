@@ -37,8 +37,9 @@ abstract final class LogExporter {
       'errorLog': errorLog == null
           ? <Object?>[]
           : errorLog.entries.map(_errorLogEntryJson).toList(growable: false),
-      'telemetrySamples':
-          samples.map((sample) => sample.toJson()).toList(growable: false),
+      'telemetrySamples': samples
+          .map((sample) => sample.toJson())
+          .toList(growable: false),
       'session': <String, Object?>{
         'connectionState': _connectionStateName(connectionState),
         'sensorTestActive': sensorTestActive,

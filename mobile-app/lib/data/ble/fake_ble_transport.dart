@@ -310,18 +310,7 @@ class FakeBleTransport implements BleTransport {
     ];
   }
 
-  List<int> _encodeErrorLog() => const <int>[
-    1,
-    1,
-    120,
-    0,
-    0,
-    0,
-    0x05,
-    0,
-    0,
-    0,
-  ];
+  List<int> _encodeErrorLog() => const <int>[1, 1, 120, 0, 0, 0, 0x05, 0, 0, 0];
 
   void _emit(String uuid, List<int> bytes) {
     final controller = _notifications[uuid];

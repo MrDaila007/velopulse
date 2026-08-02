@@ -97,7 +97,9 @@ void main() {
         rssi: -60,
       );
       final exportedAt = DateTime.utc(2026, 8, 2, 12, 0);
-      final directory = Directory.systemTemp.createTempSync('bikecomp-log-test');
+      final directory = Directory.systemTemp.createTempSync(
+        'bikecomp-log-test',
+      );
       final file = await LogExporter.write(
         exportedAt: exportedAt,
         directory: directory,

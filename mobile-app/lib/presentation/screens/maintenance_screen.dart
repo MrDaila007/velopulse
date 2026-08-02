@@ -89,30 +89,25 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     final strings = AppLocalizations.of(context);
     final notifier = ref.read(connectionControllerProvider.notifier);
     if (notifier.rideLogSampleCount == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.exportLogEmpty)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.exportLogEmpty)));
     }
     final result = await notifier.exportSessionLog();
     if (!mounted) return;
     switch (result) {
       case Success<String>(:final value):
         await SharePlus.instance.share(
-          ShareParams(
-            files: <XFile>[XFile(value)],
-            text: strings.exportLog,
-          ),
+          ShareParams(files: <XFile>[XFile(value)], text: strings.exportLog),
         );
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.exportLogSuccess)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(strings.exportLogSuccess)));
       case Failure<String>(:final error):
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              error is AppError ? error.message : error.toString(),
-            ),
+            content: Text(error is AppError ? error.message : error.toString()),
           ),
         );
     }

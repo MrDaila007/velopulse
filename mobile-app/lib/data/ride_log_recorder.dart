@@ -1,11 +1,7 @@
 import '../../domain/entities/models.dart';
 
 class RideLogSample {
-  const RideLogSample({
-    required this.at,
-    required this.telemetry,
-    this.rssi,
-  });
+  const RideLogSample({required this.at, required this.telemetry, this.rssi});
 
   final DateTime at;
   final Telemetry telemetry;
@@ -31,7 +27,11 @@ class RideLogRecorder {
 
   void record(Telemetry telemetry, {int? rssi}) {
     _samples.add(
-      RideLogSample(at: DateTime.now().toUtc(), telemetry: telemetry, rssi: rssi),
+      RideLogSample(
+        at: DateTime.now().toUtc(),
+        telemetry: telemetry,
+        rssi: rssi,
+      ),
     );
     if (_samples.length > maxSamples) {
       _samples.removeRange(0, _samples.length - maxSamples);
