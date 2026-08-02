@@ -33,6 +33,7 @@ set(DOMAIN_SOURCES
   ${DOMAIN_DIR}/scheduler.cpp
   ${DOMAIN_DIR}/serial_console.cpp
   ${DOMAIN_DIR}/speed_calculator.cpp
+  ${DOMAIN_DIR}/speed_interval_guard.cpp
   ${DOMAIN_DIR}/storage_manager.cpp
   ${DOMAIN_DIR}/storage_migration.cpp
   ${DOMAIN_DIR}/trip_computer.cpp
@@ -48,9 +49,17 @@ set(SERVICE_SOURCES
   src/services/wheel_sensor.cpp
   src/services/battery_manager.cpp
   src/services/ambient_light_manager.cpp
-  src/services/display_manager_stub.cpp
+  src/services/board_leds.cpp
   src/services/ble_manager_stub.cpp
+  src/smoke/zephyr_smoke.cpp
 )
+
+if(CONFIG_BIKECOMP_ZEPHYR_DISPLAY_STUB)
+  list(APPEND SERVICE_SOURCES src/services/display_manager_stub.cpp)
+  target_compile_definitions(app PRIVATE BIKECOMP_ZEPHYR_DISPLAY_STUB=1)
+else()
+  list(APPEND SERVICE_SOURCES src/services/display_manager.cpp)
+endif()
 
 target_sources(app PRIVATE
   src/main.cpp
@@ -65,12 +74,16 @@ target_include_directories(app PRIVATE
   src
   src/platform
   src/services
+  src/smoke
+  ${CMAKE_CURRENT_SOURCE_DIR}/../lib/u8g2
   ${FIRMWARE_ROOT}/include
   ${DOMAIN_DIR}
 )
 
 target_compile_definitions(app PRIVATE
   BOARD_SUPER_NRF52840=1
+  BIKECOMP_HALL_TWO_WIRE=1
+  BIKECOMP_SUPPRESS_BOARD_LEDS=1
   BIKECOMP_AMBIENT_RAW_DARK=100
   BIKECOMP_AMBIENT_RAW_BRIGHT=3900
   BIKECOMP_DISPLAY_HEIGHT=${CONFIG_BIKECOMP_DISPLAY_HEIGHT}
@@ -103,3 +116,7 @@ target_compile_options(app PRIVATE
   -Werror=return-type
   -Wno-unused-parameter
 )
+
+if(NOT CONFIG_BIKECOMP_ZEPHYR_DISPLAY_STUB)
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../lib/u8g2 lib/u8g2)
+endif()

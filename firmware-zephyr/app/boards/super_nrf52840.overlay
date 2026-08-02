@@ -1,28 +1,46 @@
 /*
  * Super-nRF52840 overlay for Seeed XIAO BLE (Sense).
+ * Hall reed (BIKECOMP_HALL_TWO_WIRE): D0/P0.02 drive LOW + D1/P0.03 sense.
+ * Ambient LDR: D3/P0.29 power, D2/A2/P0.28 ADC (SAADC AIN4).
+ * Battery divider: P0.31 ADC (SAADC AIN7).
  */
 #include <zephyr/dt-bindings/adc/nrf-saadc.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
 
 / {
 	aliases {
 		hall-sensor = &hall_gpio;
+		hall-drive = &hall_drive_gpio;
 		ambient-power = &ambient_power;
+		oled-i2c = &i2c1;
 	};
 
 	hall_gpio: hall-gpio {
 		compatible = "gpio-keys";
 		hall-pin {
-			gpios = <&gpio1 2 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
-			label = "Hall sensor";
+			gpios = <&gpio0 3 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Hall sense D1";
+		};
+	};
+
+	hall_drive_gpio: hall-drive-gpio {
+		compatible = "gpio-leds";
+		hall-drive-pin {
+			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+			label = "Hall drive D0";
 		};
 	};
 
 	ambient_power: ambient-power {
 		compatible = "gpio-leds";
 		ldr-power {
-			gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>;
-			label = "LDR divider power";
+			gpios = <&gpio0 29 GPIO_ACTIVE_HIGH>;
+			label = "LDR divider power D3";
 		};
+	};
+
+	zephyr,user {
+		io-channels = <&adc 4>, <&adc 7>;
 	};
 
 	fstab {
@@ -39,9 +57,32 @@
 			block-cycles = <512>;
 		};
 	};
-
 };
 
 &adc {
 	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@4 {
+		reg = <4>;
+		zephyr,gain = "ADC_GAIN_1_6";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 40)>;
+		zephyr,input-positive = <NRF_SAADC_AIN4>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@7 {
+		reg = <7>;
+		zephyr,gain = "ADC_GAIN_1_6";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 40)>;
+		zephyr,input-positive = <NRF_SAADC_AIN7>;
+		zephyr,resolution = <12>;
+	};
+};
+
+&i2c1 {
+	clock-frequency = <I2C_BITRATE_FAST>;
 };

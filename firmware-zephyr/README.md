@@ -10,12 +10,14 @@ Super-nRF52840. Цель — довести функциональность д�
 | --- | --- | --- | --- |
 | Domain (`firmware/lib/domain`) | ✓ | ✓ | Общий код, 29 модулей |
 | Scheduler / AppController | ✓ | ✓ | Портирован |
-| Wheel sensor (GPIO ISR) | ✓ | ✓ | `gpio-keys` + ring buffer |
+| Wheel sensor (GPIO ISR) | ✓ | ✓ | Two-wire D0 drive + D1 sense |
 | Storage A/B + CRC | ✓ | ✓ | LittleFS на выделенной партиции |
 | Battery ADC | ✓ | ✓ | SAADC P0.31 |
-| Ambient LDR | ✓ | ✓ | D3 power + A2 ADC |
-| USB Serial console | ✓ | частично | `printk`/CDC, shell-команды — в работе |
-| OLED SSD1306 | ✓ | заглушка | Headless: счёт идёт, `display_ok=false` |
+| Ambient LDR | ✓ | ✓ | D3/P0.29 power + A2/P0.28 ADC |
+| USB Serial console | ✓ | ✓ | CDC RX + hall/gpio commands |
+| Board LEDs | ✓ | ✓ | RGB/charge suppress, status LED hook |
+| VBUS detect | ✓ | ✓ | `usbPresent()` via USBREG |
+| OLED SSD1306 | ✓ | ✓ | u8g2 + shared `display_layout` |
 | BLE GATT (Э4) | ✓ | заглушка | `CONFIG_BT` выключен; см. `docs/08-zephyr-migration.md` |
 
 Подробный план, матрица паритета и порядок портирования — в
@@ -23,16 +25,26 @@ Super-nRF52840. Цель — довести функциональность д�
 
 ## Быстрый старт
 
-Требования: Python 3.10+, CMake, Ninja, [Zephyr SDK](https://github.com/zephyrproject-rtos/sdk-ng) 0.16.x (`ZEPHYR_SDK_INSTALL_DIR`).
+Требования: Python 3.10+, CMake, Ninja, Zephyr SDK (`ZEPHYR_SDK_INSTALL_DIR`).
 
 ```bash
 cd firmware-zephyr
-./scripts/bootstrap.sh          # один раз: west + Zephyr v4.1.0
-export ZEPHYR_SDK_INSTALL_DIR=~/zephyr-sdk-0.16.8  # путь к SDK
-./scripts/build.sh              # xiao_ble/nrf52840 + Super overlay
+make                  # или ./scripts/build.sh
+make upload           # прошивка по USB serial (как pio run -t upload)
+make monitor          # serial console 115200
+# make clean / make rebuild / make uf2
 ```
 
-Прошивка UF2: `build/zephyr/zephyr.uf2` (двойной клик Reset → drag-and-drop).
+Прошивка:
+
+- **Serial (рекомендуется):** `make upload` — adafruit-nrfutil по USB, без drag-and-drop UF2.
+  Нужен пакет PIO `tool-adafruit-nrfutil` или переменная `ADAFRUIT_NRFUTIL`.
+- **UF2 вручную:** `build/zephyr/zephyr.uf2` (двойной Reset → копирование на диск `XIAO BLE`).
+
+```bash
+UPLOAD_PORT=/dev/ttyACM0 make upload-nobuild   # без пересборки
+./scripts/upload.sh --no-touch -p /dev/ttyACM0 # уже в bootloader
+```
 
 Переменные:
 
@@ -59,7 +71,10 @@ firmware-zephyr/
 ├── west.yml
 ├── scripts/
 │   ├── bootstrap.sh
-│   └── build.sh
+│   ├── build.sh
+│   ├── upload.sh
+│   ├── serial_upload.py
+│   └── monitor.sh
 └── app/
     ├── CMakeLists.txt
     ├── prj.conf

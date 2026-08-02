@@ -32,7 +32,7 @@ config BIKECOMP_ZEPHYR_BLE_STUB
 
 config BIKECOMP_ZEPHYR_DISPLAY_STUB
 	bool "Use headless display stub (no SSD1306 I2C)"
-	default y
+	default n
 	help
 	  Phase-1 migration keeps OLED rendering disabled. Disable once the
 	  Zephyr SSD1306/U8g2 adapter is complete.

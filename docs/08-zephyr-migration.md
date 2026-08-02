@@ -55,7 +55,7 @@
 | `attachInterrupt` + ring buffer | `gpio_callback` + ISR | `services/wheel_sensor.cpp` |
 | `analogRead` P0.31 / A2 | SAADC `adc_read_dt` | `platform/adc_io.cpp` |
 | `InternalFS` | LittleFS `/bikecomp` | `platform/littlefs_backend.cpp` |
-| `U8g2` + `Wire` | I2C + SSD1306 (Z2) | `services/display_manager_*.cpp` |
+| `U8g2` + `Wire` | I2C + SSD1306 (Z2) | `lib/u8g2/u8g2_zephyr_port.cpp` |
 | Bluefruit GATT | `CONFIG_BT` GATT (Z3) | `services/ble_manager_zephyr.cpp` |
 | `NRF_POWER->RESETREAS` | `hwinfo_get_reset_cause()` | `platform/time_console.cpp` |
 | `NVIC_SystemReset()` | `sys_reboot()` | `platform/time_console.cpp` |
@@ -78,7 +78,7 @@
 
 ## 4. Матрица паритета (STATUS.md → Zephyr)
 
-Состояние на 2026-08-02 после подготовки миграции (ветка `cursor/zephyr-migration-a729`).
+Состояние на 2026-08-03 после завершения Z1 (ветка `dev`).
 
 | Возможность STATUS.md | Arduino | Zephyr | Фаза |
 | --- | :---: | :---: | --- |
@@ -90,14 +90,17 @@
 | Boot counter `/boot_cnt` | ✓ | ✓ | Z1 |
 | Battery model + ADC 16-sample | ✓ | ✓ | Z1 |
 | Ambient light model + manager | ✓ | ✓ | Z1 |
+| Two-wire Hall (D0+D1) | ✓ | ✓ | Z1 |
+| Board LEDs suppress + status hook | ✓ | ✓ | Z1 |
+| VBUS / `usb_present` | ✓ | ✓ | Z1 |
 | Display layout/formatter (domain) | ✓ | ✓ (shared) | Z0 |
-| OLED render 128×64/32 | ✓ | — | Z2 |
-| Display power / burn-in | ✓ | логика ✓, HW — | Z2 |
+| OLED render 128×64/32 | ✓ | ✓ | Z2 (u8g2) |
+| Display power / burn-in | ✓ | ✓ | Z2 |
 | BLE GATT 7 characteristics | ✓ | — | Z3 |
 | Advertising / pairing window | ✓ | — | Z3 |
 | Safe + dangerous commands | ✓ | — | Z3 |
 | Error log + sensor test | ✓ | — | Z3 |
-| Serial console commands | ✓ | частично | Z1 |
+| Serial console commands | ✓ | ✓ | Z1 |
 | Diagnostics GET_DIAGNOSTIC | ✓ | ✓ (encode) | Z0 |
 | Deep sleep | отложено | отложено | — |
 

@@ -14,23 +14,36 @@ BLE-контракта (`protocol/`) и паритета с `STATUS.md` (Э4, 20
 - [x] Z0.5 Platform: time, console, ADC, GPIO wheel, LittleFS backend.
 - [x] Z0.6 Документация `docs/08-zephyr-migration.md`.
 
-### Z1 — Периферия без BLE (в работе)
+### Z1 — Периферия без BLE (выполнено)
 
-- [x] Z1.1 Wheel sensor ISR + ring buffer.
+- [x] Z1.1 Wheel sensor ISR + ring buffer (two-wire D0/D1).
 - [x] Z1.2 Storage A/B (`/cfg_*`, `/odo_*`, `/boot_cnt`).
-- [x] Z1.3 Battery + ambient ADC managers.
-- [ ] Z1.4 USB Serial shell (`open-pairing`, `dump-config`, `selftest`, …).
-- [ ] Z1.5 Embedded smoke на XIAO (boot, mount, pulse, odometer reboot).
-- [ ] Z1.6 VBUS detect для `usb_present` (nRF USBREG).
+- [x] Z1.3 Battery + ambient ADC managers (SAADC P0.31 / P0.28).
+- [x] Z1.4 USB Serial shell (`open-pairing`, `dump-config`, `selftest`, hall/gpio).
+- [x] Z1.5 Embedded smoke: boot banner + `runZephyrSmokeChecks()`; ручной HW gate ниже.
+- [x] Z1.6 VBUS detect (`NRF_POWER->USBREGSTATUS`).
 
-### Z2 — OLED (не начато)
+#### Z1.5 Ручной hardware smoke (XIAO)
 
-- [ ] Z2.1 Zephyr I2C SSD1306 128×64 @ 400 кГц, addr 0x3C.
-- [ ] Z2.2 `DisplayCanvas` adapter (U8g2 или Zephyr display API).
-- [ ] Z2.3 Shared renderer: `display_layout` / `display_formatter`.
-- [ ] Z2.4 Display power, burn-in guard, ambient brightness.
-- [ ] Z2.5 Compile-time профиль 128×32.
-- [ ] Z2.6 Simulator/golden parity (без изменений в domain).
+1. `cd firmware-zephyr && ./scripts/bootstrap.sh && make upload` (или UF2: `build/zephyr/zephyr.uf2`).
+2. Serial 115200: убедиться в `Zephyr smoke:` и `Flash FS: OK`.
+3. `selftest` — mask с FS + ADC + hall.
+4. `ambient-raw` / `ambient-stop` — raw > 0 при подключённом LDR.
+5. `hall-watch` — импульс геркона увеличивает `raw_pulses`.
+6. `gpio-probe` — PULLUP=HIGH, LOW при магните у геркона.
+7. Reboot — одометр сохраняется (`dump-config` / Serial odometer line).
+
+### Z2 — OLED (u8g2, в работе)
+
+- [x] Z2.1 Zephyr I2C SSD1306 128×64 @ 400 кГц, addr 0x3C (`i2c1`, D4/D5).
+- [x] Z2.2 `DisplayCanvas` adapter через u8g2 (те же шрифты, что Arduino).
+- [x] Z2.3 Shared renderer: `display_layout` / `display_formatter`.
+- [x] Z2.4 Display power, burn-in guard, ambient brightness.
+- [ ] Z2.5 Compile-time профиль 128×32 (`CONFIG_BIKECOMP_DISPLAY_HEIGHT=32`).
+- [x] Z2.6 Simulator/golden parity (domain/renderer без изменений).
+
+Источник u8g2: `U8G2_ROOT` (по умолчанию `/data/zephyrproject-v4.4/modules/u8g2`).
+См. [`firmware-zephyr/lib/u8g2/`](../firmware-zephyr/lib/u8g2/).
 
 ### Z3 — BLE Э4 (не начато)
 

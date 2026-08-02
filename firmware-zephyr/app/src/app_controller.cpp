@@ -2,14 +2,18 @@
 
 #include "platform.h"
 #include <zephyr/autoconf.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/kernel.h>
 
 #include "ble_device_info.h"
 #include "ble_config_write.h"
 #include "ble_telemetry.h"
+#include "board_leds.h"
 #include "board_pins.h"
 #include "config_codec.h"
-#include "board_pins.h"
 #include "boot_counter.h"
+#include "zephyr_smoke.h"
 
 #ifndef BIKECOMP_HOTPATH_SERIAL
 #define BIKECOMP_HOTPATH_SERIAL 0
@@ -144,7 +148,8 @@ void AppController::begin() {
   ride_state_ = RideStateMachine(
       static_cast<uint32_t>(config_.stop_timeout_s) * 1000u);
 
-  Serial.println("Hall simulator: button D0 -> GND");
+  Serial.println("Hall reed: D0 drive LOW + D1 sense (two-wire)");
+  beginBoardLeds();
   wheel_sensor_.begin(kHallPin, interruptMode(config_.active_edge));
   const bool display_ok = display_.begin(config_);
   Serial.print("OLED 0x3C: ");
@@ -206,6 +211,12 @@ void AppController::begin() {
   if (ble_ok) selftest_mask_ |= kSelftestBleOk;
   // kSelftestWatchdogOk stays unset until Watchdog is initialized (docs §12.2).
   printDiagnostics();
+  ZephyrSmokeContext smoke{};
+  smoke.fs_mounted = fs_ok;
+  smoke.adc_valid = battery_.snapshot().valid;
+  smoke.hall_configured = true;
+  smoke.selftest_mask = selftest_mask_;
+  runZephyrSmokeChecks(smoke);
 }
 
 DiagnosticSnapshot AppController::diagnosticSnapshot() const {
@@ -294,6 +305,142 @@ void AppController::printDisplayState() const {
   Serial.println(display_.effectiveBrightnessPct());
 }
 
+void AppController::printHallStatus() const {
+  const DiagnosticSnapshot diag = diagnosticSnapshot();
+  Serial.print("Hall: pin=");
+  Serial.print(kHallPinLabel);
+  Serial.print(" (");
+  Serial.print(kHallSensePinLabel);
+  Serial.print(" / ");
+  Serial.print(kHallDrivePinLabel);
+  Serial.print("=LOW)");
+  Serial.print(" level=");
+  Serial.print(wheel_sensor_.pinIsHigh() ? "HIGH" : "LOW");
+  Serial.print(", mode=digital");
+  Serial.print(", nrf=");
+  Serial.print(kHallNrfPin);
+  Serial.print(", edge=");
+  switch (config_.active_edge) {
+    case 0:
+      Serial.print("FALLING");
+      break;
+    case 1:
+      Serial.print("RISING");
+      break;
+    default:
+      Serial.print("CHANGE");
+      break;
+  }
+  Serial.print(", raw_pulses=");
+  Serial.print(diag.raw_pulse_count);
+  Serial.print(", accepted=");
+  Serial.print(pulse_filter_.counters().accepted);
+  Serial.print(", debounce_rej=");
+  Serial.print(diag.rejected_debounce);
+  Serial.print(", overspeed_rej=");
+  Serial.print(diag.rejected_overspeed);
+  Serial.print(", isr_ovf=");
+  Serial.print(diag.isr_overflow);
+  Serial.print(", ride=");
+  switch (ride_state_.state()) {
+    case RideState::kIdle:
+      Serial.print("IDLE");
+      break;
+    case RideState::kMoving:
+      Serial.print("MOVING");
+      break;
+    case RideState::kPaused:
+      Serial.print("PAUSED");
+      break;
+  }
+  Serial.print(", revolutions=");
+  Serial.println(trip_computer_.revolutions());
+}
+
+void AppController::maybeLogHallWatch(uint32_t now_ms) {
+  if (!hall_watch_logging_) return;
+  const uint32_t pulses = wheel_sensor_.rawPulseCount();
+  const bool pin_high = wheel_sensor_.pinIsHigh();
+  const bool changed =
+      pulses != hall_watch_last_pulses_ || pin_high != hall_watch_last_pin_high_;
+  const bool heartbeat =
+      static_cast<uint32_t>(now_ms - hall_watch_last_ms_) >= 2000u;
+  if (!changed && !heartbeat) return;
+  hall_watch_last_ms_ = now_ms;
+  hall_watch_last_pulses_ = pulses;
+  hall_watch_last_pin_high_ = pin_high;
+  printHallStatus();
+}
+
+void AppController::restoreHallInterrupt() {
+  wheel_sensor_.resumeInterrupt(interruptMode(config_.active_edge));
+}
+
+void AppController::applyHallEdge(uint8_t active_edge) {
+  if (active_edge > 2u) return;
+  config_.active_edge = active_edge;
+  wheel_sensor_.begin(kHallPin, interruptMode(active_edge));
+}
+
+namespace {
+
+const struct device* hallGpio0() { return DEVICE_DT_GET(DT_NODELABEL(gpio0)); }
+
+bool readHallSenseWithMode(gpio_flags_t mode) {
+  const struct device* dev = hallGpio0();
+  if (!device_is_ready(dev)) return true;
+  gpio_pin_configure(dev, 3, GPIO_INPUT | mode);
+  k_msleep(2);
+  return gpio_pin_get(dev, 3) != 0;
+}
+
+}  // namespace
+
+void AppController::printGpioProbe() {
+  wheel_sensor_.suspendInterrupt();
+
+  const bool pullup_high = readHallSenseWithMode(GPIO_PULL_UP);
+  const bool float_high = readHallSenseWithMode(GPIO_DISCONNECTED);
+  const bool pulldown_high = readHallSenseWithMode(GPIO_PULL_DOWN);
+
+  configureHallPins();
+  restoreHallInterrupt();
+
+  Serial.print("GPIO ");
+  Serial.print(kHallPinLabel);
+  Serial.print(" (");
+  Serial.print(kHallSensePinLabel);
+  Serial.print(" / ");
+  Serial.print(kHallDrivePinLabel);
+  Serial.print("=LOW)");
+  Serial.print(": PULLUP=");
+  Serial.print(pullup_high ? "HIGH" : "LOW");
+  Serial.print(", FLOAT=");
+  Serial.print(float_high ? "HIGH" : "LOW");
+  Serial.print(", PULLDOWN=");
+  Serial.println(pulldown_high ? "HIGH" : "LOW");
+}
+
+void AppController::maybeLogGpioWatch(uint32_t now_ms) {
+  if (!gpio_watch_logging_) return;
+  const bool high = wheel_sensor_.pinIsHigh();
+  const bool changed = high != gpio_watch_last_high_;
+  const bool heartbeat =
+      static_cast<uint32_t>(now_ms - gpio_watch_last_ms_) >= 1000u;
+  if (!changed && !heartbeat) return;
+  gpio_watch_last_ms_ = now_ms;
+  gpio_watch_last_high_ = high;
+  Serial.print("GPIO ");
+  Serial.print(kHallPinLabel);
+  Serial.print(" (");
+  Serial.print(kHallSensePinLabel);
+  Serial.print(" / ");
+  Serial.print(kHallDrivePinLabel);
+  Serial.print("=LOW)");
+  Serial.print(": mode=digital level=");
+  Serial.println(high ? "HIGH" : "LOW");
+}
+
 void AppController::loop() {
   wheel_sensor_.pollPin();
   const uint32_t now_ms = millis();
@@ -357,6 +504,83 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         display_.noteActivity(now_ms);
         printDisplayState();
         Serial.println("OK wake-display");
+        break;
+
+      case SerialCommand::kHallStatus:
+        printHallStatus();
+        Serial.println("OK hall-status");
+        break;
+
+      case SerialCommand::kHallWatch:
+        hall_watch_logging_ = true;
+        hall_watch_last_ms_ = now_ms;
+        hall_watch_last_pulses_ = wheel_sensor_.rawPulseCount();
+        hall_watch_last_pin_high_ = wheel_sensor_.pinIsHigh();
+        printHallStatus();
+        Serial.println("OK hall-watch logging=1");
+        break;
+
+      case SerialCommand::kHallStop:
+        hall_watch_logging_ = false;
+        Serial.println("OK hall-watch logging=0");
+        break;
+
+      case SerialCommand::kHallRising:
+        applyHallEdge(1);
+        printHallStatus();
+        Serial.println("OK hall-rising");
+        break;
+
+      case SerialCommand::kHallFalling:
+        applyHallEdge(0);
+        printHallStatus();
+        Serial.println("OK hall-falling");
+        break;
+
+      case SerialCommand::kHallChange:
+        applyHallEdge(2);
+        printHallStatus();
+        Serial.println("OK hall-change");
+        break;
+
+      case SerialCommand::kHallAnalog:
+        Serial.println("ERROR hall-analog unsupported on Zephyr two-wire build");
+        break;
+
+      case SerialCommand::kHallAnalogStop:
+        Serial.println("OK hall-analog logging=0");
+        break;
+
+      case SerialCommand::kGpioProbe:
+        hall_watch_logging_ = false;
+        gpio_watch_logging_ = false;
+        printGpioProbe();
+        Serial.println("OK gpio-probe");
+        break;
+
+      case SerialCommand::kGpioWatch:
+        hall_watch_logging_ = false;
+        wheel_sensor_.suspendInterrupt();
+        configureHallPins();
+        gpio_watch_logging_ = true;
+        gpio_watch_last_ms_ = now_ms;
+        gpio_watch_last_high_ = wheel_sensor_.pinIsHigh();
+        Serial.print("GPIO ");
+        Serial.print(kHallPinLabel);
+        Serial.print(" (");
+        Serial.print(kHallSensePinLabel);
+        Serial.print(" / ");
+        Serial.print(kHallDrivePinLabel);
+        Serial.print("=LOW)");
+        Serial.print(": mode=digital level=");
+        Serial.println(gpio_watch_last_high_ ? "HIGH" : "LOW");
+        Serial.println("OK gpio-watch logging=1 (ISR off)");
+        break;
+
+      case SerialCommand::kGpioStop:
+        gpio_watch_logging_ = false;
+        restoreHallInterrupt();
+        Serial.println("OK gpio-watch logging=0 (polling on)");
         break;
 
       case SerialCommand::kUnknown:
@@ -513,6 +737,8 @@ bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
 
 
 void AppController::processPulses(uint32_t now_ms) {
+  maybeLogHallWatch(now_ms);
+  maybeLogGpioWatch(now_ms);
   PulseEvent event;
   while (wheel_sensor_.pop(event)) {
     const PulseDecision decision = pulse_filter_.process(event.timestamp_us, event.returned_passive);
@@ -860,6 +1086,7 @@ void AppController::updateBle(uint32_t now_ms) {
   input.last_pulse_ms = ride_state_.lastPulseMs();
   input.now_ms = now_ms;
   ble_.serviceTelemetry(input, now_ms);
+  updateBoardStatusLed(ble_.bleAdvertising(), ble_.bleConnected(), now_ms);
 }
 
 }  // namespace bike

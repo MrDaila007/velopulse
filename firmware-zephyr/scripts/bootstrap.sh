@@ -20,4 +20,5 @@ west update
 west zephyr-export
 
 echo "Zephyr workspace ready at ${REPO_ROOT} (ZEPHYR_BASE=${REPO_ROOT}/deps/zephyr)"
+echo "Or use an existing install: ZEPHYR_BASE=/data/zephyrproject-v4.4/zephyr ${ROOT}/scripts/build.sh"
 echo "Build with: ${ROOT}/scripts/build.sh"

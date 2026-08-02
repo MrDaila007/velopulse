@@ -7,8 +7,8 @@ namespace adc_io {
 
 // Super-nRF52840 ADC channels (see super_nrf52840.overlay).
 enum class AdcChannel : uint8_t {
-  kAmbient = 0,  // P1.04 / AIN2
-  kBattery = 1,  // P0.31 / AIN5
+  kAmbient = 0,  // P0.28 / SAADC AIN4
+  kBattery = 1,  // P0.31 / SAADC AIN7
 };
 
 bool readChannel(AdcChannel channel, uint16_t& raw_out);

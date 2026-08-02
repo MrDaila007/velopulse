@@ -9,11 +9,15 @@
 #include "types.h"
 #include "config.h"
 
+#ifndef BIKECOMP_ZEPHYR_DISPLAY_STUB
+#include "u8g2_display.hpp"
+#endif
+
 namespace bike {
 
 class DisplayManager {
  public:
-  DisplayManager() = default;
+  DisplayManager();
   bool begin(const DeviceConfig& config);
   void applyRuntimeConfig(const DeviceConfig& config, uint32_t now_ms);
   void noteActivity(uint32_t now_ms);
@@ -27,8 +31,15 @@ class DisplayManager {
   uint8_t effectiveBrightnessPct() const { return effective_brightness_pct_; }
 
  private:
+#ifndef BIKECOMP_ZEPHYR_DISPLAY_STUB
+  void applyPowerHardware();
+#endif
   void updateEffectiveBrightness();
 
+#ifndef BIKECOMP_ZEPHYR_DISPLAY_STUB
+  DisplayDriver display_;
+  uint8_t bright_contrast_ = 156;
+#endif
   PageCarousel carousel_;
   DisplayPower power_;
   DisplayBurnInGuard burn_in_;
