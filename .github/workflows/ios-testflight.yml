@@ -63,19 +63,6 @@ jobs:
         working-directory: mobile-app
         run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
 
-      - name: Stage IPA artifact
-        run: |
-          mkdir -p release/ios
-          cp mobile-app/build/ios/ipa/*.ipa "release/ios/bikecomp-mobile-${{ github.ref_name }}.ipa"
-
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mobile-ios-ipa
-          retention-days: 400
-          if-no-files-found: error
-          path: release/ios/*.ipa
-
       - name: Upload to TestFlight
         uses: apple-actions/upload-testflight-build@v3
         with:

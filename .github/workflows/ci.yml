@@ -205,14 +205,6 @@ jobs:
         working-directory: mobile-app
         run: flutter build ios --release --no-codesign
 
-      - name: Upload iOS app artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mobile-ios-app
-          retention-days: 90
-          if-no-files-found: error
-          path: mobile-app/build/ios/iphoneos/Runner.app
-
   simulator:
     name: Simulator
     runs-on: ubuntu-latest
