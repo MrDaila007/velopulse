@@ -44,7 +44,12 @@ bool g_config_valid = false;
 bool g_display_ok = false;
 bool g_fs_ok = false;
 bool g_usb_connected = false;
-bool g_deep_sleep_supported = false;
+#if defined(BIKECOMP_FEATURE_DEEP_SLEEP) && BIKECOMP_FEATURE_DEEP_SLEEP
+constexpr bool kDeepSleepCompiledIn = true;
+#else
+constexpr bool kDeepSleepCompiledIn = false;
+#endif
+bool g_deep_sleep_supported = kDeepSleepCompiledIn;
 bool g_ble_always_advertise = true;
 bool g_advertising_restart_pending = false;
 
@@ -371,7 +376,7 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
   g_display_ok = seed.display_ok;
   g_fs_ok = seed.fs_ok;
   g_usb_connected = seed.usb_connected;
-  g_deep_sleep_supported = false;
+  g_deep_sleep_supported = kDeepSleepCompiledIn;
 
   g_device_info_packet = {};
   g_device_info_packet.struct_version = kBleStructVersion;
@@ -507,6 +512,19 @@ void BleManager::noteMovement() {
   if (shouldRestartAdvertisingOnMovement(connected, running)) {
     startAdvertising();
   }
+}
+
+void BleManager::stopAdvertising() {
+  if (!ok_) return;
+  if (Bluefruit.Periph.connected() != 0) return;
+  if (Bluefruit.Advertising.isRunning()) {
+    Bluefruit.Advertising.stop();
+  }
+}
+
+void BleManager::applyPowerSaveAdvertising(bool aggressive_power_save) {
+  if (!ok_ || !aggressive_power_save) return;
+  stopAdvertising();
 }
 
 bool BleManager::statusLedActive() const {

@@ -63,6 +63,8 @@ class BleManager {
                    uint32_t now_ms);
   void openPairingWindow(uint16_t duration_s, uint32_t now_ms);
   void noteMovement();
+  void stopAdvertising();
+  void applyPowerSaveAdvertising(bool aggressive_power_save);
 
   bool statusLedActive() const;
   bool bleAdvertising() const;
