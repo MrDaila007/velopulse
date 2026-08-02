@@ -11,3 +11,5 @@ simulator/tests/__pycache__/
 tools/__pycache__/
 *.code-workspace
 .DS_Store
+/deps/
+/firmware-zephyr/build/

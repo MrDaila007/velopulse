@@ -1,0 +1,47 @@
+/*
+ * Super-nRF52840 overlay for Seeed XIAO BLE (Sense).
+ */
+#include <zephyr/dt-bindings/adc/nrf-saadc.h>
+
+/ {
+	aliases {
+		hall-sensor = &hall_gpio;
+		ambient-power = &ambient_power;
+	};
+
+	hall_gpio: hall-gpio {
+		compatible = "gpio-keys";
+		hall-pin {
+			gpios = <&gpio1 2 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Hall sensor";
+		};
+	};
+
+	ambient_power: ambient-power {
+		compatible = "gpio-leds";
+		ldr-power {
+			gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>;
+			label = "LDR divider power";
+		};
+	};
+
+	fstab {
+		compatible = "zephyr,fstab";
+		bikecomp_lfs: bikecomp-lfs {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/bikecomp";
+			partition = <&storage_partition>;
+			automount;
+			read-size = <16>;
+			prog-size = <16>;
+			cache-size = <64>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
+	};
+
+};
+
+&adc {
+	status = "okay";
+};
