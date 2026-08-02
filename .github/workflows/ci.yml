@@ -60,6 +60,40 @@ jobs:
             firmware/.pio/build/xiao_ble_sense_128x32/firmware.elf
             firmware/.pio/build/xiao_ble_sense_128x32/firmware.zip
 
+  firmware-zephyr:
+    name: Firmware Zephyr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake gcc g++
+
+      - name: Cache Zephyr tree
+        uses: actions/cache@v4
+        id: zephyr-cache
+        with:
+          path: zephyr
+          key: zephyr-v4.4.0-${{ runner.os }}
+
+      - name: Fetch Zephyr
+        if: steps.zephyr-cache.outputs.cache-hit != 'true'
+        run: git clone --depth 1 --branch v4.4.0 https://github.com/zephyrproject-rtos/zephyr.git zephyr
+
+      - name: Install Zephyr Python dependencies
+        run: pip install -r zephyr/scripts/requirements.txt
+
+      - name: Run ztest domain suite
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+        run: python3 zephyr/scripts/twister -T firmware-zephyr/tests/domain --ninja -v
+
   mobile-app:
     name: Mobile App
     runs-on: ubuntu-latest

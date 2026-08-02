@@ -1,0 +1,6 @@
+tests:
+  bikecomp.domain:
+    tags:
+      - bikecomp
+      - domain
+    type: unit

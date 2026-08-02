@@ -55,14 +55,16 @@ BUILD_DIR=/tmp/bikecomp-zephyr-build ./scripts/build.sh
 
 ## Тесты
 
-Доменная логика по-прежнему проверяется Arduino native-тестами:
+Доменная логика проверяется двумя путями:
 
 ```bash
-cd firmware && pio test -e native
+cd firmware && pio test -e native          # Unity, 90 тестов (полное покрытие domain)
+cd firmware-zephyr && make test            # ztest unittest, 17 сценариев (Twister)
 ```
 
-После включения Zephyr BLE/display добавить `west build` smoke и
-hardware gate по `tasks/firmware/zephyr.md`.
+`make test` запускает `west twister` на `tests/domain/` (host `unit_testing`, без SDK).
+Полный набор domain-тестов остаётся в Arduino native; ztest дублирует критичные
+сценарии (codec, motion, protocol fixtures) для Zephyr CI.
 
 ## Структура
 
@@ -74,7 +76,10 @@ firmware-zephyr/
 │   ├── build.sh
 │   ├── upload.sh
 │   ├── serial_upload.py
-│   └── monitor.sh
+│   ├── monitor.sh
+│   └── test.sh
+├── tests/
+│   └── domain/           # ztest host unittest (Twister type: unit)
 └── app/
     ├── CMakeLists.txt
     ├── prj.conf

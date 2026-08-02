@@ -59,7 +59,8 @@ BLE-контракта (`protocol/`) и паритета с `STATUS.md` (Э4, 20
 
 ### Z4 — Приёмка
 
-- [ ] Z4.1 `pio test -e native` без регрессий (domain общий).
+- [x] Z4.1 `pio test -e native` без регрессий (domain общий).
+- [x] Z4.1b ztest domain suite (`firmware-zephyr/tests/domain`, `make test`).
 - [ ] Z4.2 Zephyr CI job (`west build`).
 - [ ] Z4.3 Parity checklist vs Arduino production build.
 - [ ] Z4.4 Документация `docs/03-firmware-architecture.md` — секция Zephyr.

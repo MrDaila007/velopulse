@@ -9,7 +9,7 @@
 #   make bootstrap    # west init/update in repo (optional)
 
 SHELL := /bin/bash
-.PHONY: all build clean rebuild bootstrap uf2 hex upload flash monitor help native-test
+.PHONY: all build clean rebuild bootstrap uf2 hex upload flash monitor test help native-test
 
 ROOT        := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 REPO_ROOT   := $(abspath $(ROOT)/..)
@@ -63,6 +63,10 @@ upload-nobuild:
 monitor:
 	@$(SCRIPTS)/monitor.sh
 
+# Host ztest suite (domain parity with pio test -e native).
+test:
+	@$(SCRIPTS)/test.sh
+
 # Domain regression (shared with Arduino firmware).
 native-test:
 	@cd "$(REPO_ROOT)/firmware" && pio test -e native
@@ -79,6 +83,7 @@ help:
 	@echo "  make upload      Build + flash over USB serial (adafruit-nrfutil)"
 	@echo "  make flash       Alias for upload"
 	@echo "  make monitor     Open serial console (115200)"
+	@echo "  make test        Run ztest domain suite (host unittest)"
 	@echo "  make bootstrap   Run west bootstrap in repo"
 	@echo "  make native-test Run shared domain tests (pio -e native)"
 	@echo ""
