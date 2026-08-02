@@ -25,7 +25,9 @@ BLE-контракта (`protocol/`) и паритета с `STATUS.md` (Э4, 20
 
 #### Z1.5 Ручной hardware smoke (XIAO)
 
-1. `cd firmware-zephyr && ./scripts/bootstrap.sh && make upload` (или UF2: `build/zephyr/zephyr.uf2`).
+Процедура (оператор, перед отладкой BLE):
+
+1. `cd firmware-zephyr && make upload` (или UF2: `build/zephyr/zephyr.uf2`).
 2. Serial 115200: убедиться в `Zephyr smoke:` и `Flash FS: OK`.
 3. `selftest` — mask с FS + ADC + hall.
 4. `ambient-raw` / `ambient-stop` — raw > 0 при подключённом LDR.
@@ -33,37 +35,58 @@ BLE-контракта (`protocol/`) и паритета с `STATUS.md` (Э4, 20
 6. `gpio-probe` — PULLUP=HIGH, LOW при магните у геркона.
 7. Reboot — одометр сохраняется (`dump-config` / Serial odometer line).
 
+| Дата | Оператор | Результат | Примечания |
+| --- | --- | --- | --- |
+| 2026-08-03 | CI / разработка | **ПО build + ztest OK** | HW smoke на плате — вручную при следующем bench-сессии |
+
 ### Z2 — OLED (u8g2, в работе)
 
 - [x] Z2.1 Zephyr I2C SSD1306 128×64 @ 400 кГц, addr 0x3C (`i2c1`, D4/D5).
 - [x] Z2.2 `DisplayCanvas` adapter через u8g2 (те же шрифты, что Arduino).
 - [x] Z2.3 Shared renderer: `display_layout` / `display_formatter`.
 - [x] Z2.4 Display power, burn-in guard, ambient brightness.
-- [ ] Z2.5 Compile-time профиль 128×32 (`CONFIG_BIKECOMP_DISPLAY_HEIGHT=32`).
+- [ ] Z2.5 Compile-time профиль 128×32 (`CONFIG_BIKECOMP_DISPLAY_HEIGHT=32`) — **отложено**.
 - [x] Z2.6 Simulator/golden parity (domain/renderer без изменений).
 
-Источник u8g2: `U8G2_ROOT` (по умолчанию `/data/zephyrproject-v4.4/modules/u8g2`).
-См. [`firmware-zephyr/lib/u8g2/`](../firmware-zephyr/lib/u8g2/).
+### Z3 — BLE Э4 (выполнено в коде)
 
-### Z3 — BLE Э4 (не начато)
+- [x] Z3.1 `CONFIG_BT` peripheral, custom GATT service (7 characteristics).
+- [x] Z3.2 Advertising fast/slow, Scan Response name + Tx Power.
+- [x] Z3.3 Device Info live Read, Telemetry notify 1 Гц / 0.2 Гц.
+- [x] Z3.4 Config Write queue + validation + apply.
+- [x] Z3.5 Safe commands 0x01–0x0B, Dangerous 0x20–0x40 + nonce/TTL.
+- [x] Z3.6 LESC pairing, bonding (`bt_settings`), 5-min window.
+- [x] Z3.7 Error Log ring, sensor-test 5 Гц.
+- [x] Z3.8 Protocol fixture parity (`protocol/fixtures/*`) — ztest `test_commands.cpp`.
+- [ ] Z3.9 Android hardware gate (reuse Э5 checklist) — **ручной** после прошивки XIAO.
 
-- [ ] Z3.1 `CONFIG_BT` peripheral, custom GATT service (7 characteristics).
-- [ ] Z3.2 Advertising fast/slow, Scan Response name + Tx Power.
-- [ ] Z3.3 Device Info live Read, Telemetry notify 1 Гц / 0.2 Гц.
-- [ ] Z3.4 Config Write queue + validation + apply.
-- [ ] Z3.5 Safe commands 0x01–0x0B, Dangerous 0x20–0x40 + nonce/TTL.
-- [ ] Z3.6 LESC pairing, bonding (`bt_settings`), 5-min window.
-- [ ] Z3.7 Error Log ring, sensor-test 5 Гц.
-- [ ] Z3.8 Protocol fixture parity (`protocol/fixtures/*`).
-- [ ] Z3.9 Android hardware gate (reuse Э5 checklist).
+Реализация: `firmware-zephyr/app/src/services/ble_manager_zephyr.cpp`,
+`firmware-zephyr/app/conf/overlay-bt.conf`, `CONFIG_BIKECOMP_ZEPHYR_BLE_STUB=n`.
 
 ### Z4 — Приёмка
 
 - [x] Z4.1 `pio test -e native` без регрессий (domain общий).
-- [x] Z4.1b ztest domain suite (`firmware-zephyr/tests/domain`, `make test`).
-- [ ] Z4.2 Zephyr CI job (`west build`).
-- [ ] Z4.3 Parity checklist vs Arduino production build.
-- [ ] Z4.4 Документация `docs/03-firmware-architecture.md` — секция Zephyr.
+- [x] Z4.1b ztest domain suite (`firmware-zephyr/tests/domain`, `make test`) — 20 кейсов.
+- [x] Z4.2 Zephyr CI job (`west build` + artifact `zephyr.hex`).
+- [x] Z4.3 Parity checklist vs Arduino production build (таблица ниже).
+- [x] Z4.4 Документация `docs/03-firmware-architecture.md` — секция Zephyr.
+
+#### Z4.3 Parity checklist (Arduino STATUS.md Э4)
+
+| Требование Э4 | Arduino | Zephyr |
+| --- | --- | --- |
+| GATT service `7C9A0001-…` + 7 chars | ✓ | ✓ |
+| Device Info live read (48 B) | ✓ | ✓ |
+| Telemetry notify 1 Hz / read 0.2 Hz | ✓ | ✓ |
+| Config write → flash + notify | ✓ | ✓ |
+| Safe commands 0x01–0x0B | ✓ | ✓ |
+| Dangerous 0x20–0x40 + token/TTL | ✓ | ✓ |
+| LESC + 5 min pairing window | ✓ | ✓ |
+| Bond store + `clear bonds` | ✓ | ✓ (`bt_settings`) |
+| Error log notify | ✓ | ✓ |
+| Sensor test 5 Hz | ✓ | ✓ |
+| Mobile backup/restore (миграция) | n/a | ✓ (app maintenance) |
+| Android HW gate Э5 | ✓ | **pending bench** |
 
 ## DoD миграции
 

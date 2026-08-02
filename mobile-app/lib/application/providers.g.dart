@@ -96,6 +96,54 @@ final class PreferencesStoreProvider
 
 String _$preferencesStoreHash() => r'308c8786018bbd06776779b670a2c673413b45f4';
 
+@ProviderFor(firmwareMigrationStore)
+final firmwareMigrationStoreProvider = FirmwareMigrationStoreProvider._();
+
+final class FirmwareMigrationStoreProvider
+    extends
+        $FunctionalProvider<
+          FirmwareMigrationStore,
+          FirmwareMigrationStore,
+          FirmwareMigrationStore
+        >
+    with $Provider<FirmwareMigrationStore> {
+  FirmwareMigrationStoreProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'firmwareMigrationStoreProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$firmwareMigrationStoreHash();
+
+  @$internal
+  @override
+  $ProviderElement<FirmwareMigrationStore> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  FirmwareMigrationStore create(Ref ref) {
+    return firmwareMigrationStore(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(FirmwareMigrationStore value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<FirmwareMigrationStore>(value),
+    );
+  }
+}
+
+String _$firmwareMigrationStoreHash() =>
+    r'd509ec39cbd874031be8b3549e0a6f0a924b4a7a';
+
 @ProviderFor(androidBlePlatform)
 final androidBlePlatformProvider = AndroidBlePlatformProvider._();
 
@@ -230,7 +278,7 @@ final class ConnectionControllerProvider
 }
 
 String _$connectionControllerHash() =>
-    r'18530b75f82cb74975f1f5ae47027dbf97039559';
+    r'317f98090c42a89a9416eea99bafb03a09d7cff8';
 
 abstract class _$ConnectionController extends $Notifier<SessionState> {
   SessionState build();

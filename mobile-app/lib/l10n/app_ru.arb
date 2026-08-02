@@ -272,5 +272,14 @@
   "waitForConfirmation": "Дождитесь подтверждения устройства.",
   "wheelCircumferenceLabel": "Окружность колеса, мм",
   "wheelUnitsSection": "Колесо и единицы",
-  "writeBlockedDescription": "Просмотр доступен, запись заблокирована состоянием соединения."
+  "writeBlockedDescription": "Просмотр доступен, запись заблокирована состоянием соединения.",
+  "firmwareBackupTitle": "Резервная копия перед прошивкой",
+  "firmwareBackupSubtitle": "Сохранить конфиг и одометр локально (Arduino → Zephyr)",
+  "firmwareBackupSuccess": "Резервная копия сохранена на телефоне",
+  "firmwareRestoreTitle": "Восстановить после прошивки",
+  "firmwareRestoreSubtitle": "Записать сохранённые конфиг и одометр на устройство",
+  "firmwareRestoreConfirm": "Восстановить конфиг и одометр из резервной копии?",
+  "firmwareRestoreSuccess": "Данные восстановлены",
+  "firmwareBackupMissing": "Резервная копия не найдена — сначала сохраните данные",
+  "firmwareBackupSavedAt": "Сохранено: {timestamp}"
 }

@@ -154,29 +154,24 @@ Overlay Super-nRF52840 подключается автоматически в `s
 Arduino InternalFS и Zephyr LittleFS используют **разные** области и форматы
 монтирования. Прямого чтения `/cfg_a` из Arduino FS в Zephyr нет.
 
-Варианты (решение на Z4):
+**Выбранный путь (2026-08):** мобильное приложение сохраняет резервную копию
+конфига и одометра **до** смены прошивки и восстанавливает через BLE после
+прошивки Zephyr:
 
-1. **Clean start** — Zephyr загружает defaults (как при первом включении Arduino).
-2. **One-shot importer** — Serial/BLE команда читает legacy blob (если сохранён
-   совместимый layout) — только при необходимости полевых устройств.
-3. **Общий wire format** — payload 48+16 байт header идентичен; меняется только
-   носитель.
+1. Подключиться к Arduino-сборке → «Обслуживание» → «Резервная копия перед прошивкой».
+2. Прошить Zephyr (`make upload` / UF2).
+3. Подключиться к Zephyr → «Восстановить после прошивки» (config write + `SET_ODOMETER`).
+
+Serial `dump-config` остаётся fallback для ручной коррекции.
 
 ---
 
-## 8. CI (план)
+## 8. CI
 
-Добавить job в GitHub Actions:
+Job **Firmware Zephyr** в `.github/workflows/ci.yml`:
 
-```yaml
-- name: Zephyr build
-  run: |
-    cd firmware-zephyr
-    ./scripts/bootstrap.sh
-    ./scripts/build.sh
-```
-
-Требует кэша `deps/zephyr` и Zephyr SDK (~2 ГБ).
+- `twister` — domain ztest (`firmware-zephyr/tests/domain`)
+- `west build` — `xiao_ble/nrf52840` + BLE overlay, artifact `zephyr.hex`
 
 ---
 

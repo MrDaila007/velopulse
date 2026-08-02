@@ -2,6 +2,10 @@
 
 namespace bike {
 
+namespace {
+bool g_sensor_test_active = false;
+}  // namespace
+
 bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   (void)config;
   (void)seed;
@@ -18,10 +22,10 @@ void BleManager::serviceTelemetry(const TelemetryBuildInput& input,
 }
 
 void BleManager::setSensorTestActive(bool active) {
-  sensor_test_active_ = active;
+  g_sensor_test_active = active;
 }
 
-bool BleManager::sensorTestActive() const { return sensor_test_active_; }
+bool BleManager::sensorTestActive() const { return g_sensor_test_active; }
 
 void BleManager::recordError(ErrorLogCode code, ErrorLogSeverity severity,
                              uint16_t detail, uint32_t now_ms) {
@@ -37,6 +41,12 @@ void BleManager::openPairingWindow(uint16_t duration_s, uint32_t now_ms) {
 }
 
 void BleManager::noteMovement() {}
+
+bool BleManager::statusLedActive() const { return false; }
+
+bool BleManager::bleAdvertising() const { return false; }
+
+bool BleManager::bleConnected() const { return false; }
 
 void BleManager::clearBonds() {}
 

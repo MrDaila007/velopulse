@@ -80,7 +80,7 @@ jobs:
       - name: Run ztest domain suite
         env:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
-        run: python3 zephyr/scripts/twister -T firmware-zephyr/tests/domain --ninja -v
+        run: firmware-zephyr/scripts/test.sh
 
       - name: Stage firmware release files
         working-directory: ${{ github.workspace }}

@@ -113,6 +113,74 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     }
   }
 
+  Future<void> _backupFirmwareData() async {
+    final strings = AppLocalizations.of(context);
+    final result =
+        await ref.read(connectionControllerProvider.notifier).backupFirmwareData();
+    if (!mounted) return;
+    switch (result) {
+      case Success<void>():
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(strings.firmwareBackupSuccess)),
+        );
+      case Failure<void>(:final error):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error is AppError ? error.message : error.toString()),
+          ),
+        );
+    }
+  }
+
+  Future<void> _restoreFirmwareBackup() async {
+    final strings = AppLocalizations.of(context);
+    final notifier = ref.read(connectionControllerProvider.notifier);
+    final backup = await notifier.readFirmwareBackup();
+    if (!mounted) return;
+    if (backup == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.firmwareBackupMissing)),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.firmwareRestoreTitle),
+        content: Text(
+          '${strings.firmwareRestoreConfirm}\n\n'
+          '${strings.firmwareBackupSavedAt(backup.savedAt.toLocal().toString())}\n'
+          '${backup.odometerM} m',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(strings.confirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final result = await notifier.restoreFirmwareBackup();
+    if (!mounted) return;
+    switch (result) {
+      case Success<void>():
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(strings.firmwareRestoreSuccess)),
+        );
+      case Failure<void>(:final error):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error is AppError ? error.message : error.toString()),
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AppLocalizations.of(context);
@@ -190,6 +258,22 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
           subtitle: strings.exportLogSubtitle,
           enabled: canExportLog,
           onPressed: _exportSessionLog,
+        ),
+        const SizedBox(height: 8),
+        _ActionTile(
+          icon: Icons.backup_outlined,
+          title: strings.firmwareBackupTitle,
+          subtitle: strings.firmwareBackupSubtitle,
+          enabled: ready && !session.commandInFlight,
+          onPressed: _backupFirmwareData,
+        ),
+        const SizedBox(height: 8),
+        _ActionTile(
+          icon: Icons.settings_backup_restore,
+          title: strings.firmwareRestoreTitle,
+          subtitle: strings.firmwareRestoreSubtitle,
+          enabled: enabled,
+          onPressed: _restoreFirmwareBackup,
         ),
         const SizedBox(height: 16),
         Card(

@@ -12,6 +12,9 @@ fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${ROOT}/.." && pwd)"
 
+# shellcheck source=ensure_west_zephyr.sh
+source "${ROOT}/scripts/ensure_west_zephyr.sh"
+
 BOARD="${BOARD:-xiao_ble/nrf52840}"
 BUILD_DIR="${BUILD_DIR:-${ROOT}/build}"
 OVERLAY="${OVERLAY:-${ROOT}/app/boards/super_nrf52840.overlay}"
@@ -34,9 +37,11 @@ if [ -z "${ZEPHYR_SDK_INSTALL_DIR:-}" ] || [ ! -d "${ZEPHYR_SDK_INSTALL_DIR}" ];
   exit 1
 fi
 
-# Zephyr tree: env override, repo deps/, or shared workspace on disk.
+# Zephyr tree: env override, CI clone, repo deps/, or shared workspace on disk.
 if [ -n "${ZEPHYR_BASE:-}" ] && [ -d "${ZEPHYR_BASE}" ]; then
   :
+elif [ -d "${REPO_ROOT}/zephyr" ]; then
+  export ZEPHYR_BASE="${REPO_ROOT}/zephyr"
 elif [ -d "${REPO_ROOT}/deps/zephyr" ]; then
   export ZEPHYR_BASE="${REPO_ROOT}/deps/zephyr"
 elif [ -d "/data/zephyrproject-v4.4/zephyr" ]; then
@@ -62,8 +67,10 @@ if [ -z "${WEST_TOP}" ]; then
 fi
 
 cd "${WEST_TOP}"
-west build -d "${BUILD_DIR}" -b "${BOARD}" "${ROOT}/app" \
-  -- \
-  -DEXTRA_DTC_OVERLAY_FILE="${OVERLAY}"
+CONF_ARGS=(-DEXTRA_DTC_OVERLAY_FILE="${OVERLAY}")
+if grep -q '^CONFIG_BIKECOMP_ZEPHYR_BLE_STUB=n' "${ROOT}/app/prj.conf" 2>/dev/null; then
+  CONF_ARGS+=(-DEXTRA_CONF_FILE="${ROOT}/app/conf/overlay-bt.conf")
+fi
+west build -d "${BUILD_DIR}" -b "${BOARD}" "${ROOT}/app" -- "${CONF_ARGS[@]}"
 
 echo "Artifacts: ${BUILD_DIR}/zephyr/zephyr.{hex,uf2}"

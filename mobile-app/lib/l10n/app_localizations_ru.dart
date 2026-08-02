@@ -527,4 +527,37 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get writeBlockedDescription =>
       'Просмотр доступен, запись заблокирована состоянием соединения.';
+
+  @override
+  String get firmwareBackupTitle => 'Резервная копия перед прошивкой';
+
+  @override
+  String get firmwareBackupSubtitle =>
+      'Сохранить конфиг и одометр локально (Arduino → Zephyr)';
+
+  @override
+  String get firmwareBackupSuccess => 'Резервная копия сохранена на телефоне';
+
+  @override
+  String get firmwareRestoreTitle => 'Восстановить после прошивки';
+
+  @override
+  String get firmwareRestoreSubtitle =>
+      'Записать сохранённые конфиг и одометр на устройство';
+
+  @override
+  String get firmwareRestoreConfirm =>
+      'Восстановить конфиг и одометр из резервной копии?';
+
+  @override
+  String get firmwareRestoreSuccess => 'Данные восстановлены';
+
+  @override
+  String get firmwareBackupMissing =>
+      'Резервная копия не найдена — сначала сохраните данные';
+
+  @override
+  String firmwareBackupSavedAt(Object timestamp) {
+    return 'Сохранено: $timestamp';
+  }
 }

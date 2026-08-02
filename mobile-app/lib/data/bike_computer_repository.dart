@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import '../core/app_error.dart';
 import '../core/result.dart';
@@ -21,6 +22,7 @@ abstract interface class BikeComputerRepository {
   Future<Result<ErrorLogBatch>> readErrorLog();
   Future<Result<void>> writeConfig(DeviceConfig config);
   Future<Result<CommandResult>> sendCommand(DeviceCommand command);
+  Future<Result<void>> setOdometerMeters(int odometerM);
   Future<void> setTelemetrySubscribed(bool value);
   Future<void> disconnect();
 }
@@ -282,46 +284,87 @@ class BikeComputerRepositoryImpl implements BikeComputerRepository {
     );
   });
 
-  @override
-  Future<Result<CommandResult>> sendCommand(DeviceCommand command) =>
-      _enqueue(() async {
-        for (var attempt = 0; attempt <= 3; attempt++) {
-          final response = _nextResult(command.id);
-          try {
-            await _transport.writeWithResponse(
-              BleUuids.command,
-              ProtocolCodecs.encodeCommand(command),
-            );
-            final result = await response;
-            if (result.status == CommandStatus.busy && attempt < 3) {
-              await Future<void>.delayed(const Duration(seconds: 1));
-              continue;
-            }
-            if (result.status == CommandStatus.ok ||
-                result.status == CommandStatus.needsConfirm) {
-              return Success(result);
-            }
-            return Failure<CommandResult>(_resultError(result));
-          } on TimeoutException {
-            return const Failure<CommandResult>(
-              AppFailure(
-                kind: AppErrorKind.writeTimeout,
-                message: 'Устройство не ответило на команду',
-                action: 'Повторить',
-              ),
-            );
-          } on Object catch (error) {
-            response.ignore();
-            return Failure<CommandResult>(AppErrors.unknown(error));
-          }
+  Future<Result<CommandResult>> _sendCommandDirect(DeviceCommand command) async {
+    for (var attempt = 0; attempt <= 3; attempt++) {
+      final response = _nextResult(command.id);
+      try {
+        await _transport.writeWithResponse(
+          BleUuids.command,
+          ProtocolCodecs.encodeCommand(command),
+        );
+        final result = await response;
+        if (result.status == CommandStatus.busy && attempt < 3) {
+          await Future<void>.delayed(const Duration(seconds: 1));
+          continue;
         }
+        if (result.status == CommandStatus.ok ||
+            result.status == CommandStatus.needsConfirm) {
+          return Success(result);
+        }
+        return Failure<CommandResult>(_resultError(result));
+      } on TimeoutException {
         return const Failure<CommandResult>(
           AppFailure(
-            kind: AppErrorKind.busy,
-            message: 'Устройство занято. Повторите команду',
+            kind: AppErrorKind.writeTimeout,
+            message: 'Устройство не ответило на команду',
             action: 'Повторить',
           ),
         );
+      } on Object catch (error) {
+        response.ignore();
+        return Failure<CommandResult>(AppErrors.unknown(error));
+      }
+    }
+    return const Failure<CommandResult>(
+      AppFailure(
+        kind: AppErrorKind.busy,
+        message: 'Устройство занято. Повторите команду',
+        action: 'Повторить',
+      ),
+    );
+  }
+
+  @override
+  Future<Result<CommandResult>> sendCommand(DeviceCommand command) =>
+      _enqueue(() => _sendCommandDirect(command));
+
+  @override
+  Future<Result<void>> setOdometerMeters(int odometerM) => _enqueue(() async {
+        final requestPayload = ByteData(4)
+          ..setUint32(0, odometerM, Endian.little);
+        final request = DeviceCommand(
+          id: DeviceCommandId.setOdometer,
+          payload: requestPayload.buffer.asUint8List().toList(),
+        );
+        final stepOne = await _sendCommandDirect(request);
+        if (stepOne case Failure<CommandResult>(:final error)) {
+          return Failure<void>(error);
+        }
+        final needs = (stepOne as Success<CommandResult>).value;
+        if (needs.status != CommandStatus.needsConfirm) {
+          return needs.status == CommandStatus.ok
+              ? const Success<void>(null)
+              : Failure<void>(_resultError(needs));
+        }
+        final tokenBytes = ByteData(4)..setUint32(0, needs.token, Endian.little);
+        final confirmPayload = <int>[
+          ...requestPayload.buffer.asUint8List(),
+          ...tokenBytes.buffer.asUint8List(),
+        ];
+        final confirm = DeviceCommand(
+          id: DeviceCommandId.setOdometer,
+          hasToken: true,
+          payload: confirmPayload,
+        );
+        final stepTwo = await _sendCommandDirect(confirm);
+        if (stepTwo case Failure<CommandResult>(:final error)) {
+          return Failure<void>(error);
+        }
+        final result = (stepTwo as Success<CommandResult>).value;
+        if (result.status == CommandStatus.ok) {
+          return const Success<void>(null);
+        }
+        return Failure<void>(_resultError(result));
       });
 
   @override

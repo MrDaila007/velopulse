@@ -37,8 +37,6 @@ class BleManager {
  public:
   bool begin(const DeviceConfig& config, const BleBootSeed& seed = {});
   bool isOk() const { return ok_; }
-  bool bleAdvertising() const { return ble_advertising_; }
-  bool bleConnected() const { return ble_connected_; }
 
   void noteUsbPresent(bool usb_present);
   void serviceTelemetry(const TelemetryBuildInput& input, uint32_t now_ms);
@@ -50,6 +48,11 @@ class BleManager {
                    uint32_t now_ms);
   void openPairingWindow(uint16_t duration_s, uint32_t now_ms);
   void noteMovement();
+
+  bool statusLedActive() const;
+  bool bleAdvertising() const;
+  bool bleConnected() const;
+
   void clearBonds();
 
   bool hasPendingConfigWrite() const;
@@ -71,9 +74,6 @@ class BleManager {
 
  private:
   bool ok_ = false;
-  bool sensor_test_active_ = false;
-  bool ble_advertising_ = false;
-  bool ble_connected_ = false;
 };
 
 }  // namespace bike

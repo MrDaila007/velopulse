@@ -25,7 +25,7 @@ config BIKECOMP_HOTPATH_SERIAL
 
 config BIKECOMP_ZEPHYR_BLE_STUB
 	bool "Use BLE stub instead of full Zephyr BT stack"
-	default y
+	default n
 	help
 	  Phase-1 migration keeps BLE as a compile-time stub while the Zephyr
 	  GATT service is ported. Disable once ble_manager_zephyr.cpp is complete.

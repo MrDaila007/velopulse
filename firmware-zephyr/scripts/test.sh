@@ -6,8 +6,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${ROOT}/.." && pwd)"
 TEST_DIR="${ROOT}/tests/domain"
 
+# shellcheck source=ensure_west_zephyr.sh
+source "${ROOT}/scripts/ensure_west_zephyr.sh"
+
 if [ -z "${ZEPHYR_BASE:-}" ]; then
-  if [ -d "/data/zephyrproject-v4.4/zephyr" ]; then
+  if [ -d "${REPO_ROOT}/zephyr" ]; then
+    export ZEPHYR_BASE="${REPO_ROOT}/zephyr"
+  elif [ -d "/data/zephyrproject-v4.4/zephyr" ]; then
     export ZEPHYR_BASE="/data/zephyrproject-v4.4/zephyr"
   elif [ -d "${REPO_ROOT}/deps/zephyr" ]; then
     export ZEPHYR_BASE="${REPO_ROOT}/deps/zephyr"
@@ -22,5 +27,12 @@ if [ ! -f "${ZEPHYR_BASE}/scripts/twister" ]; then
   exit 1
 fi
 
+hide_west_if_incomplete "${REPO_ROOT}"
+
 cd "${REPO_ROOT}"
-exec python3 "${ZEPHYR_BASE}/scripts/twister" -T "${TEST_DIR}" --ninja -v "$@"
+set +e
+python3 "${ZEPHYR_BASE}/scripts/twister" -T "${TEST_DIR}" --ninja -v "$@"
+status=$?
+set -e
+restore_west_if_hidden "${REPO_ROOT}"
+exit "${status}"

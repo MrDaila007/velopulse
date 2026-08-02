@@ -14,6 +14,7 @@ target_sources(
     src/test_codec_storage.cpp
     src/test_motion.cpp
     src/test_protocol.cpp
+    src/test_commands.cpp
     ${TEST_SHARED_DIR}/fixture_loader.cpp
     ${TEST_SHARED_DIR}/memory_storage_backend.cpp
     ${TEST_SHARED_DIR}/protocol_samples.cpp

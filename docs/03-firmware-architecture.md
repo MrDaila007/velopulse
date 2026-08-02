@@ -672,3 +672,28 @@ Serial-консоль дополнительно поддерживает слу
 | §9 хранение, атомарность, CRC, версия | Раздел 10 |
 | §10 режимы питания, сон, реклама | Разделы 7.2, 7.3, 11.4 |
 | §17 безопасность BLE | Раздел 11.5 |
+
+## 16. Zephyr-сборка (firmware-zephyr)
+
+Параллельная целевая прошивка на **Zephyr RTOS v4.4** для той же платы
+(Seeed XIAO nRF52840 / Super-nRF52840). Архитектура сохраняет разделение слоёв:
+
+```text
+firmware-zephyr/app/src/app_controller.cpp   ← оркестрация (общая с Arduino)
+firmware/lib/domain/                         ← без изменений (host + ztest)
+firmware-zephyr/app/src/platform/            ← millis, ADC, LittleFS, USB CDC
+firmware-zephyr/app/src/services/            ← wheel, battery, display, ble_manager_zephyr
+```
+
+| Сервис Arduino | Zephyr-адаптер |
+| --- | --- |
+| `BleManager` (Bluefruit) | `ble_manager_zephyr.cpp` (`CONFIG_BT` GATT) |
+| `InternalFS` | LittleFS `/bikecomp` |
+| `WheelSensor` ISR | `gpio_callback` + ring buffer |
+| U8g2 + `Wire` | I2C + `u8g2_zephyr_port` |
+
+Сборка: `firmware-zephyr/scripts/build.sh` (board `xiao_ble/nrf52840`, overlay
+`super_nrf52840.overlay`, BLE — `conf/overlay-bt.conf`).
+
+Подробности миграции и parity checklist: [`docs/08-zephyr-migration.md`](08-zephyr-migration.md),
+[`tasks/firmware/zephyr.md`](../tasks/firmware/zephyr.md).

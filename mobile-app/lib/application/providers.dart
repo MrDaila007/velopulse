@@ -8,6 +8,7 @@ import '../data/bike_computer_repository.dart';
 import '../data/ble/ble_transport.dart';
 import '../data/ble/fake_ble_transport.dart';
 import '../data/ble/reactive_ble_transport.dart';
+import '../data/local/firmware_migration_store.dart';
 import '../data/local/preferences_store.dart';
 import '../data/log_exporter.dart';
 import '../data/protocol/ble_uuids.dart';
@@ -30,6 +31,10 @@ BleTransport bleTransport(Ref ref) {
 
 @Riverpod(keepAlive: true)
 PreferencesStore preferencesStore(Ref ref) => PreferencesStore();
+
+@Riverpod(keepAlive: true)
+FirmwareMigrationStore firmwareMigrationStore(Ref ref) =>
+    FirmwareMigrationStore();
 
 @Riverpod(keepAlive: true)
 AndroidBlePlatform androidBlePlatform(Ref ref) => const AndroidBlePlatform();
@@ -160,6 +165,7 @@ class ConnectionController extends _$ConnectionController {
   int _reconnectAttempt = 0;
   late BleTransport _transport;
   late PreferencesStore _store;
+  late FirmwareMigrationStore _migrationStore;
   late AndroidBlePlatform _platform;
   final RideLogRecorder _rideLog = RideLogRecorder();
 
@@ -167,6 +173,7 @@ class ConnectionController extends _$ConnectionController {
   SessionState build() {
     _transport = ref.read(bleTransportProvider);
     _store = ref.read(preferencesStoreProvider);
+    _migrationStore = ref.read(firmwareMigrationStoreProvider);
     _platform = ref.read(androidBlePlatformProvider);
     ref.onDispose(_dispose);
     _adapterSubscription = _transport.adapterState.listen(_onAdapterState);
@@ -531,6 +538,83 @@ class ConnectionController extends _$ConnectionController {
     }
     return result;
   }
+
+  Future<Result<void>> restoreFirmwareBackup() async {
+    final backup = await _migrationStore.readBackup();
+    if (backup == null) {
+      return const Failure<void>(
+        AppFailure(
+          kind: AppErrorKind.validationFailed,
+          message: 'Резервная копия не найдена',
+        ),
+      );
+    }
+    if (state.connection is! ConnectionReady || _repository == null) {
+      return const Failure<void>(
+        AppFailure(
+          kind: AppErrorKind.connectionLost,
+          message: 'Восстановление доступно только при готовом подключении',
+        ),
+      );
+    }
+    state = state.copyWith(commandInFlight: true, lastError: null);
+    final configResult = await _repository!.writeConfig(backup.config);
+    if (configResult case Failure<void>(:final error)) {
+      state = state.copyWith(
+        commandInFlight: false,
+        lastError: error is AppError ? error : AppErrors.unknown(error),
+      );
+      return Failure<void>(error);
+    }
+    final odometerResult =
+        await _repository!.setOdometerMeters(backup.odometerM);
+    switch (odometerResult) {
+      case Success<void>():
+        state = state.copyWith(
+          commandInFlight: false,
+          lastMessage: 'Конфиг и одометр восстановлены из резервной копии',
+        );
+        await refresh();
+        return const Success<void>(null);
+      case Failure<void>(:final error):
+        state = state.copyWith(
+          commandInFlight: false,
+          lastError: error is AppError ? error : AppErrors.unknown(error),
+        );
+        return Failure<void>(error);
+    }
+  }
+
+  Future<Result<void>> backupFirmwareData() async {
+    final device = state.selectedDevice;
+    final config = state.deviceConfig;
+    final telemetry = state.telemetry;
+    if (device == null || config == null || telemetry == null) {
+      return const Failure<void>(
+        AppFailure(
+          kind: AppErrorKind.connectionLost,
+          message: 'Подключитесь и дождитесь телеметрии перед резервным копированием',
+        ),
+      );
+    }
+    await _migrationStore.writeBackup(
+      FirmwareMigrationBackup(
+        deviceId: device.deviceId,
+        deviceName: device.name,
+        config: config,
+        odometerM: telemetry.odometerM,
+        savedAt: DateTime.now(),
+        fwVersion: state.deviceInfo?.fwVersion,
+      ),
+    );
+    state = state.copyWith(
+      lastMessage: 'Резервная копия сохранена (${telemetry.odometerM} м)',
+    );
+    return const Success<void>(null);
+  }
+
+  Future<FirmwareMigrationBackup?> readFirmwareBackup() =>
+      _migrationStore.readBackup();
 
   Future<void> refresh() async {
     await _repository?.readTelemetry();

@@ -50,9 +50,14 @@ set(SERVICE_SOURCES
   src/services/battery_manager.cpp
   src/services/ambient_light_manager.cpp
   src/services/board_leds.cpp
-  src/services/ble_manager_stub.cpp
   src/smoke/zephyr_smoke.cpp
 )
+
+if(CONFIG_BIKECOMP_ZEPHYR_BLE_STUB)
+  list(APPEND SERVICE_SOURCES src/services/ble_manager_stub.cpp)
+else()
+  list(APPEND SERVICE_SOURCES src/services/ble_manager_zephyr.cpp)
+endif()
 
 if(CONFIG_BIKECOMP_ZEPHYR_DISPLAY_STUB)
   list(APPEND SERVICE_SOURCES src/services/display_manager_stub.cpp)

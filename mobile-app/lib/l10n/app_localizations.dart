@@ -1023,6 +1023,60 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Просмотр доступен, запись заблокирована состоянием соединения.'**
   String get writeBlockedDescription;
+
+  /// No description provided for @firmwareBackupTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Резервная копия перед прошивкой'**
+  String get firmwareBackupTitle;
+
+  /// No description provided for @firmwareBackupSubtitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сохранить конфиг и одометр локально (Arduino → Zephyr)'**
+  String get firmwareBackupSubtitle;
+
+  /// No description provided for @firmwareBackupSuccess.
+  ///
+  /// In ru, this message translates to:
+  /// **'Резервная копия сохранена на телефоне'**
+  String get firmwareBackupSuccess;
+
+  /// No description provided for @firmwareRestoreTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Восстановить после прошивки'**
+  String get firmwareRestoreTitle;
+
+  /// No description provided for @firmwareRestoreSubtitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Записать сохранённые конфиг и одометр на устройство'**
+  String get firmwareRestoreSubtitle;
+
+  /// No description provided for @firmwareRestoreConfirm.
+  ///
+  /// In ru, this message translates to:
+  /// **'Восстановить конфиг и одометр из резервной копии?'**
+  String get firmwareRestoreConfirm;
+
+  /// No description provided for @firmwareRestoreSuccess.
+  ///
+  /// In ru, this message translates to:
+  /// **'Данные восстановлены'**
+  String get firmwareRestoreSuccess;
+
+  /// No description provided for @firmwareBackupMissing.
+  ///
+  /// In ru, this message translates to:
+  /// **'Резервная копия не найдена — сначала сохраните данные'**
+  String get firmwareBackupMissing;
+
+  /// No description provided for @firmwareBackupSavedAt.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сохранено: {timestamp}'**
+  String firmwareBackupSavedAt(Object timestamp);
 }
 
 class _AppLocalizationsDelegate
