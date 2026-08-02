@@ -2,6 +2,15 @@ cmake_minimum_required(VERSION 3.20.0)
 
 project(bikecomp_domain_tests)
 
+# Twister/CI often builds with ZEPHYR_BASE only (no west workspace). Zephyr 4.4
+# unittest still includes kconfig_module_dirs.cmake, but zephyr_module.cmake only
+# generates it when west topdir succeeds. Provide the empty stub up front.
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/Kconfig)
+if(NOT EXISTS ${CMAKE_BINARY_DIR}/Kconfig/kconfig_module_dirs.cmake)
+  file(WRITE ${CMAKE_BINARY_DIR}/Kconfig/kconfig_module_dirs.cmake
+       "set(kconfig_env_dirs)\n")
+endif()
+
 find_package(Zephyr COMPONENTS unittest REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../cmake/domain_sources.cmake)
