@@ -9,7 +9,7 @@
 - [ ] 0.5 Завершить каркас всех модулей. Частично: BLE/diagnostics отсутствуют.
 - [x] 0.6 Настроить native environment и host-тест CRC32.
 - [ ] 0.7 Инициализировать Flutter-проект — отслеживается в `tasks/mobile/`.
-- [ ] 0.8 Настроить CI для firmware и Flutter.
+- [x] 0.8 Настроить CI для firmware и Flutter.
 
 ## Э2. Базовая прошивка
 

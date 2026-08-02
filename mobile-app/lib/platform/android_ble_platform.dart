@@ -12,6 +12,13 @@ class AndroidBlePlatform {
   static const _channel = MethodChannel('app.bikecomp.mobile/ble_platform');
 
   Future<AppError?> ensureScanPermissions() async {
+    if (Platform.isIOS) {
+      final status = await Permission.bluetooth.request();
+      if (!status.isGranted) {
+        return AppErrors.permissionDenied;
+      }
+      return null;
+    }
     if (!Platform.isAndroid) return null;
     final sdk = await _channel.invokeMethod<int>('sdkInt') ?? 31;
     if (sdk >= 31) {
