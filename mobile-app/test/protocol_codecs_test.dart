@@ -19,7 +19,7 @@ void main() {
       final value = ProtocolCodecs.decodeDeviceInfo(bytes);
 
       expect(value.model, 'BIKECOMP-XIAO');
-      expect(value.fwVersion, '1.0.0');
+      expect(value.fwVersion, '0.2.0');
       expect(value.uptimeS, 3600);
       expect(value.bootCount, 42);
       expect(value.resetReason, ResetReason.powerOn);

@@ -209,6 +209,25 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String firmwareVersion(String version, String stack) {
+    return 'Прошивка $version ($stack)';
+  }
+
+  @override
+  String get firmwareVersionPending => 'Прошивка: подключите устройство';
+
+  @override
+  String bleProtocolVersion(int major, int minor) {
+    return 'Протокол BLE $major.$minor';
+  }
+
+  @override
+  String get stackArduino => 'Arduino';
+
+  @override
+  String get stackZephyr => 'Zephyr';
+
+  @override
   String get draftConflict =>
       'Настройки устройства изменились после сохранения черновика.';
 

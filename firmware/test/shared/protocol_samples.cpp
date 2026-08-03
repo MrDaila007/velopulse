@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "build_version.h"
+
 namespace bike {
 namespace test_support {
 
@@ -10,9 +12,9 @@ DeviceInfoPacket makeNominalDeviceInfo() {
   info.struct_version = kBleStructVersion;
   info.proto_major = kBleProtoMajor;
   info.proto_minor = kBleProtoMinor;
-  info.hw_revision = 1;
+  info.hw_revision = BIKECOMP_HW_REVISION;
   memcpy(info.model, "BIKECOMP-XIAO", 13);
-  memcpy(info.fw_version, "1.0.0", 5);
+  memcpy(info.fw_version, BIKECOMP_FW_VERSION, strlen(BIKECOMP_FW_VERSION) + 1);
   const uint8_t serial[8] = {1, 2, 3, 4, 5, 6, 7, 8};
   memcpy(info.serial, serial, 8);
   info.uptime_s = 3600;

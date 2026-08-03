@@ -1,4 +1,11 @@
-# BikeComp firmware 0.1.0
+# BikeComp firmware 0.2.0
+
+Версии прошивки, протокола BLE и мобильного приложения задаются в корневом
+[`version.toml`](../version.toml). После изменения запустите:
+
+```bash
+python3 ../tools/sync_versions.py
+```
 
 Первый инкремент прошивки Super-nRF52840 с bootloader XIAO: подсчёт импульсов, fixed-point скорость,
 дистанция, время движения, автостарт/автопауза и экран SSD1306 с пятью страницами.

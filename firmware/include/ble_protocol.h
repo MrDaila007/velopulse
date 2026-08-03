@@ -1,6 +1,6 @@
 #pragma once
 
-// Mirror of protocol/data-structures.md and protocol/uuids.md (protocol v1.0).
+// Mirror of protocol/data-structures.md and protocol/uuids.md (protocol v1.1).
 // Wire layouts are packed little-endian; Configuration encoding goes through
 // DeviceConfig + config_codec (single source of truth for the 48-byte config).
 

@@ -645,8 +645,6 @@ void AppController::tryEnterDeepSleep(uint32_t now_ms) {
 }
 
 void AppController::updatePowerManager(uint32_t now_ms) {
-  if (!usb_test_mode_ && ble_.bleConnected()) display_.noteActivity(now_ms);
-
   const PowerManagerUpdateResult result =
       power_manager_.update(buildPowerManagerInput(now_ms));
   handlePowerManagerResult(result, now_ms);

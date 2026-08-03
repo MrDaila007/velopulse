@@ -4,3 +4,4 @@ tests:
       - bikecomp
       - domain
     type: unit
+    extra_args: M64_MODE=1

@@ -171,6 +171,7 @@ class ConnectionController extends _$ConnectionController {
   final RideLogRecorder _rideLog = RideLogRecorder();
   late final CompanionSyncService _companionSync;
   bool _companionSupported = false;
+  bool _autoConnectPending = false;
 
   @override
   SessionState build() {
@@ -277,8 +278,21 @@ class ConnectionController extends _$ConnectionController {
         devices[found.deviceId] = enriched;
         state = state.copyWith(devices: devices.values.toList(growable: false));
         if (_remembered?.id == found.deviceId &&
-            state.connection is ConnectionScanning) {
-          await connectDevice(enriched);
+            state.connection is ConnectionScanning &&
+            !_autoConnectPending) {
+          _autoConnectPending = true;
+          final deviceToConnect = enriched;
+          unawaited(
+            Future<void>.microtask(() async {
+              try {
+                if (state.connection is ConnectionScanning) {
+                  await connectDevice(deviceToConnect);
+                }
+              } finally {
+                _autoConnectPending = false;
+              }
+            }),
+          );
         }
       },
       onError: (Object error) {

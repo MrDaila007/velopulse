@@ -448,6 +448,36 @@ abstract class AppLocalizations {
   /// **'Версия приложения {version}'**
   String appVersion(String version);
 
+  /// No description provided for @firmwareVersion.
+  ///
+  /// In ru, this message translates to:
+  /// **'Прошивка {version} ({stack})'**
+  String firmwareVersion(String version, String stack);
+
+  /// No description provided for @firmwareVersionPending.
+  ///
+  /// In ru, this message translates to:
+  /// **'Прошивка: подключите устройство'**
+  String get firmwareVersionPending;
+
+  /// No description provided for @bleProtocolVersion.
+  ///
+  /// In ru, this message translates to:
+  /// **'Протокол BLE {major}.{minor}'**
+  String bleProtocolVersion(int major, int minor);
+
+  /// No description provided for @stackArduino.
+  ///
+  /// In ru, this message translates to:
+  /// **'Arduino'**
+  String get stackArduino;
+
+  /// No description provided for @stackZephyr.
+  ///
+  /// In ru, this message translates to:
+  /// **'Zephyr'**
+  String get stackZephyr;
+
   /// No description provided for @draftConflict.
   ///
   /// In ru, this message translates to:

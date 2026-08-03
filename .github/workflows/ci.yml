@@ -22,6 +22,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify version manifest is synced
+        working-directory: .
+        run: |
+          python3 tools/sync_versions.py
+          git diff --exit-code
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

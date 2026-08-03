@@ -184,6 +184,24 @@
   "companionShowWeatherLabel": "Показывать погоду",
   "companionWeatherCityLabel": "Город для прогноза",
   "appVersion": "Версия приложения {version}",
+  "@firmwareVersion": {
+    "placeholders": {
+      "version": { "type": "String" },
+      "stack": { "type": "String" }
+    }
+  },
+  "@firmwareVersionPending": {},
+  "@bleProtocolVersion": {
+    "placeholders": {
+      "major": { "type": "int" },
+      "minor": { "type": "int" }
+    }
+  },
+  "firmwareVersion": "Прошивка {version} ({stack})",
+  "firmwareVersionPending": "Прошивка: подключите устройство",
+  "bleProtocolVersion": "Протокол BLE {major}.{minor}",
+  "stackArduino": "Arduino",
+  "stackZephyr": "Zephyr",
   "draftConflict": "Настройки устройства изменились после сохранения черновика.",
   "draftDescription": "Изменения хранятся как черновик до подтверждённой записи.",
   "enableBluetoothBody": "Включите Bluetooth, чтобы начать поиск.",

@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -36,9 +38,24 @@ class _CompanionSettingsCardState extends ConsumerState<CompanionSettingsCard> {
   }
 
   Future<void> _save(CompanionPreferences value) async {
+    if (!mounted) return;
     setState(() => _prefs = value);
-    await ref.read(preferencesStoreProvider).writeCompanionPreferences(value);
-    await ref.read(connectionControllerProvider.notifier).syncCompanion();
+    try {
+      await ref.read(preferencesStoreProvider).writeCompanionPreferences(value);
+      if (!mounted) return;
+      await ref.read(connectionControllerProvider.notifier).syncCompanion();
+    } on Object catch (error, stackTrace) {
+      developer.log(
+        'Companion settings save failed',
+        name: 'CompanionSettingsCard',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не удалось сохранить настройки: $error')),
+      );
+    }
   }
 
   String _resolvedCityId(CompanionPreferences prefs) {
@@ -86,15 +103,19 @@ class _CompanionSettingsCardState extends ConsumerState<CompanionSettingsCard> {
               onChanged: (value) =>
                   _save(prefs.copyWith(showWeatherOnDevice: value)),
             ),
-            DropdownMenu<String>(
-              key: ValueKey<String>(cityId),
-              initialSelection: cityId,
-              label: Text(strings.companionWeatherCityLabel),
-              dropdownMenuEntries: <DropdownMenuEntry<String>>[
+            DropdownButtonFormField<String>(
+              initialValue: cityId,
+              decoration: InputDecoration(
+                labelText: strings.companionWeatherCityLabel,
+              ),
+              items: <DropdownMenuItem<String>>[
                 for (final city in kWeatherCities)
-                  DropdownMenuEntry<String>(value: city.id, label: city.name),
+                  DropdownMenuItem<String>(
+                    value: city.id,
+                    child: Text(city.name),
+                  ),
               ],
-              onSelected: (value) {
+              onChanged: (value) {
                 if (value == null) return;
                 _save(prefs.copyWith(weatherCityId: value));
               },

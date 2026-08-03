@@ -37,7 +37,7 @@ target_compile_definitions(
   testbinary
   PRIVATE PROTOCOL_FIXTURES_DIR="${CMAKE_CURRENT_LIST_DIR}/../../../protocol/fixtures"
           PROTO_MAJOR=1
-          PROTO_MINOR=0
+          PROTO_MINOR=1
           HW_REVISION=1)
 
 target_compile_options(testbinary PRIVATE -Wall -Wextra -Wno-unused-parameter)

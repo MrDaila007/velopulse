@@ -4,7 +4,7 @@ source "Kconfig.zephyr"
 
 config FW_VERSION
 	string "Firmware version string"
-	default "0.1.0-zephyr"
+	default "0.2.0-zephyr"
 
 config BIKECOMP_DISPLAY_HEIGHT
 	int "OLED height in pixels"

@@ -18,6 +18,7 @@
 #include "ble_device_info.h"
 #include "ble_identity.h"
 #include "ble_protocol.h"
+#include "build_version.h"
 #include "ble_telemetry.h"
 #include "boot_counter.h"
 #include "companion_snapshot.h"
@@ -398,9 +399,9 @@ DeviceInfoPacket makeNominalDeviceInfo() {
   info.struct_version = kBleStructVersion;
   info.proto_major = kBleProtoMajor;
   info.proto_minor = kBleProtoMinor;
-  info.hw_revision = 1;
+  info.hw_revision = BIKECOMP_HW_REVISION;
   memcpy(info.model, "BIKECOMP-XIAO", 13);
-  memcpy(info.fw_version, "1.0.0", 5);
+  memcpy(info.fw_version, BIKECOMP_FW_VERSION, strlen(BIKECOMP_FW_VERSION) + 1);
   const uint8_t serial[8] = {1, 2, 3, 4, 5, 6, 7, 8};
   memcpy(info.serial, serial, 8);
   info.uptime_s = 3600;
@@ -2081,7 +2082,8 @@ void test_protocol_fixture_device_info_v1_nominal() {
   TEST_ASSERT_EQUAL_UINT8(expected.proto_minor, decoded.proto_minor);
   TEST_ASSERT_EQUAL_UINT8(expected.hw_revision, decoded.hw_revision);
   TEST_ASSERT_EQUAL_STRING_LEN("BIKECOMP-XIAO", decoded.model, 13);
-  TEST_ASSERT_EQUAL_STRING_LEN("1.0.0", decoded.fw_version, 5);
+  TEST_ASSERT_EQUAL_STRING_LEN(BIKECOMP_FW_VERSION, decoded.fw_version,
+                               strlen(BIKECOMP_FW_VERSION));
   TEST_ASSERT_EQUAL_UINT32(3600u, decoded.uptime_s);
   TEST_ASSERT_EQUAL_UINT8(1u, decoded.reset_reason);
   TEST_ASSERT_EQUAL_UINT16(42u, decoded.boot_count);

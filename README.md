@@ -26,6 +26,17 @@ complete BLE protocol v1, and compile-time OLED profiles for SSD1306 128×64 and
 See [`STATUS.md`](STATUS.md) for verified progress and [`TODO.md`](TODO.md) for the
 project roadmap.
 
+## Versioning
+
+Product versions live in [`version.toml`](version.toml) (BLE protocol, Arduino
+firmware, Zephyr firmware, mobile app). After editing, run:
+
+```bash
+python3 tools/sync_versions.py
+```
+
+CI verifies that generated files match the manifest.
+
 ## Repository layout
 
 ```text

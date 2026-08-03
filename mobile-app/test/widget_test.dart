@@ -38,7 +38,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.text('Поиск'), findsOneWidget);
+    expect(find.widgetWithText(NavigationDestination, 'Поиск'), findsOneWidget);
     expect(find.text('Показатели'), findsOneWidget);
     expect(find.text('Настройки'), findsOneWidget);
     expect(find.text('Обслуживание'), findsOneWidget);
@@ -135,6 +135,8 @@ void main() {
       find.text('Подключите BikeComp, чтобы прочитать настройки.'),
       findsOneWidget,
     );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Время и погода на экране'), findsOneWidget);
 
     await tester.tap(find.text('Обслуживание'));
     await tester.pump();
