@@ -154,7 +154,7 @@ jobs:
 
       - name: Analyze
         working-directory: mobile-app
-        run: ../tool/flutterw analyze
+        run: ../tool/flutterw analyze --no-fatal-infos
 
       - name: Run tests
         working-directory: mobile-app

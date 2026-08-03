@@ -33,8 +33,14 @@ companion app, and BLE protocol 1.1.
 
 1. Flash `firmware-128x64/firmware.hex` (or `firmware-128x32` for 32 px OLED) via UF2/Adafruit
    bootloader or `pio run -t upload`.
-2. Install `bikecomp-mobile-v0.2.0-beta.1.apk`, pair once, disable aggressive power save if
+2. Install **`bikecomp-mobile-v0.2.0-beta.1.apk`** (Android), pair once, disable aggressive power save if
    BLE discovery fails.
 3. Optional: enable time/weather in app **Settings → Время и погода на экране**.
+
+### Release assets
+
+- `firmware-128x64/` — Arduino firmware for SSD1306 128×64 (default XIAO build).
+- `firmware-128x32/` — same firmware for 128×32 OLED profile.
+- `bikecomp-mobile-v0.2.0-beta.1.apk` — Android companion app (minSdk 24).
 
 [0.2.0-beta.1]: https://github.com/MrDaila007/velopulse/releases/tag/v0.2.0-beta.1

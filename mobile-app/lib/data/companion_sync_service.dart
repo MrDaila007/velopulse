@@ -11,10 +11,9 @@ import 'weather/weather_cities.dart';
 
 class CompanionSyncService {
   CompanionSyncService({
-    required PreferencesStore preferences,
+    required this._preferences,
     OpenMeteoClient? weatherClient,
-  }) : _preferences = preferences,
-       _weatherClient = weatherClient ?? OpenMeteoClient();
+  }) : _weatherClient = weatherClient ?? OpenMeteoClient();
 
   final PreferencesStore _preferences;
   final OpenMeteoClient _weatherClient;
