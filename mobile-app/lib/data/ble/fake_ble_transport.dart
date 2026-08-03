@@ -64,7 +64,7 @@ class FakeBleTransport implements BleTransport {
   DeviceInfo get _deviceInfo => DeviceInfo(
     structVersion: 1,
     protoMajor: scenario == FakeBleScenario.protocolMajor2 ? 2 : 1,
-    protoMinor: 0,
+    protoMinor: 1,
     hwRevision: 1,
     model: 'BIKECOMP-XIAO',
     fwVersion: '1.0.0-fake',
@@ -136,7 +136,10 @@ class FakeBleTransport implements BleTransport {
     if (scenario == FakeBleScenario.serviceMissing) {
       return const BleDiscovery(<String>{});
     }
-    return const BleDiscovery(BleUuids.requiredCharacteristics);
+    return const BleDiscovery({
+      ...BleUuids.requiredCharacteristics,
+      BleUuids.companionWrite,
+    });
   }
 
   @override
@@ -179,6 +182,10 @@ class FakeBleTransport implements BleTransport {
     }
     if (characteristicUuid == BleUuids.configWrite) {
       await _writeConfig(value);
+      return;
+    }
+    if (characteristicUuid == BleUuids.companionWrite) {
+      operationLog.add('companion:${value.length}');
       return;
     }
     if (characteristicUuid == BleUuids.command) {

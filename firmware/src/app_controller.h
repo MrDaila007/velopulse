@@ -3,6 +3,7 @@
 #include "ambient_light_manager.h"
 #include "battery_manager.h"
 #include "ble_manager.h"
+#include "companion_snapshot.h"
 #include "config.h"
 #include "diagnostics.h"
 #include "display_manager.h"
@@ -47,6 +48,7 @@ class AppController {
   void processPendingConfigWrite(uint32_t now_ms);
   void processPendingSafeCommand(uint32_t now_ms);
   void processPendingDangerousCommand(uint32_t now_ms);
+  void processPendingCompanionWrite(uint32_t now_ms);
   void processSerialConsole(uint32_t now_ms);
   void dumpConfig() const;
   void applyConfig(const DeviceConfig& config);
@@ -152,6 +154,7 @@ class AppController {
   bool usb_test_backup_valid_ = false;
   TripSnapshot usb_test_backup_trip_ = {};
   uint64_t usb_test_backup_total_revolutions_ = 0;
+  CompanionState companion_state_ = {};
 };
 
 }  // namespace bike

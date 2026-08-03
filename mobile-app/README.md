@@ -35,6 +35,17 @@ cd mobile-app
 Fake предоставляет профили idle/moving/paused/low-battery, sensor test 5 Гц и
 инъекции ошибок. Для сценарных тестов transport переопределяется Riverpod provider.
 
+## Версии
+
+Единственный источник — `version` в `pubspec.yaml` в формате `MAJOR.MINOR.PATCH+BUILD`:
+
+- `MAJOR.MINOR` — ориентир по BLE protocol (`1.1` = companion write, время/погода)
+- `PATCH` — функции и исправления приложения
+- `BUILD` — номер сборки для Android (`versionCode`) и iOS
+
+Перед установкой на телефон увеличивайте `BUILD` (`+3`, `+4`, …) или `PATCH`.
+В приложении версия показана внизу экрана **Настройки**.
+
 ## Проверки
 
 ```bash

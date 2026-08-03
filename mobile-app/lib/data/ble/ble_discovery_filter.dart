@@ -1,6 +1,13 @@
 import '../protocol/ble_uuids.dart';
 
-const _defaultBikeCompNamePrefix = 'bikecomp-';
+const _defaultBikeCompNamePrefix = 'bikecomp';
+
+String _normalizeUuid(String uuid) => uuid.trim().toLowerCase();
+
+bool _matchesBikeCompName(String name) {
+  final normalized = name.trim().toLowerCase();
+  return normalized.startsWith(_defaultBikeCompNamePrefix);
+}
 
 /// Filters an unfiltered platform scan in Dart.
 ///
@@ -11,9 +18,9 @@ bool isBikeCompAdvertisement({
   required String name,
   required Iterable<String> serviceUuids,
 }) {
+  final targetService = _normalizeUuid(BleUuids.service);
   final advertisesService = serviceUuids.any(
-    (uuid) => uuid.trim().toLowerCase() == BleUuids.service,
+    (uuid) => _normalizeUuid(uuid) == targetService,
   );
-  return advertisesService ||
-      name.trim().toLowerCase().startsWith(_defaultBikeCompNamePrefix);
+  return advertisesService || _matchesBikeCompName(name);
 }

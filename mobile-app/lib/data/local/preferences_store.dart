@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../domain/entities/companion_models.dart';
 import '../../domain/entities/models.dart';
 
 class RememberedDevice {
@@ -31,6 +32,10 @@ class PreferencesStore {
   static const _rememberedIdKey = 'bikecomp.v1.remembered_device.id';
   static const _rememberedNameKey = 'bikecomp.v1.remembered_device.name';
   static const _draftPrefix = 'bikecomp.v1.config_draft.';
+  static const _showClockKey = 'bikecomp.v1.companion.show_clock';
+  static const _showWeatherKey = 'bikecomp.v1.companion.show_weather';
+  static const _weatherCityKey = 'bikecomp.v1.companion.weather_city';
+  static const _weatherFahrenheitKey = 'bikecomp.v1.companion.weather_f';
 
   final SharedPreferencesAsync _preferences;
 
@@ -85,4 +90,22 @@ class PreferencesStore {
 
   Future<void> clearDraft(String deviceId) =>
       _preferences.remove(_draftKey(deviceId));
+
+  Future<CompanionPreferences> readCompanionPreferences() async {
+    return CompanionPreferences(
+      showClockOnDevice: await _preferences.getBool(_showClockKey) ?? true,
+      showWeatherOnDevice: await _preferences.getBool(_showWeatherKey) ?? true,
+      weatherCityId:
+          await _preferences.getString(_weatherCityKey) ?? 'minsk',
+      weatherUseFahrenheit:
+          await _preferences.getBool(_weatherFahrenheitKey) ?? false,
+    );
+  }
+
+  Future<void> writeCompanionPreferences(CompanionPreferences value) async {
+    await _preferences.setBool(_showClockKey, value.showClockOnDevice);
+    await _preferences.setBool(_showWeatherKey, value.showWeatherOnDevice);
+    await _preferences.setString(_weatherCityKey, value.weatherCityId);
+    await _preferences.setBool(_weatherFahrenheitKey, value.weatherUseFahrenheit);
+  }
 }

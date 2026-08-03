@@ -418,6 +418,36 @@ abstract class AppLocalizations {
   /// **'Энергосбережение'**
   String get powerSection;
 
+  /// No description provided for @companionSection.
+  ///
+  /// In ru, this message translates to:
+  /// **'Время и погода на экране'**
+  String get companionSection;
+
+  /// No description provided for @companionShowClockLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Показывать время'**
+  String get companionShowClockLabel;
+
+  /// No description provided for @companionShowWeatherLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Показывать погоду'**
+  String get companionShowWeatherLabel;
+
+  /// No description provided for @companionWeatherCityLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Город для прогноза'**
+  String get companionWeatherCityLabel;
+
+  /// No description provided for @appVersion.
+  ///
+  /// In ru, this message translates to:
+  /// **'Версия приложения {version}'**
+  String appVersion(String version);
+
   /// No description provided for @draftConflict.
   ///
   /// In ru, this message translates to:
@@ -495,6 +525,24 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Забыть'**
   String get forgetAction;
+
+  /// No description provided for @disconnectAction.
+  ///
+  /// In ru, this message translates to:
+  /// **'Отключиться'**
+  String get disconnectAction;
+
+  /// No description provided for @reconnectAction.
+  ///
+  /// In ru, this message translates to:
+  /// **'Подключить снова'**
+  String get reconnectAction;
+
+  /// No description provided for @lastDeviceTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Последнее устройство'**
+  String get lastDeviceTitle;
 
   /// No description provided for @imperialUnits.
   ///

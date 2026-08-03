@@ -296,9 +296,38 @@
 
 ---
 
-## 8. Перечисления
+## 8. Companion Snapshot (UUID `…000B`, Write w/ Response)
 
-### 8.1. `reset_reason`
+Размер: **15 байт**, `struct_version = 1`. Телефон передаёт время и краткую погоду;
+устройство держит soft RTC и отображает данные в шапке OLED.
+
+| Off | Тип | Поле | Описание |
+| --: | --- | --- | --- |
+| 0 | u8 | `struct_version` | `1` |
+| 1 | u32 | `unix_time` | UTC epoch seconds |
+| 5 | i16 | `tz_offset_min` | Смещение от UTC, минуты |
+| 7 | i16 | `temp_c_x10` | Температура ×10; `0x7FFF` = нет данных |
+| 9 | u8 | `pop_pct` | Вероятность осадков 0–100; `0xFF` = нет данных |
+| 10 | u8 | `flags` | См. ниже |
+| 11 | u32 | `valid_until` | UTC epoch; после — stale |
+
+`flags` (Companion):
+
+| Бит | Значение |
+| --- | --- |
+| 0 | `time_valid` |
+| 1 | `weather_valid` |
+| 2 | `rain_now` |
+| 3 | `rain_soon` |
+| 4 | `stale` |
+
+Добавление характеристики — инкремент **proto minor** до `1.1`.
+
+---
+
+## 9. Перечисления
+
+### 9.1. `reset_reason`
 
 | Код | Значение |
 | --: | --- |
@@ -311,7 +340,7 @@
 | 6 | `WAKE_FROM_SLEEP` |
 | 7 | `BROWNOUT` |
 
-### 8.2. `ride_state`
+### 9.2. `ride_state`
 
 | Код | Значение |
 | --: | --- |
@@ -319,7 +348,7 @@
 | 1 | `MOVING` |
 | 2 | `PAUSED` — автопауза |
 
-### 8.3. `sensor_state`
+### 9.3. `sensor_state`
 
 | Код | Значение |
 | --: | --- |
@@ -328,7 +357,7 @@
 | 2 | `STUCK` — постоянный активный уровень |
 | 3 | `NO_SIGNAL` — импульсов не было с момента старта |
 
-### 8.4. `power_state`
+### 9.4. `power_state`
 
 | Код | Значение |
 | --: | --- |
@@ -339,7 +368,7 @@
 | 4 | `BLE_CONFIG` |
 | 5 | `CHARGING` |
 
-### 8.5. `status` (Command Result)
+### 9.5. `status` (Command Result)
 
 | Код | Значение | Действие приложения |
 | --: | --- | --- |
@@ -357,14 +386,14 @@
 | 11 | `ERR_HARDWARE` | Показать в диагностике |
 | 12 | `ERR_NOT_SUPPORTED` | Функция отсутствует в этой прошивке |
 
-### 8.6. `field_id` (для `ERR_RANGE`)
+### 9.6. `field_id` (для `ERR_RANGE`)
 
 Совпадает со смещением поля в структуре Configuration. Приложение сопоставляет смещение
 с полем UI по таблице §4 и подсвечивает конкретный ввод.
 
 ---
 
-## 9. Зеркала структур в коде
+## 10. Зеркала структур в коде
 
 ### C++ (`firmware/include/ble_protocol.h`)
 
@@ -400,7 +429,7 @@ static_assert(sizeof(TelemetryPacket) == 36, "Telemetry layout mismatch");
 Кодеки пишутся вручную через `ByteData` с `Endian.little`; каждый кодек покрыт тестом
 на фикстуре из `protocol/fixtures/`.
 
-## 10. Фикстуры
+## 11. Фикстуры
 
 `protocol/fixtures/` содержит эталонные пакеты в hex с ожидаемой расшифровкой в JSON:
 
@@ -416,7 +445,8 @@ fixtures/
 ├── command_reset_odo_with_token.hex / .json
 ├── result_ok.hex / .json
 ├── result_needs_confirm_reset_odo.hex / .json
-└── result_err_range_wheel.hex / .json
+├── result_err_range_wheel.hex / .json
+└── companion_v1_nominal.hex / .json
 ```
 
 Обе стороны обязаны иметь тест: «декодировать `.hex` → сравнить с `.json`» и

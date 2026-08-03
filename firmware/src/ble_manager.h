@@ -4,6 +4,7 @@
 
 #include "ble_command.h"
 #include "ble_telemetry.h"
+#include "companion_snapshot.h"
 #include "config.h"
 
 namespace bike {
@@ -89,6 +90,9 @@ class BleManager {
   void completePendingDangerousCommand();
   void publishDangerousCommandResult(CommandId command_id,
                                      const BleCommandResult& result);
+
+  bool hasPendingCompanionWrite() const;
+  bool takePendingCompanionWrite(CompanionSnapshotPacket& out);
 
  private:
   bool ok_ = false;

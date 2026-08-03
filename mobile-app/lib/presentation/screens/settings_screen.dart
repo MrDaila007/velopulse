@@ -6,6 +6,8 @@ import '../../application/providers.dart';
 import '../../core/result.dart';
 import '../../domain/entities/models.dart';
 import '../../domain/services/tire_presets.dart';
+import '../widgets/app_version_footer.dart';
+import '../widgets/companion_settings_card.dart';
 import '../../l10n/app_localizations.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -20,28 +22,36 @@ class SettingsScreen extends ConsumerWidget {
     final draft = state.draft;
 
     if (draft == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(Icons.tune, size: 64),
-              const SizedBox(height: 16),
-              Text(strings.connectToReadSettings),
-              if (session.deviceInfo != null) ...<Widget>[
-                const SizedBox(height: 12),
-                Text(
-                  strings.deviceProtocol(
-                    session.deviceInfo!.protoMajor,
-                    session.deviceInfo!.protoMinor,
-                    session.deviceInfo!.model,
-                  ),
-                ),
-              ],
-            ],
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: <Widget>[
+          const SizedBox(height: 48),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(Icons.tune, size: 64),
+                  const SizedBox(height: 16),
+                  Text(strings.connectToReadSettings),
+                  if (session.deviceInfo != null) ...<Widget>[
+                    const SizedBox(height: 12),
+                    Text(
+                      strings.deviceProtocol(
+                        session.deviceInfo!.protoMajor,
+                        session.deviceInfo!.protoMinor,
+                        session.deviceInfo!.model,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
-        ),
+          const CompanionSettingsCard(),
+          const AppVersionFooter(),
+        ],
       );
     }
 
@@ -233,6 +243,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
+        const CompanionSettingsCard(),
+        const SizedBox(height: 12),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -318,6 +330,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(strings.noUnsavedChanges, textAlign: TextAlign.center),
         ],
+        const AppVersionFooter(),
       ],
     );
   }

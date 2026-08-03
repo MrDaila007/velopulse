@@ -5,13 +5,22 @@
 namespace bike {
 namespace {
 
-constexpr int16_t kBatteryPercentX = 91;
-constexpr int16_t kBatteryPercentY = 7;
-constexpr int16_t kBatteryVoltageX = 91;
-constexpr int16_t kBatteryVoltageY = 16;
+constexpr int16_t kRightColumnX = 91;
 constexpr int16_t kBatteryIconFrameX = 107;
 constexpr int16_t kBatteryIconFillX = 109;
 constexpr int16_t kBatteryIconTipX = 119;
+
+struct RightColumnLayout {
+  int16_t battery_percent_y;
+  int16_t battery_voltage_y;
+  int16_t clock_y;
+  int16_t weather_temp_y;
+  int16_t weather_rain_y;
+};
+
+// u8g2_font_5x8_tf is 8 px tall; keep at least 8 px between baselines (+2 px gap).
+constexpr RightColumnLayout kRightColumn128x32 = {7, 15, 23, 31, 39};
+constexpr RightColumnLayout kRightColumn128x64 = {7, 17, 27, 37, 47};
 
 void drawBatteryIcon(DisplayCanvas& canvas, uint8_t fill_width) {
   canvas.drawFrame(kBatteryIconFrameX, 0, 12, 8);
@@ -21,9 +30,19 @@ void drawBatteryIcon(DisplayCanvas& canvas, uint8_t fill_width) {
   }
 }
 
-void drawBatteryLabels(DisplayCanvas& canvas, const DisplayFrame& frame) {
-  canvas.drawText(kBatteryPercentX, kBatteryPercentY, frame.battery_percent);
-  canvas.drawText(kBatteryVoltageX, kBatteryVoltageY, frame.battery_voltage);
+void drawBatteryLabels(DisplayCanvas& canvas, const DisplayFrame& frame,
+                       const RightColumnLayout& layout) {
+  canvas.drawText(kRightColumnX, layout.battery_percent_y, frame.battery_percent);
+  canvas.drawText(kRightColumnX, layout.battery_voltage_y, frame.battery_voltage);
+  if (frame.header[0] != '\0') {
+    canvas.drawText(kRightColumnX, layout.clock_y, frame.header);
+  }
+  if (frame.weather_temp[0] != '\0') {
+    canvas.drawText(kRightColumnX, layout.weather_temp_y, frame.weather_temp);
+  }
+  if (frame.weather_rain[0] != '\0') {
+    canvas.drawText(kRightColumnX, layout.weather_rain_y, frame.weather_rain);
+  }
 }
 
 class OffsetCanvas final : public DisplayCanvas {
@@ -56,7 +75,7 @@ void draw128x32(DisplayCanvas& canvas, const DisplayFrame& frame) {
   canvas.drawText(0, 21, frame.speed);
 
   canvas.setFont(DisplayFont::kSmall);
-  drawBatteryLabels(canvas, frame);
+  drawBatteryLabels(canvas, frame, kRightColumn128x32);
   drawBatteryIcon(canvas, frame.battery_fill_width);
   canvas.drawText(88, 20, frame.units);
   if (frame.low_battery_warning) {
@@ -70,7 +89,7 @@ void draw128x32(DisplayCanvas& canvas, const DisplayFrame& frame) {
 }
 
 void drawBattery128x64(DisplayCanvas& canvas, const DisplayFrame& frame) {
-  drawBatteryLabels(canvas, frame);
+  drawBatteryLabels(canvas, frame, kRightColumn128x64);
   drawBatteryIcon(canvas, frame.battery_fill_width);
 }
 

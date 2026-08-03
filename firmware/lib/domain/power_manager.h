@@ -77,8 +77,9 @@ class PowerManager {
   }
 
   bool aggressiveBlePowerSave() const {
+    if (ble_always_advertise_) return false;
     return config_.power_save_mode ||
-           (mode_ == SystemPowerMode::kLowPowerIdle && !ble_always_advertise_);
+           (mode_ == SystemPowerMode::kLowPowerIdle);
   }
 
   void setBleAlwaysAdvertise(bool enabled) { ble_always_advertise_ = enabled; }

@@ -73,11 +73,11 @@ void main() {
       () => ble.connectToAdvertisingDevice(
         id: 'AA:BB:CC:DD:EE:FF',
         withServices: any(named: 'withServices'),
-        prescanDuration: const Duration(seconds: 5),
+        prescanDuration: const Duration(seconds: 8),
         servicesWithCharacteristicsToDiscover: any(
           named: 'servicesWithCharacteristicsToDiscover',
         ),
-        connectionTimeout: const Duration(seconds: 10),
+        connectionTimeout: const Duration(seconds: 15),
       ),
     ).thenAnswer((_) => platformConnection.stream);
     final transport = ReactiveBleTransport(ble: ble);
@@ -103,11 +103,11 @@ void main() {
               () => ble.connectToAdvertisingDevice(
                 id: 'AA:BB:CC:DD:EE:FF',
                 withServices: captureAny(named: 'withServices'),
-                prescanDuration: const Duration(seconds: 5),
+                prescanDuration: const Duration(seconds: 8),
                 servicesWithCharacteristicsToDiscover: any(
                   named: 'servicesWithCharacteristicsToDiscover',
                 ),
-                connectionTimeout: const Duration(seconds: 10),
+                connectionTimeout: const Duration(seconds: 15),
               ),
             ).captured.single
             as List<Uuid>;

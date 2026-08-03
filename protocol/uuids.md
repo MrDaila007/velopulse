@@ -33,6 +33,7 @@
 | Char: Command | `0006` | `7C9A0006-4B7D-4F2E-9C1A-2E6D5F8B31A4` |
 | Char: Command Result | `0007` | `7C9A0007-4B7D-4F2E-9C1A-2E6D5F8B31A4` |
 | Char: Error Log (опционально) | `0008` | `7C9A0008-4B7D-4F2E-9C1A-2E6D5F8B31A4` |
+| Char: Companion Write | `000B` | `7C9A000B-4B7D-4F2E-9C1A-2E6D5F8B31A4` |
 | Зарезервировано: Ride Log (v2+) | `0009` | `7C9A0009-4B7D-4F2E-9C1A-2E6D5F8B31A4` |
 | Зарезервировано: Firmware Update meta | `000A` | `7C9A000A-4B7D-4F2E-9C1A-2E6D5F8B31A4` |
 
@@ -47,6 +48,7 @@
 | Command | — | ✔ | — | — | **да** |
 | Command Result | ✔ | — | — | ✔ | да |
 | Error Log | ✔ | — | — | ✔ | да |
+| Companion Write | — | ✔ | — | — | **да** |
 
 `Device Information` доступна без шифрования, чтобы приложение могло проверить версию
 протокола до сопряжения (ТЗ §32).

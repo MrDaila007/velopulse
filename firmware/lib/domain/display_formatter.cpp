@@ -27,6 +27,17 @@ DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot,
            (trip.speed_x100 % 100u) / 10u);
   snprintf(frame.units, sizeof(frame.units), "km/h");
 
+  if (snapshot.companion_header_valid) {
+    snprintf(frame.header, sizeof(frame.header), "%s",
+             snapshot.companion_header);
+  }
+  if (snapshot.companion_weather_valid) {
+    snprintf(frame.weather_temp, sizeof(frame.weather_temp), "%s",
+             snapshot.companion_weather_temp);
+    snprintf(frame.weather_rain, sizeof(frame.weather_rain), "%s",
+             snapshot.companion_weather_rain);
+  }
+
   const char* state = stateLabel(trip.ride_state);
   switch (page) {
     case DisplayPage::kAverage:

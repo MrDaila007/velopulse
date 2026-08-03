@@ -62,6 +62,9 @@ LDR даёт `raw=0`, `valid=0` и возвращает пользователь
 `ambient-raw`, `ambient-stop`, `display-state`, `wake-display`, `power-status`, `status`,
 `test-on` / `test-off` (USB regression protocol, см. `tools/usb_regression.py`). Скрипты в `tools/`.
 
+Протокол BLE **1.1**: характеристика `Companion Write` (`000B`) — время и погода с телефона
+(шапка OLED `14:32`, под батареей `+18C` и `R40%`). Без геолокации: город задаётся в приложении.
+
 Разметка и форматирование находятся в общих C++-модулях `display_layout.cpp` и
 `display_formatter.cpp`. Эти же файлы напрямую компилирует OLED-симулятор для
 обеих геометрий.

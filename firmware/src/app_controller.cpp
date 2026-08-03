@@ -32,6 +32,7 @@
 #include "board_leds.h"
 #include "board_pins.h"
 #include "config_codec.h"
+#include "display_profile.h"
 #include "board_pins.h"
 #include "boot_counter.h"
 #include "platform/deep_sleep.h"
@@ -738,6 +739,21 @@ void AppController::printStatus() {
   Serial.print(power_manager_.deepSleepArmed() ? 1 : 0);
   Serial.print(" usb_test=");
   Serial.println(usb_test_mode_ ? 1 : 0);
+  const uint32_t now_ms = millis();
+  const CompanionHeaderView companion = companion_state_.header(now_ms);
+  Serial.print(" clock=");
+  Serial.print(companion.valid ? companion.text : "--");
+  Serial.print(" clock_valid=");
+  Serial.print(companion.valid ? 1 : 0);
+  Serial.print(" clock_stale=");
+  Serial.print(companion.stale ? 1 : 0);
+  const CompanionWeatherView weather = companion_state_.weather(now_ms);
+  Serial.print(" weather_temp=");
+  Serial.print(weather.valid ? weather.temp : "--");
+  Serial.print(" weather_rain=");
+  Serial.print(weather.valid ? weather.rain : "--");
+  Serial.print(" weather_valid=");
+  Serial.println(weather.valid ? 1 : 0);
 }
 
 void AppController::applyAcceptedPulse(const PulseDecision& decision,
@@ -1336,6 +1352,22 @@ void AppController::updateDisplay(uint32_t now_ms) {
   DisplaySnapshot snapshot;
   snapshot.trip = trip_computer_.snapshot();
   snapshot.battery = battery_.snapshot();
+  const CompanionHeaderView companion = companion_state_.header(now_ms);
+  if (companion.valid) {
+    snprintf(snapshot.companion_header, sizeof(snapshot.companion_header), "%s",
+             companion.text);
+    snapshot.companion_header_valid = true;
+    snapshot.companion_header_stale = companion.stale;
+  }
+  const CompanionWeatherView weather = companion_state_.weather(now_ms);
+  if (weather.valid) {
+    snprintf(snapshot.companion_weather_temp,
+             sizeof(snapshot.companion_weather_temp), "%s", weather.temp);
+    snprintf(snapshot.companion_weather_rain, sizeof(snapshot.companion_weather_rain),
+             "%s", weather.rain);
+    snapshot.companion_weather_valid = true;
+    snapshot.companion_weather_stale = weather.stale;
+  }
   display_.render(snapshot);
 }
 
@@ -1587,10 +1619,17 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
   if (clear_bonds_after_result) ble_.clearBonds();
 }
 
+void AppController::processPendingCompanionWrite(uint32_t now_ms) {
+  CompanionSnapshotPacket packet = {};
+  if (!ble_.takePendingCompanionWrite(packet)) return;
+  companion_state_.apply(packet, now_ms);
+}
+
 void AppController::updateBle(uint32_t now_ms) {
   processPendingConfigWrite(now_ms);
   processPendingSafeCommand(now_ms);
   processPendingDangerousCommand(now_ms);
+  processPendingCompanionWrite(now_ms);
 
   const uint32_t overflow = wheel_sensor_.overflowCount();
   if (overflow != logged_isr_overflow_) {

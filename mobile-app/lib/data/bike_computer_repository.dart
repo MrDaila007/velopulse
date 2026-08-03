@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../core/app_error.dart';
 import '../core/result.dart';
+import '../domain/entities/companion_models.dart';
 import '../domain/entities/models.dart';
 import '../domain/validators/config_validator.dart';
 import 'ble/ble_transport.dart';
@@ -21,6 +22,7 @@ abstract interface class BikeComputerRepository {
   Future<Result<DiagnosticSnapshot>> getDiagnostic();
   Future<Result<ErrorLogBatch>> readErrorLog();
   Future<Result<void>> writeConfig(DeviceConfig config);
+  Future<Result<void>> writeCompanionSnapshot(CompanionSnapshot snapshot);
   Future<Result<CommandResult>> sendCommand(DeviceCommand command);
   Future<Result<void>> setOdometerMeters(int odometerM);
   Future<void> setTelemetrySubscribed(bool value);
@@ -325,6 +327,16 @@ class BikeComputerRepositoryImpl implements BikeComputerRepository {
       ),
     );
   }
+
+  @override
+  Future<Result<void>> writeCompanionSnapshot(CompanionSnapshot snapshot) =>
+      _enqueue(() async {
+        await _transport.writeWithResponse(
+          BleUuids.companionWrite,
+          ProtocolCodecs.encodeCompanion(snapshot),
+        );
+        return const Success<void>(null);
+      });
 
   @override
   Future<Result<CommandResult>> sendCommand(DeviceCommand command) =>

@@ -12,6 +12,7 @@
 #include "ble_protocol.h"
 #include "ble_config_write.h"
 #include "ble_telemetry.h"
+#include "companion_snapshot.h"
 #include "error_log.h"
 #include "protocol_codec.h"
 
@@ -26,6 +27,7 @@ BLECharacteristic g_config_write(kBleConfigWriteUuid);
 BLECharacteristic g_command(kBleCommandUuid);
 BLECharacteristic g_command_result(kBleCommandResultUuid);
 BLECharacteristic g_error_log(kBleErrorLogUuid);
+BLECharacteristic g_companion_write(kBleCompanionWriteUuid);
 
 uint8_t g_device_info_buf[kDeviceInfoSize] = {};
 uint8_t g_telemetry_buf[kTelemetrySize] = {};
@@ -52,6 +54,7 @@ constexpr bool kDeepSleepCompiledIn = false;
 bool g_deep_sleep_supported = kDeepSleepCompiledIn;
 bool g_ble_always_advertise = true;
 bool g_advertising_restart_pending = false;
+bool g_aggressive_ble_power_save = false;
 
 uint16_t g_telemetry_seq = 0;
 uint32_t g_telemetry_last_publish_ms = 0;
@@ -65,6 +68,14 @@ PendingDangerousCommand g_pending_dangerous_command = {};
 DangerousCommandSession g_dangerous_command_session = {};
 ErrorLogBuffer g_error_log_entries;
 bool g_error_log_dirty = false;
+
+struct PendingCompanionWrite {
+  enum class State : uint8_t { kIdle = 0, kPending };
+  State state = State::kIdle;
+  CompanionSnapshotPacket packet = {};
+};
+
+PendingCompanionWrite g_pending_companion_write = {};
 
 void startAdvertising();
 
@@ -214,6 +225,13 @@ void onConfigWrite(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t len) {
                          static_cast<uint8_t>(ConfigFieldId::kStructVersion));
     return;
   }
+}
+
+void onCompanionWrite(uint16_t, BLECharacteristic*, uint8_t* data, uint16_t len) {
+  CompanionSnapshotPacket packet = {};
+  if (!decodeCompanionSnapshot(data, len, packet)) return;
+  g_pending_companion_write.packet = packet;
+  g_pending_companion_write.state = PendingCompanionWrite::State::kPending;
 }
 
 void onCommandWrite(uint16_t conn_hdl, BLECharacteristic*, uint8_t* data,
@@ -366,6 +384,13 @@ bool registerGatt(const DeviceConfig& config, const BleBootSeed& seed,
   g_error_log.setBuffer(g_error_log_buf, sizeof(g_error_log_buf));
   g_error_log.setUserDescriptor("Error Log");
   if (!beginChar(g_error_log)) return false;
+
+  g_companion_write.setProperties(CHR_PROPS_WRITE);
+  g_companion_write.setPermission(SECMODE_NO_ACCESS, SECMODE_ENC_NO_MITM);
+  g_companion_write.setFixedLen(kCompanionSnapshotSize);
+  g_companion_write.setUserDescriptor("Companion Write");
+  g_companion_write.setWriteCallback(onCompanionWrite);
+  if (!beginChar(g_companion_write)) return false;
 
   g_boot_ms = seed.boot_ms;
   g_pairing_window_started_ms = seed.boot_ms;
@@ -523,8 +548,16 @@ void BleManager::stopAdvertising() {
 }
 
 void BleManager::applyPowerSaveAdvertising(bool aggressive_power_save) {
-  if (!ok_ || !aggressive_power_save) return;
-  stopAdvertising();
+  if (!ok_) return;
+  const bool was_aggressive = g_aggressive_ble_power_save;
+  g_aggressive_ble_power_save = aggressive_power_save;
+  if (aggressive_power_save) {
+    stopAdvertising();
+    return;
+  }
+  if (was_aggressive && Bluefruit.Periph.connected() == 0) {
+    startAdvertising();
+  }
 }
 
 bool BleManager::statusLedActive() const {
@@ -654,6 +687,18 @@ void BleManager::publishDangerousCommandResult(
   publishCommandResult(static_cast<uint8_t>(command_id), result.status,
                        result.detail, result.token, result.payload,
                        result.payload_len);
+}
+
+bool BleManager::hasPendingCompanionWrite() const {
+  return g_pending_companion_write.state ==
+         PendingCompanionWrite::State::kPending;
+}
+
+bool BleManager::takePendingCompanionWrite(CompanionSnapshotPacket& out) {
+  if (!hasPendingCompanionWrite()) return false;
+  out = g_pending_companion_write.packet;
+  g_pending_companion_write.state = PendingCompanionWrite::State::kIdle;
+  return true;
 }
 
 }  // namespace bike

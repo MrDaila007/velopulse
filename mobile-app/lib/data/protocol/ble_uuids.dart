@@ -7,6 +7,7 @@ abstract final class BleUuids {
   static const command = '7c9a0006-4b7d-4f2e-9c1a-2e6d5f8b31a4';
   static const commandResult = '7c9a0007-4b7d-4f2e-9c1a-2e6d5f8b31a4';
   static const errorLog = '7c9a0008-4b7d-4f2e-9c1a-2e6d5f8b31a4';
+  static const companionWrite = '7c9a000b-4b7d-4f2e-9c1a-2e6d5f8b31a4';
 
   static const requiredCharacteristics = <String>{
     deviceInfo,

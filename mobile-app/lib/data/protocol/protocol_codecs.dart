@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../../domain/entities/companion_models.dart';
 import '../../domain/entities/models.dart';
 
 class ProtocolCodecException implements Exception {
@@ -15,6 +16,7 @@ abstract final class ProtocolCodecs {
   static const deviceInfoSize = 48;
   static const telemetrySize = 36;
   static const configSize = 48;
+  static const companionSize = 15;
   static const diagnosticPayloadSize = 16;
 
   static ByteData _data(List<int> bytes, int v1Size, String name) {
@@ -338,5 +340,31 @@ abstract final class ProtocolCodecs {
       );
     }
     return ErrorLogBatch(entries: List.unmodifiable(entries));
+  }
+
+  static CompanionSnapshot decodeCompanion(List<int> bytes) {
+    final data = _data(bytes, companionSize, 'Companion');
+    return CompanionSnapshot(
+      structVersion: data.getUint8(0),
+      unixTime: data.getUint32(1, Endian.little),
+      tzOffsetMin: data.getInt16(5, Endian.little),
+      tempCX10: data.getInt16(7, Endian.little),
+      popPct: data.getUint8(9),
+      flags: data.getUint8(10),
+      validUntil: data.getUint32(11, Endian.little),
+    );
+  }
+
+  static Uint8List encodeCompanion(CompanionSnapshot value) {
+    final out = Uint8List(companionSize);
+    final data = ByteData.sublistView(out);
+    data.setUint8(0, value.structVersion);
+    data.setUint32(1, value.unixTime, Endian.little);
+    data.setInt16(5, value.tzOffsetMin, Endian.little);
+    data.setInt16(7, value.tempCX10, Endian.little);
+    data.setUint8(9, value.popPct);
+    data.setUint8(10, value.flags);
+    data.setUint32(11, value.validUntil, Endian.little);
+    return out;
   }
 }

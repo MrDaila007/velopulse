@@ -10,6 +10,13 @@
       }
     }
   },
+  "@appVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "@brightnessValue": {
     "placeholders": {
       "percent": {
@@ -172,6 +179,11 @@
   "deepSleepEnabledLabel": "Глубокий сон (System OFF)",
   "powerSaveModeLabel": "Агрессивное энергосбережение",
   "powerSection": "Энергосбережение",
+  "companionSection": "Время и погода на экране",
+  "companionShowClockLabel": "Показывать время",
+  "companionShowWeatherLabel": "Показывать погоду",
+  "companionWeatherCityLabel": "Город для прогноза",
+  "appVersion": "Версия приложения {version}",
   "draftConflict": "Настройки устройства изменились после сохранения черновика.",
   "draftDescription": "Изменения хранятся как черновик до подтверждённой записи.",
   "enableBluetoothBody": "Включите Bluetooth, чтобы начать поиск.",
@@ -185,6 +197,9 @@
   "forceSave": "Сохранить во Flash",
   "forceSaveSubtitle": "Принудительно сохранить текущее состояние",
   "forgetAction": "Забыть",
+  "disconnectAction": "Отключиться",
+  "reconnectAction": "Подключить снова",
+  "lastDeviceTitle": "Последнее устройство",
   "imperialUnits": "мили / mph",
   "incompatibleProtocolTitle": "Несовместимый протокол",
   "incompatibleStatus": "Несовместимо",

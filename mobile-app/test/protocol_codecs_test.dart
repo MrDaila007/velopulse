@@ -43,6 +43,17 @@ void main() {
       });
     }
 
+    test('companion_v1_nominal decodes and encodes', () {
+      final bytes = fixture('companion_v1_nominal');
+      final value = ProtocolCodecs.decodeCompanion(bytes);
+      expect(value.unixTime, 1704067200);
+      expect(value.tzOffsetMin, 180);
+      expect(value.tempCX10, 185);
+      expect(value.popPct, 40);
+      expect(value.flags, 3);
+      expect(ProtocolCodecs.encodeCompanion(value), bytes);
+    });
+
     for (final name in <String>[
       'command_reset_trip',
       'command_reset_odo_request',

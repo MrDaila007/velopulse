@@ -29,6 +29,10 @@ void main() {
         isBikeCompAdvertisement(name: 'BikeComp-D210', serviceUuids: const []),
         isTrue,
       );
+      expect(
+        isBikeCompAdvertisement(name: 'BikeComp', serviceUuids: const []),
+        isTrue,
+      );
     });
 
     test('rejects unrelated advertisements', () {

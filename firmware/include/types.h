@@ -47,11 +47,21 @@ struct BatterySnapshot {
 struct DisplaySnapshot {
   TripSnapshot trip;
   BatterySnapshot battery;
+  char companion_header[20] = {};
+  bool companion_header_valid = false;
+  bool companion_header_stale = false;
+  char companion_weather_temp[10] = {};
+  char companion_weather_rain[8] = {};
+  bool companion_weather_valid = false;
+  bool companion_weather_stale = false;
 };
 
 struct DisplayFrame {
   char speed[16] = {};
   char units[8] = {};
+  char header[20] = {};
+  char weather_temp[10] = {};
+  char weather_rain[8] = {};
   char lower[32] = {};
   char battery_voltage[8] = {};
   char battery_percent[5] = {};

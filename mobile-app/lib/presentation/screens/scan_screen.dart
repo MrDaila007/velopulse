@@ -9,15 +9,40 @@ import '../../application/providers.dart';
 import '../../domain/entities/models.dart';
 import '../../l10n/app_localizations.dart';
 
-class ScanScreen extends ConsumerWidget {
+class ScanScreen extends ConsumerStatefulWidget {
   const ScanScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ScanScreen> createState() => _ScanScreenState();
+}
+
+class _ScanScreenState extends ConsumerState<ScanScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startScanIfIdle());
+  }
+
+  void _startScanIfIdle() {
+    final session = ref.read(connectionControllerProvider);
+    final connection = session.connection;
+    if (connection is ConnectionIdle ||
+        connection is ConnectionFailed ||
+        connection is ConnectionPermissionRequired) {
+      unawaited(ref.read(connectionControllerProvider.notifier).scan());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final strings = AppLocalizations.of(context);
     final session = ref.watch(connectionControllerProvider);
     final controller = ref.read(connectionControllerProvider.notifier);
     final scanning = session.connection is ConnectionScanning;
+    final connected =
+        session.connection is ConnectionReady ||
+        session.connection is ConnectionReadOnly;
+    final lastDevice = session.selectedDevice;
 
     return RefreshIndicator(
       onRefresh: controller.scan,
@@ -35,6 +60,25 @@ class ScanScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _StateCard(connection: session.connection),
+          if (lastDevice != null && !connected) ...<Widget>[
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.history)),
+                title: Text(strings.lastDeviceTitle),
+                subtitle: Text(
+                  lastDevice.name.isEmpty ? 'BikeComp' : lastDevice.name,
+                ),
+                trailing: FilledButton(
+                  onPressed: () {
+                    unawaited(controller.connectLastDevice());
+                    unawaited(context.push<void>('/connecting'));
+                  },
+                  child: Text(strings.reconnectAction),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: <Widget>[
@@ -49,6 +93,12 @@ class ScanScreen extends ConsumerWidget {
               ),
               if (session.selectedDevice != null) ...<Widget>[
                 const SizedBox(width: 12),
+                if (connected)
+                  OutlinedButton(
+                    onPressed: controller.disconnect,
+                    child: Text(strings.disconnectAction),
+                  ),
+                if (connected) const SizedBox(width: 12),
                 OutlinedButton(
                   onPressed: controller.forgetDevice,
                   child: Text(strings.forgetAction),

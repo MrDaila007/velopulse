@@ -20,6 +20,7 @@
 #include "ble_protocol.h"
 #include "ble_telemetry.h"
 #include "boot_counter.h"
+#include "companion_snapshot.h"
 #include "config_codec.h"
 #include "config_validator.h"
 #include "crc32.h"
@@ -247,6 +248,18 @@ void test_ble_advertising_policy_timeout_and_movement_restart() {
   TEST_ASSERT_FALSE(shouldRestartAdvertisingOnMovement(true, false));
   TEST_ASSERT_FALSE(shouldRestartAdvertisingOnMovement(false, true));
   TEST_ASSERT_FALSE(shouldRestartAdvertisingOnMovement(true, true));
+}
+
+void test_power_manager_ble_always_advertise_overrides_power_save() {
+  PowerManager manager;
+  PowerManagerConfig config;
+  config.power_save_mode = true;
+  manager.configure(config);
+  manager.setBleAlwaysAdvertise(true);
+  TEST_ASSERT_FALSE(manager.aggressiveBlePowerSave());
+
+  manager.setBleAlwaysAdvertise(false);
+  TEST_ASSERT_TRUE(manager.aggressiveBlePowerSave());
 }
 
 namespace {
@@ -2551,6 +2564,54 @@ void test_ble_dangerous_command_pending_queue_is_single_slot() {
   TEST_ASSERT_FALSE(dangerousCommandQueueDequeue(queue, taken));
 }
 
+void test_companion_snapshot_fixture_roundtrip() {
+  std::vector<uint8_t> fixture_hex;
+  TEST_ASSERT_TRUE(loadFixtureHex("companion_v1_nominal", fixture_hex));
+  CompanionSnapshotPacket decoded = {};
+  TEST_ASSERT_TRUE(
+      decodeCompanionSnapshot(fixture_hex.data(), fixture_hex.size(), decoded));
+  TEST_ASSERT_EQUAL_UINT8(1u, decoded.struct_version);
+  TEST_ASSERT_EQUAL_UINT32(1704067200u, decoded.unix_time);
+  TEST_ASSERT_EQUAL_INT16(180, decoded.tz_offset_min);
+  TEST_ASSERT_EQUAL_INT16(185, decoded.temp_c_x10);
+  TEST_ASSERT_EQUAL_UINT8(40u, decoded.pop_pct);
+  TEST_ASSERT_EQUAL_UINT8(0x03u, decoded.flags);
+  TEST_ASSERT_EQUAL_UINT32(1704070800u, decoded.valid_until);
+
+  uint8_t encoded[kCompanionSnapshotSize] = {};
+  encodeCompanionSnapshot(decoded, encoded);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(fixture_hex.data(), encoded, kCompanionSnapshotSize);
+}
+
+void test_companion_clock_and_header() {
+  CompanionSnapshotPacket packet = {};
+  packet.struct_version = 1;
+  packet.unix_time = 1704067200u;
+  packet.tz_offset_min = 180;
+  packet.temp_c_x10 = 185;
+  packet.pop_pct = 40;
+  packet.flags = kCompanionFlagTimeValid | kCompanionFlagWeatherValid;
+  packet.valid_until = 1704070800u;
+
+  CompanionState state;
+  state.apply(packet, 1000u);
+  const CompanionHeaderView header = state.header(1000u);
+  TEST_ASSERT_TRUE(header.valid);
+  TEST_ASSERT_FALSE(header.stale);
+  TEST_ASSERT_EQUAL_STRING("03:00", header.text);
+
+  const CompanionWeatherView weather = state.weather(1000u);
+  TEST_ASSERT_TRUE(weather.valid);
+  TEST_ASSERT_FALSE(weather.stale);
+  TEST_ASSERT_EQUAL_STRING("+18.5C", weather.temp);
+  TEST_ASSERT_EQUAL_STRING("R40%", weather.rain);
+
+  const CompanionHeaderView stale = state.header(3700000u);
+  TEST_ASSERT_TRUE(stale.stale);
+  const CompanionWeatherView stale_weather = state.weather(3700000u);
+  TEST_ASSERT_TRUE(stale_weather.stale);
+}
+
 void test_protocol_codec_rejects_bad_length_and_version() {
   uint8_t telemetry[kTelemetrySize] = {};
   encodeTelemetry(makeMovingTelemetry(), telemetry);
@@ -2626,6 +2687,7 @@ int main(int, char**) {
   RUN_TEST(test_serial_console_parses_gpio_commands);
   RUN_TEST(test_error_log_keeps_16_and_snapshots_newest_four_in_order);
   RUN_TEST(test_ble_advertising_policy_timeout_and_movement_restart);
+  RUN_TEST(test_power_manager_ble_always_advertise_overrides_power_save);
   RUN_TEST(test_page_carousel_default_period_and_wrap);
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);
@@ -2685,6 +2747,8 @@ int main(int, char**) {
   RUN_TEST(test_protocol_fixture_telemetry_v1_moving_and_paused);
   RUN_TEST(test_protocol_fixture_config_v1_defaults_and_imperial);
   RUN_TEST(test_protocol_fixture_commands_and_results);
+  RUN_TEST(test_companion_snapshot_fixture_roundtrip);
+  RUN_TEST(test_companion_clock_and_header);
   RUN_TEST(test_protocol_codec_rejects_bad_length_and_version);
   return UNITY_END();
 }

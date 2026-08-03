@@ -192,6 +192,23 @@ class AppLocalizationsRu extends AppLocalizations {
   String get powerSection => 'Энергосбережение';
 
   @override
+  String get companionSection => 'Время и погода на экране';
+
+  @override
+  String get companionShowClockLabel => 'Показывать время';
+
+  @override
+  String get companionShowWeatherLabel => 'Показывать погоду';
+
+  @override
+  String get companionWeatherCityLabel => 'Город для прогноза';
+
+  @override
+  String appVersion(String version) {
+    return 'Версия приложения $version';
+  }
+
+  @override
   String get draftConflict =>
       'Настройки устройства изменились после сохранения черновика.';
 
@@ -243,6 +260,15 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get forgetAction => 'Забыть';
+
+  @override
+  String get disconnectAction => 'Отключиться';
+
+  @override
+  String get reconnectAction => 'Подключить снова';
+
+  @override
+  String get lastDeviceTitle => 'Последнее устройство';
 
   @override
   String get imperialUnits => 'мили / mph';

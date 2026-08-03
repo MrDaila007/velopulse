@@ -160,8 +160,9 @@ class _BikeCompShellState extends ConsumerState<BikeCompShell>
     return Scaffold(
       appBar: AppBar(
         title: const Text('BikeComp'),
-        actions: const <Widget>[
-          Padding(
+        actions: <Widget>[
+          _DisconnectAction(),
+          const Padding(
             padding: EdgeInsets.only(right: 16),
             child: ConnectionBadge(),
           ),
@@ -193,6 +194,27 @@ class _BikeCompShellState extends ConsumerState<BikeCompShell>
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DisconnectAction extends ConsumerWidget {
+  const _DisconnectAction();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = AppLocalizations.of(context);
+    final connection = ref.watch(
+      connectionControllerProvider.select((value) => value.connection),
+    );
+    final connected =
+        connection is ConnectionReady || connection is ConnectionReadOnly;
+    if (!connected) return const SizedBox.shrink();
+    return IconButton(
+      tooltip: strings.disconnectAction,
+      onPressed: () =>
+          ref.read(connectionControllerProvider.notifier).disconnect(),
+      icon: const Icon(Icons.bluetooth_disabled),
     );
   }
 }

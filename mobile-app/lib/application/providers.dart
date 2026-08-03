@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../core/app_error.dart';
 import '../core/result.dart';
+import '../data/companion_sync_service.dart';
 import '../data/bike_computer_repository.dart';
 import '../data/ble/ble_transport.dart';
 import '../data/ble/fake_ble_transport.dart';
@@ -168,11 +169,14 @@ class ConnectionController extends _$ConnectionController {
   late FirmwareMigrationStore _migrationStore;
   late AndroidBlePlatform _platform;
   final RideLogRecorder _rideLog = RideLogRecorder();
+  late final CompanionSyncService _companionSync;
+  bool _companionSupported = false;
 
   @override
   SessionState build() {
     _transport = ref.read(bleTransportProvider);
     _store = ref.read(preferencesStoreProvider);
+    _companionSync = CompanionSyncService(preferences: _store);
     _migrationStore = ref.read(firmwareMigrationStoreProvider);
     _platform = ref.read(androidBlePlatformProvider);
     ref.onDispose(_dispose);
@@ -183,6 +187,32 @@ class ConnectionController extends _$ConnectionController {
 
   Future<void> _loadRememberedDevice() async {
     _remembered = await _store.readRememberedDevice();
+    final remembered = _remembered;
+    if (remembered == null || state.selectedDevice != null) return;
+    state = state.copyWith(
+      selectedDevice: BleScanResult(
+        deviceId: remembered.id,
+        name: remembered.name,
+        rssi: 0,
+      ),
+    );
+  }
+
+  Future<void> connectLastDevice() async {
+    final device = state.selectedDevice;
+    if (device == null) {
+      final remembered = _remembered ?? await _store.readRememberedDevice();
+      if (remembered == null) return;
+      await connectDevice(
+        BleScanResult(
+          deviceId: remembered.id,
+          name: remembered.name,
+          rssi: 0,
+        ),
+      );
+      return;
+    }
+    await connectDevice(device);
   }
 
   void _onAdapterState(BleAdapterState adapter) {
@@ -339,6 +369,10 @@ class ConnectionController extends _$ConnectionController {
     )) {
       throw AppErrors.serviceMissing;
     }
+    _companionSupported = discovery.characteristicUuids.contains(
+      BleUuids.companionWrite,
+    );
+    _companionSync.configure(companionSupported: _companionSupported);
 
     state = state.copyWith(
       connection: const ConnectionState.synchronizing(SyncStage.deviceInfo),
@@ -383,6 +417,9 @@ class ConnectionController extends _$ConnectionController {
     );
     await repository.start();
     _bindRepository(repository);
+    if (_companionSupported) {
+      _companionSync.start(repository);
+    }
     final telemetryResult = await repository.readTelemetry();
     if (telemetryResult case Failure<Telemetry>(:final error)) throw error;
     await _store.rememberDevice(device.deviceId, device.name);
@@ -416,6 +453,7 @@ class ConnectionController extends _$ConnectionController {
   }
 
   Future<void> _disposeRepository() async {
+    _companionSync.stop();
     final repository = _repository;
     _repository = null;
     final telemetry = _telemetrySubscription;
@@ -627,6 +665,15 @@ class ConnectionController extends _$ConnectionController {
         lastMessage: 'Данные обновлены',
       );
     }
+  }
+
+  Future<bool> syncCompanion() async {
+    if (!_companionSupported) return false;
+    final ok = await _companionSync.sync();
+    if (ok) {
+      state = state.copyWith(lastMessage: 'Время и погода отправлены на устройство');
+    }
+    return ok;
   }
 
   Future<void> disconnect({bool explicit = true}) async {

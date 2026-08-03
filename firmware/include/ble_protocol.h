@@ -32,10 +32,12 @@ constexpr char kBleCommandResultUuid[] =
     "7C9A0007-4B7D-4F2E-9C1A-2E6D5F8B31A4";
 constexpr char kBleErrorLogUuid[] =
     "7C9A0008-4B7D-4F2E-9C1A-2E6D5F8B31A4";
+constexpr char kBleCompanionWriteUuid[] =
+    "7C9A000B-4B7D-4F2E-9C1A-2E6D5F8B31A4";
 
 constexpr uint8_t kBleStructVersion = 1;
 constexpr uint8_t kBleProtoMajor = 1;
-constexpr uint8_t kBleProtoMinor = 0;
+constexpr uint8_t kBleProtoMinor = 1;
 
 constexpr size_t kDeviceInfoSize = 48;
 constexpr size_t kTelemetrySize = 36;

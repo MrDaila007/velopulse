@@ -16,6 +16,8 @@ class ReactiveBleTransport implements BleTransport {
   StreamSubscription<DiscoveredDevice>? _scanSubscription;
   StreamController<BleScanResult>? _scanController;
   StreamController<BleLinkState>? _connectionController;
+  final Map<String, DiscoveredDevice> _latestScanSightings =
+      <String, DiscoveredDevice>{};
 
   @override
   Stream<BleAdapterState> get adapterState =>
@@ -30,10 +32,35 @@ class ReactiveBleTransport implements BleTransport {
     _ => BleAdapterState.unknown,
   };
 
+  DiscoveredDevice _mergeScanSighting(DiscoveredDevice device) {
+    final previous = _latestScanSightings[device.id];
+    if (previous == null) {
+      _latestScanSightings[device.id] = device;
+      return device;
+    }
+    final merged = DiscoveredDevice(
+      id: device.id,
+      name: device.name.isNotEmpty ? device.name : previous.name,
+      serviceData: device.serviceData.isNotEmpty
+          ? device.serviceData
+          : previous.serviceData,
+      manufacturerData: device.manufacturerData.isNotEmpty
+          ? device.manufacturerData
+          : previous.manufacturerData,
+      rssi: device.rssi,
+      serviceUuids: device.serviceUuids.isNotEmpty
+          ? device.serviceUuids
+          : previous.serviceUuids,
+    );
+    _latestScanSightings[device.id] = merged;
+    return merged;
+  }
+
   @override
   Stream<BleScanResult> scan() {
     final controller = StreamController<BleScanResult>.broadcast();
     _scanController = controller;
+    _latestScanSightings.clear();
     _scanSubscription = _ble
         .scanForDevices(
           // Filter in Dart: native Android filters can drop advertisements
@@ -43,17 +70,18 @@ class ReactiveBleTransport implements BleTransport {
           requireLocationServicesEnabled: false,
         )
         .listen((device) {
+          final merged = _mergeScanSighting(device);
           if (!isBikeCompAdvertisement(
-            name: device.name,
-            serviceUuids: device.serviceUuids.map((uuid) => uuid.toString()),
+            name: merged.name,
+            serviceUuids: merged.serviceUuids.map((uuid) => uuid.toString()),
           )) {
             return;
           }
           controller.add(
             BleScanResult(
-              deviceId: device.id,
-              name: device.name.isEmpty ? 'BikeComp' : device.name,
-              rssi: device.rssi,
+              deviceId: merged.id,
+              name: merged.name.isEmpty ? 'BikeComp' : merged.name,
+              rssi: merged.rssi,
             ),
           );
         }, onError: controller.addError);
@@ -65,6 +93,7 @@ class ReactiveBleTransport implements BleTransport {
   Future<void> stopScan() async {
     await _scanSubscription?.cancel();
     _scanSubscription = null;
+    _latestScanSightings.clear();
     final controller = _scanController;
     _scanController = null;
     if (controller != null && !controller.isClosed) await controller.close();
@@ -80,13 +109,14 @@ class ReactiveBleTransport implements BleTransport {
         .connectToAdvertisingDevice(
           id: deviceId,
           withServices: const [],
-          prescanDuration: const Duration(seconds: 5),
+          prescanDuration: const Duration(seconds: 8),
           servicesWithCharacteristicsToDiscover: {
-            Uuid.parse(BleUuids.service): BleUuids.requiredCharacteristics
-                .map(Uuid.parse)
-                .toList(),
+            Uuid.parse(BleUuids.service): <Uuid>[
+              ...BleUuids.requiredCharacteristics.map(Uuid.parse),
+              Uuid.parse(BleUuids.companionWrite),
+            ],
           },
-          connectionTimeout: const Duration(seconds: 10),
+          connectionTimeout: const Duration(seconds: 15),
         )
         .listen(
           (update) => controller.add(switch (update.connectionState) {
