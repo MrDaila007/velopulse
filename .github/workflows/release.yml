@@ -24,6 +24,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify version manifest is synced
+        working-directory: .
+        run: |
+          python3 tools/sync_versions.py
+          git diff --exit-code
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -47,6 +53,28 @@ jobs:
 
       - name: Build production firmware
         run: pio run -e xiao_ble_sense -e xiao_ble_sense_128x32
+
+      - name: Stage firmware release files
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir -p release/firmware-128x64 release/firmware-128x32
+          cp firmware/.pio/build/xiao_ble_sense/firmware.hex \
+            firmware/.pio/build/xiao_ble_sense/firmware.elf \
+            firmware/.pio/build/xiao_ble_sense/firmware.zip \
+            release/firmware-128x64/
+          cp firmware/.pio/build/xiao_ble_sense_128x32/firmware.hex \
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.elf \
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.zip \
+            release/firmware-128x32/
+          printf '%s\n' "${{ github.ref_name }}" > release/VERSION.txt
+
+      - name: Upload firmware release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-firmware
+          retention-days: 400
+          if-no-files-found: error
+          path: release/
 
   firmware-zephyr:
     name: Firmware Zephyr
@@ -98,27 +126,6 @@ jobs:
           ZEPHYR_BASE: ${{ github.workspace }}/zephyr
           ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk-1.0.0
         run: firmware-zephyr/scripts/test.sh
-
-      - name: Stage firmware release files
-        working-directory: ${{ github.workspace }}
-        run: |
-          mkdir -p release/firmware-128x64 release/firmware-128x32
-          cp firmware/.pio/build/xiao_ble_sense/firmware.hex \
-            firmware/.pio/build/xiao_ble_sense/firmware.elf \
-            firmware/.pio/build/xiao_ble_sense/firmware.zip \
-            release/firmware-128x64/
-          cp firmware/.pio/build/xiao_ble_sense_128x32/firmware.hex \
-            firmware/.pio/build/xiao_ble_sense_128x32/firmware.elf \
-            firmware/.pio/build/xiao_ble_sense_128x32/firmware.zip \
-            release/firmware-128x32/
-
-      - name: Upload firmware release bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-firmware
-          retention-days: 400
-          if-no-files-found: error
-          path: release/
 
   mobile-app:
     name: Mobile App
@@ -173,9 +180,12 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    needs: [firmware, mobile-app]
+    needs: [firmware, firmware-zephyr, mobile-app]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download firmware bundle
         uses: actions/download-artifact@v4
         with:
@@ -191,7 +201,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
+          body_path: CHANGELOG.md
           files: |
             dist/firmware/**/*
             dist/mobile/**/*

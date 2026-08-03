@@ -37,6 +37,9 @@ python3 tools/sync_versions.py
 
 CI verifies that generated files match the manifest.
 
+Release tags (`v*`) trigger [`.github/workflows/release.yml`](.github/workflows/release.yml);
+see [`CHANGELOG.md`](CHANGELOG.md) for notes. Pre-releases use `-beta.N` / `-alpha.N` suffixes.
+
 ## Repository layout
 
 ```text
