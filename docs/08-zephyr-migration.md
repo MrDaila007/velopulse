@@ -108,7 +108,7 @@ deep sleep адаптер, BLE Companion Sync часов/погоды, USB regre
 | Serial console commands | ✓ | ✓ | Z1 |
 | Diagnostics GET_DIAGNOSTIC | ✓ | ✓ (encode) | Z0 |
 | PowerManager FSM (scheduler periods, agressive BLE PS) | ✓ | ✓ | **Z5.1** |
-| Deep sleep (compiled-in adapter) | ✓ (nRF52 адаптер) | ✓ (PM API; полевая верификация) | **Z5.2** |
+| Deep sleep (compiled-in adapter) | ✓ (nRF52 адаптер) | ✓ (raw nrfx `nrf_power_system_off()`; полевая верификация) | **Z5.2** |
 | BLE Companion Sync (часы/погода на OLED) | ✓ | ✓ | **Z5.3** |
 | USB serial regression harness | ✓ (`tools/usb_regression.py`) | ✗ не подключён | **Z5.4** |
 

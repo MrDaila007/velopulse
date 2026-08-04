@@ -111,8 +111,9 @@ Z4.3 выше устарел. Zephyr сейчас на уровне «после
 - [x] Z5.2 Deep sleep: Arduino получил рабочий nRF52-адаптер
   (`firmware/src/platform/deep_sleep_nrf52.cpp`, `86b0828`), `ble_manager.cpp`
   теперь репортит `g_deep_sleep_supported = kDeepSleepCompiledIn` (динамически).
-  В Zephyr реализован эквивалент через System Off / PM API за тем же интерфейсом
-  `platform/deep_sleep.h`. Код; полевая верификация.
+  В Zephyr реализован эквивалент через raw nrfx `nrf_power_system_off()` (не
+  Zephyr PM subsystem/`sys_poweroff()`) за тем же интерфейсом `platform/deep_sleep.h`.
+  Код; полевая верификация.
 - [x] Z5.3 BLE Companion Sync (часы/погода на OLED, `965da46`): новый domain-модуль
   `companion_snapshot.{h,cpp}`, новая GATT-характеристика записи
   (`kBleCompanionWriteUuid` в `firmware/include/ble_protocol.h`), wiring в
@@ -123,11 +124,12 @@ Z4.3 выше устарел. Zephyr сейчас на уровне «после
   подключён к Zephyr-сборке. Решить, нужен ли тот же regression-harness на
   Zephyr consol/shell или это Arduino-only debug-инструмент (зафиксировать
   решение здесь).
-- [ ] Z5.5 `firmware/src/app_controller.cpp` вырос на ~500 строк в `b3d39ff`
+- [x] Z5.5 `firmware/src/app_controller.cpp` вырос на ~500 строк в `b3d39ff`
   (интеграция power saving, USB-тестов, status-команды). Построчно сверить с
   `firmware-zephyr/app/src/app_controller.cpp` и перенести всё, что относится
-  к общей логике оркестрации (а не к Arduino HAL).
-- [ ] Z5.6 После портирования обновить таблицу паритета в разделе 4 этого файла
+  к общей логике оркестрации (а не к Arduino HAL). Покрыто Task 1-3 (PowerManager
+  FSM, deep sleep, Companion Sync).
+- [x] Z5.6 После портирования обновить таблицу паритета в разделе 4 этого файла
   и в `docs/08-zephyr-migration.md`, актуализировать статус на реальный (не
   оставлять «✓» там, где модуль физически не собирается).
 - [x] Z5.7 Добавить ztest/native-кейсы для `power_manager` и `companion_snapshot`
