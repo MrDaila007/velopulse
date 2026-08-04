@@ -13,6 +13,7 @@ set(BIKECOMP_DOMAIN_SOURCES
   ${BIKECOMP_DOMAIN_DIR}/ble_identity.cpp
   ${BIKECOMP_DOMAIN_DIR}/ble_telemetry.cpp
   ${BIKECOMP_DOMAIN_DIR}/boot_counter.cpp
+  ${BIKECOMP_DOMAIN_DIR}/companion_snapshot.cpp
   ${BIKECOMP_DOMAIN_DIR}/config_codec.cpp
   ${BIKECOMP_DOMAIN_DIR}/config_validator.cpp
   ${BIKECOMP_DOMAIN_DIR}/crc32.cpp

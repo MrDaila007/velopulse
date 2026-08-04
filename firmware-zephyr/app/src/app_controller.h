@@ -3,6 +3,7 @@
 #include "ambient_light_manager.h"
 #include "battery_manager.h"
 #include "ble_manager.h"
+#include "companion_snapshot.h"
 #include "config.h"
 #include "diagnostics.h"
 #include "display_manager.h"
@@ -46,6 +47,7 @@ class AppController {
   void processPendingConfigWrite(uint32_t now_ms);
   void processPendingSafeCommand(uint32_t now_ms);
   void processPendingDangerousCommand(uint32_t now_ms);
+  void processPendingCompanionWrite(uint32_t now_ms);
   void processSerialConsole(uint32_t now_ms);
   void dumpConfig() const;
   void applyConfig(const DeviceConfig& config);
@@ -86,6 +88,7 @@ class AppController {
   DisplayManager display_;
   BleManager ble_;
   PowerManager power_manager_;
+  CompanionState companion_state_ = {};
   SerialCommandParser serial_command_parser_;
   ScheduledTask tasks_[6];
   Scheduler scheduler_;

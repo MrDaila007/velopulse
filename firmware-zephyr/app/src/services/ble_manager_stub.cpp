@@ -48,6 +48,12 @@ bool BleManager::bleAdvertising() const { return false; }
 
 bool BleManager::bleConnected() const { return false; }
 
+bool BleManager::hasPendingCompanionWrite() const { return false; }
+bool BleManager::takePendingCompanionWrite(CompanionSnapshotPacket& out) {
+  (void)out;
+  return false;
+}
+
 void BleManager::stopAdvertising() {}
 void BleManager::applyPowerSaveAdvertising(bool aggressive_power_save) {
   (void)aggressive_power_save;

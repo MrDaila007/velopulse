@@ -1,5 +1,7 @@
 #include "app_controller.h"
 
+#include <cstdio>
+
 #include "platform.h"
 #include <zephyr/autoconf.h>
 #include <zephyr/devicetree.h>
@@ -834,6 +836,22 @@ void AppController::updateDisplay(uint32_t now_ms) {
   DisplaySnapshot snapshot;
   snapshot.trip = trip_computer_.snapshot();
   snapshot.battery = battery_.snapshot();
+  const CompanionHeaderView companion = companion_state_.header(now_ms);
+  if (companion.valid) {
+    snprintf(snapshot.companion_header, sizeof(snapshot.companion_header), "%s",
+             companion.text);
+    snapshot.companion_header_valid = true;
+    snapshot.companion_header_stale = companion.stale;
+  }
+  const CompanionWeatherView weather = companion_state_.weather(now_ms);
+  if (weather.valid) {
+    snprintf(snapshot.companion_weather_temp, sizeof(snapshot.companion_weather_temp),
+             "%s", weather.temp);
+    snprintf(snapshot.companion_weather_rain, sizeof(snapshot.companion_weather_rain),
+             "%s", weather.rain);
+    snapshot.companion_weather_valid = true;
+    snapshot.companion_weather_stale = weather.stale;
+  }
   display_.render(snapshot);
 }
 
@@ -1021,7 +1039,19 @@ void AppController::printStatus() {
   Serial.print(" power_mode=");
   Serial.print(systemPowerModeName(power_manager_.systemMode()));
   Serial.print(" deep_sleep_armed=");
-  Serial.println(power_manager_.deepSleepArmed() ? 1 : 0);
+  Serial.print(power_manager_.deepSleepArmed() ? 1 : 0);
+
+  const uint32_t now_ms = millis();
+  const CompanionHeaderView companion = companion_state_.header(now_ms);
+  Serial.print(" clock=");
+  Serial.print(companion.valid ? companion.text : "--");
+  Serial.print(" clock_valid=");
+  Serial.print(companion.valid ? 1 : 0);
+  const CompanionWeatherView weather = companion_state_.weather(now_ms);
+  Serial.print(" weather_temp=");
+  Serial.print(weather.valid ? weather.temp : "--");
+  Serial.print(" weather_rain=");
+  Serial.println(weather.valid ? weather.rain : "--");
 }
 
 void AppController::processPendingConfigWrite(uint32_t now_ms) {
@@ -1225,10 +1255,17 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
   if (clear_bonds_after_result) ble_.clearBonds();
 }
 
+void AppController::processPendingCompanionWrite(uint32_t now_ms) {
+  CompanionSnapshotPacket packet = {};
+  if (!ble_.takePendingCompanionWrite(packet)) return;
+  companion_state_.apply(packet, now_ms);
+}
+
 void AppController::updateBle(uint32_t now_ms) {
   processPendingConfigWrite(now_ms);
   processPendingSafeCommand(now_ms);
   processPendingDangerousCommand(now_ms);
+  processPendingCompanionWrite(now_ms);
 
   const uint32_t overflow = wheel_sensor_.overflowCount();
   if (overflow != logged_isr_overflow_) {

@@ -25,6 +25,7 @@ target_sources(
     src/test_protocol.cpp
     src/test_commands.cpp
     src/test_power_manager.cpp
+    src/test_companion_snapshot.cpp
     ${TEST_SHARED_DIR}/fixture_loader.cpp
     ${TEST_SHARED_DIR}/memory_storage_backend.cpp
     ${TEST_SHARED_DIR}/protocol_samples.cpp

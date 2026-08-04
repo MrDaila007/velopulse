@@ -4,6 +4,7 @@
 
 #include "ble_command.h"
 #include "ble_telemetry.h"
+#include "companion_snapshot.h"
 #include "config.h"
 
 namespace bike {
@@ -52,6 +53,8 @@ class BleManager {
   bool statusLedActive() const;
   bool bleAdvertising() const;
   bool bleConnected() const;
+  bool hasPendingCompanionWrite() const;
+  bool takePendingCompanionWrite(CompanionSnapshotPacket& out);
   void applyPowerSaveAdvertising(bool aggressive_power_save);
   void stopAdvertising();
 
