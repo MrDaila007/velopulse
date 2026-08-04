@@ -101,15 +101,15 @@ deep sleep адаптер, BLE Companion Sync часов/погоды, USB regre
 | Display layout/formatter (domain) | ✓ | ✓ (shared) | Z0 |
 | OLED render 128×64/32 | ✓ | ✓ | Z2 (u8g2) |
 | Display power / burn-in | ✓ | ✓ | Z2 |
-| BLE GATT characteristics | ✓ (8, +Companion) | ✗ (7, старый набор) | Z3 / **Z5.3** |
+| BLE GATT characteristics | ✓ (8, +Companion) | ✓ (8, +Companion) | Z3 / **Z5.3** |
 | Advertising / pairing window | ✓ | ✓ | Z3 |
 | Safe + dangerous commands | ✓ | ✓ | Z3 |
 | Error log + sensor test | ✓ | ✓ | Z3 |
 | Serial console commands | ✓ | ✓ | Z1 |
 | Diagnostics GET_DIAGNOSTIC | ✓ | ✓ (encode) | Z0 |
-| PowerManager FSM (scheduler periods, agressive BLE PS) | ✓ | ✗ модуль не слинкован | **Z5.1** |
-| Deep sleep (compiled-in adapter) | ✓ (nRF52 адаптер) | ✗ (`g_deep_sleep_supported` жёстко `false`) | **Z5.2** |
-| BLE Companion Sync (часы/погода на OLED) | ✓ | ✗ отсутствует целиком | **Z5.3** |
+| PowerManager FSM (scheduler periods, agressive BLE PS) | ✓ | ✓ | **Z5.1** |
+| Deep sleep (compiled-in adapter) | ✓ (nRF52 адаптер) | ✓ (PM API; полевая верификация) | **Z5.2** |
+| BLE Companion Sync (часы/погода на OLED) | ✓ | ✓ | **Z5.3** |
 | USB serial regression harness | ✓ (`tools/usb_regression.py`) | ✗ не подключён | **Z5.4** |
 
 ---

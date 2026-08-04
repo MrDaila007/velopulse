@@ -103,25 +103,21 @@ Z4.3 выше устарел. Zephyr сейчас на уровне «после
 
 Конкретный разрыв (проверено по коду, не только по докам):
 
-- [ ] Z5.1 `firmware/lib/domain/power_manager.{h,cpp}` (PowerManager FSM,
+- [x] Z5.1 `firmware/lib/domain/power_manager.{h,cpp}` (PowerManager FSM,
   scheduler periods, aggressive BLE power save) добавлен в Arduino
   (`b563888`) и подключён в `app_controller.cpp` (`configurePowerManager`,
-  `updatePowerManager`, `handlePowerManagerResult`). В `firmware-zephyr/app/CMakeLists.txt`
-  `DOMAIN_SOURCES` этого файла нет — модуль не собирается и не слинкован
-  вообще, а не просто не вызывается.
-- [ ] Z5.2 Deep sleep: Arduino получил рабочий nRF52-адаптер
+  `updatePowerManager`, `handlePowerManagerResult`). Перенесён в `firmware-zephyr/app/CMakeLists.txt`
+  `DOMAIN_SOURCES` и интегрирован в Zephyr-сборку.
+- [x] Z5.2 Deep sleep: Arduino получил рабочий nRF52-адаптер
   (`firmware/src/platform/deep_sleep_nrf52.cpp`, `86b0828`), `ble_manager.cpp`
   теперь репортит `g_deep_sleep_supported = kDeepSleepCompiledIn` (динамически).
-  В Zephyr `services/ble_manager_zephyr.cpp` по-прежнему жёстко
-  `g_deep_sleep_supported = false` — нужен Zephyr-эквивалент через System
-  Off / PM API за тем же интерфейсом `platform/deep_sleep.h`, что и Arduino.
-- [ ] Z5.3 BLE Companion Sync (часы/погода на OLED, `965da46`): новый domain-модуль
+  В Zephyr реализован эквивалент через System Off / PM API за тем же интерфейсом
+  `platform/deep_sleep.h`. Код; полевая верификация.
+- [x] Z5.3 BLE Companion Sync (часы/погода на OLED, `965da46`): новый domain-модуль
   `companion_snapshot.{h,cpp}`, новая GATT-характеристика записи
   (`kBleCompanionWriteUuid` в `firmware/include/ble_protocol.h`), wiring в
-  `app_controller.cpp`/`ble_manager.cpp` Arduino. В Zephyr `companion_snapshot`
-  не в `DOMAIN_SOURCES`, GATT-сервис в `ble_manager_zephyr.cpp` по-прежнему
-  определяет ровно 7 характеристик (нет Companion Write) — фича отсутствует
-  целиком, включая протокольную часть.
+  `app_controller.cpp`/`ble_manager.cpp`. Перенесён в Zephyr: `companion_snapshot`
+  добавлена в `DOMAIN_SOURCES`, GATT-сервис расширен на 8 характеристик с Companion Write.
 - [ ] Z5.4 USB serial regression harness (`serial_usb_test.{h,cpp}`, `015abeb`,
   используется `tools/usb_regression.py` + `tools/fixtures/usb/*`) — не
   подключён к Zephyr-сборке. Решить, нужен ли тот же regression-harness на
@@ -134,7 +130,7 @@ Z4.3 выше устарел. Zephyr сейчас на уровне «после
 - [ ] Z5.6 После портирования обновить таблицу паритета в разделе 4 этого файла
   и в `docs/08-zephyr-migration.md`, актуализировать статус на реальный (не
   оставлять «✓» там, где модуль физически не собирается).
-- [ ] Z5.7 Добавить ztest/native-кейсы для `power_manager` и `companion_snapshot`
+- [x] Z5.7 Добавить ztest/native-кейсы для `power_manager` и `companion_snapshot`
   в `firmware-zephyr/tests/domain`, зеркально Arduino-кейсам, добавленным в
   `firmware/test/test_native/test_main.cpp` этими же коммитами.
 
