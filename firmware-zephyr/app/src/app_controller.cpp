@@ -114,6 +114,11 @@ void AppController::begin() {
   Serial.print(resetreas, HEX);
   Serial.println(')');
 
+  if (deepSleepWakeFromSleep()) {
+    Serial.print("wake_source=");
+    Serial.println(deepSleepWakeSourceName());
+  }
+
   const bool fs_ok = storage_.begin();
   Serial.print("Flash FS: ");
   Serial.println(fs_ok ? "OK" : "MOUNT FAILED");
@@ -918,8 +923,31 @@ void AppController::handlePowerManagerResult(
       power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
     ble_.applyPowerSaveAdvertising(power_manager_.aggressiveBlePowerSave());
   }
-  // NOTE: result.request_enter_deep_sleep is handled by AppController::tryEnterDeepSleep
-  // added in Task 2 of docs/superpowers/plans/2026-08-04-zephyr-parity-z5.md.
+  if (result.request_enter_deep_sleep) {
+    tryEnterDeepSleep(now_ms);
+  }
+}
+
+void AppController::tryEnterDeepSleep(uint32_t now_ms) {
+#if defined(BIKECOMP_FEATURE_DEEP_SLEEP) && BIKECOMP_FEATURE_DEEP_SLEEP
+  if (!config_.deep_sleep_enabled || power_manager_.sleepBlocked()) return;
+
+  odometer_save_.requestDeepSleepSave();
+  const uint64_t odometer_mm = trip_computer_.snapshot().odometer_mm;
+  const OdometerSaveTrigger trigger = odometer_save_.evaluate(odometer_mm, now_ms);
+  if (trigger != OdometerSaveTrigger::kNone && !persistOdometer(trigger)) {
+    return;
+  }
+
+  display_.turnOff(now_ms);
+  ble_.stopAdvertising();
+  wheel_sensor_.suspendInterrupt();
+
+  const bool sense_low = config_.active_edge != 1u;
+  deepSleepPrepareAndEnter(kHallSenseNrfGpio, sense_low);
+#else
+  (void)now_ms;
+#endif
 }
 
 void AppController::updatePowerManager(uint32_t now_ms) {

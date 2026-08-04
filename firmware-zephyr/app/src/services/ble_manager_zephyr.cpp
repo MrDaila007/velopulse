@@ -94,7 +94,7 @@ bool g_config_valid = false;
 bool g_display_ok = false;
 bool g_fs_ok = false;
 bool g_usb_connected = false;
-bool g_deep_sleep_supported = false;
+bool g_deep_sleep_supported = static_cast<bool>(IS_ENABLED(CONFIG_BIKECOMP_DEEP_SLEEP));
 bool g_ble_always_advertise = true;
 bool g_advertising_restart_pending = false;
 bool g_aggressive_ble_power_save = false;
@@ -599,7 +599,7 @@ bool seedGattBuffers(const DeviceConfig& config, const BleBootSeed& seed,
   g_display_ok = seed.display_ok;
   g_fs_ok = seed.fs_ok;
   g_usb_connected = seed.usb_connected;
-  g_deep_sleep_supported = false;
+  g_deep_sleep_supported = static_cast<bool>(IS_ENABLED(CONFIG_BIKECOMP_DEEP_SLEEP));
 
   g_device_info_packet = {};
   g_device_info_packet.struct_version = kBleStructVersion;

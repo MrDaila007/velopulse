@@ -13,6 +13,7 @@ set(PLATFORM_SOURCES
   src/platform/time_console.cpp
   src/platform/adc_io.cpp
   src/platform/littlefs_backend.cpp
+  src/platform/deep_sleep_zephyr.cpp
 )
 
 set(SERVICE_SOURCES
@@ -83,6 +84,12 @@ if(CONFIG_BIKECOMP_OPEN_PAIRING)
   target_compile_definitions(app PRIVATE BIKECOMP_OPEN_PAIRING=1)
 else()
   target_compile_definitions(app PRIVATE BIKECOMP_OPEN_PAIRING=0)
+endif()
+
+if(CONFIG_BIKECOMP_DEEP_SLEEP)
+  target_compile_definitions(app PRIVATE BIKECOMP_FEATURE_DEEP_SLEEP=1)
+else()
+  target_compile_definitions(app PRIVATE BIKECOMP_FEATURE_DEEP_SLEEP=0)
 endif()
 
 target_compile_options(app PRIVATE
