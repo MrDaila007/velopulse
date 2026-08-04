@@ -29,7 +29,10 @@ class CompanionSyncService {
     _repository = repository;
     unawaited(sync());
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(minutes: 15), (_) => unawaited(sync()));
+    _timer = Timer.periodic(
+      const Duration(minutes: 15),
+      (_) => unawaited(sync()),
+    );
   }
 
   void stop() {

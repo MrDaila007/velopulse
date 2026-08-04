@@ -95,8 +95,7 @@ class PreferencesStore {
     return CompanionPreferences(
       showClockOnDevice: await _preferences.getBool(_showClockKey) ?? true,
       showWeatherOnDevice: await _preferences.getBool(_showWeatherKey) ?? true,
-      weatherCityId:
-          await _preferences.getString(_weatherCityKey) ?? 'minsk',
+      weatherCityId: await _preferences.getString(_weatherCityKey) ?? 'minsk',
       weatherUseFahrenheit:
           await _preferences.getBool(_weatherFahrenheitKey) ?? false,
     );
@@ -106,6 +105,9 @@ class PreferencesStore {
     await _preferences.setBool(_showClockKey, value.showClockOnDevice);
     await _preferences.setBool(_showWeatherKey, value.showWeatherOnDevice);
     await _preferences.setString(_weatherCityKey, value.weatherCityId);
-    await _preferences.setBool(_weatherFahrenheitKey, value.weatherUseFahrenheit);
+    await _preferences.setBool(
+      _weatherFahrenheitKey,
+      value.weatherUseFahrenheit,
+    );
   }
 }

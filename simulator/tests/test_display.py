@@ -59,12 +59,12 @@ class DisplaySimulatorTest(unittest.TestCase):
 
         empty_commands = firmware_commands("battery_empty", 64)
         self.assertIn(["TEXT", "91", "7", "0%"], empty_commands)
-        self.assertIn(["TEXT", "91", "16", "3.0V"], empty_commands)
+        self.assertIn(["TEXT", "91", "17", "3.0V"], empty_commands)
         self.assertNotIn(["BOX", "109", "2", "1", "4"], empty_commands)
 
         full_commands = firmware_commands("battery_full", 64)
         self.assertIn(["TEXT", "91", "7", "100%"], full_commands)
-        self.assertIn(["TEXT", "91", "16", "4.2V"], full_commands)
+        self.assertIn(["TEXT", "91", "17", "4.2V"], full_commands)
         self.assertIn(["BOX", "109", "2", "8", "4"], full_commands)
 
         long_commands = firmware_commands("long_metric", 64)

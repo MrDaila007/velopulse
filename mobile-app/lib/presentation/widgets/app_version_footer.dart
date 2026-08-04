@@ -50,19 +50,17 @@ class AppVersionFooter extends ConsumerWidget {
               ),
               error: (_, _) => const SizedBox.shrink(),
             ),
-            if (deviceInfo case final info?)
-              ...<Widget>[
-                line(
-                  strings.firmwareVersion(
-                    info.fwVersion,
-                    firmwareStackLabel(strings, info.fwVersion),
-                  ),
+            if (deviceInfo case final info?) ...<Widget>[
+              line(
+                strings.firmwareVersion(
+                  info.fwVersion,
+                  firmwareStackLabel(strings, info.fwVersion),
                 ),
-                line(
-                  strings.bleProtocolVersion(info.protoMajor, info.protoMinor),
-                ),
-              ]
-            else
+              ),
+              line(
+                strings.bleProtocolVersion(info.protoMajor, info.protoMinor),
+              ),
+            ] else
               line(strings.firmwareVersionPending),
           ],
         ),

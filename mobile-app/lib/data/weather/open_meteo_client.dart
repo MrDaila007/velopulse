@@ -20,17 +20,20 @@ class OpenMeteoClient {
       return _cached;
     }
 
-    final uri = Uri.https('api.open-meteo.com', '/v1/forecast', <String, String>{
-      'latitude': city.latitude.toString(),
-      'longitude': city.longitude.toString(),
-      'current': 'temperature_2m,precipitation',
-      'hourly': 'precipitation_probability',
-      'forecast_hours': '1',
-      'timezone': 'GMT',
-    });
+    final uri =
+        Uri.https('api.open-meteo.com', '/v1/forecast', <String, String>{
+          'latitude': city.latitude.toString(),
+          'longitude': city.longitude.toString(),
+          'current': 'temperature_2m,precipitation',
+          'hourly': 'precipitation_probability',
+          'forecast_hours': '1',
+          'timezone': 'GMT',
+        });
 
     try {
-      final response = await _client.get(uri).timeout(const Duration(seconds: 8));
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 8));
       if (response.statusCode != 200) {
         return _staleOrNull();
       }

@@ -55,12 +55,7 @@ const List<WeatherCity> kWeatherCities = <WeatherCity>[
     latitude: 45.0355,
     longitude: 38.9753,
   ),
-  WeatherCity(
-    id: 'sochi',
-    name: 'Сочи',
-    latitude: 43.6028,
-    longitude: 39.7342,
-  ),
+  WeatherCity(id: 'sochi', name: 'Сочи', latitude: 43.6028, longitude: 39.7342),
 ];
 
 WeatherCity? weatherCityById(String id) {

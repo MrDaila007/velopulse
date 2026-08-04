@@ -40,10 +40,10 @@ fi
 # Zephyr tree: env override, CI clone, repo deps/, or shared workspace on disk.
 if [ -n "${ZEPHYR_BASE:-}" ] && [ -d "${ZEPHYR_BASE}" ]; then
   :
-elif [ -d "${REPO_ROOT}/zephyr" ]; then
-  export ZEPHYR_BASE="${REPO_ROOT}/zephyr"
 elif [ -d "${REPO_ROOT}/deps/zephyr" ]; then
   export ZEPHYR_BASE="${REPO_ROOT}/deps/zephyr"
+elif [ -d "${REPO_ROOT}/zephyr" ]; then
+  export ZEPHYR_BASE="${REPO_ROOT}/zephyr"
 elif [ -d "/data/zephyrproject-v4.4/zephyr" ]; then
   export ZEPHYR_BASE="/data/zephyrproject-v4.4/zephyr"
 else

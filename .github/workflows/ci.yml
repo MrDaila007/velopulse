@@ -81,19 +81,21 @@ jobs:
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build cmake gcc g++
 
-      - name: Cache Zephyr tree
-        uses: actions/cache@v4
-        id: zephyr-cache
-        with:
-          path: zephyr
-          key: zephyr-v4.4.0-${{ runner.os }}
+      - name: Install west
+        run: pip install west
 
-      - name: Fetch Zephyr
-        if: steps.zephyr-cache.outputs.cache-hit != 'true'
-        run: git clone --depth 1 --branch v4.4.0 https://github.com/zephyrproject-rtos/zephyr.git zephyr
+      - name: Cache west workspace
+        uses: actions/cache@v4
+        id: west-cache
+        with:
+          path: deps
+          key: west-deps-v4.4-${{ hashFiles('firmware-zephyr/west.yml') }}
+
+      - name: Bootstrap west workspace
+        run: west update
 
       - name: Install Zephyr Python dependencies
-        run: pip install -r zephyr/scripts/requirements.txt
+        run: pip install -r deps/zephyr/scripts/requirements.txt
 
       - name: Cache Zephyr SDK
         uses: actions/cache@v4
@@ -113,13 +115,13 @@ jobs:
 
       - name: Run ztest domain suite
         env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          ZEPHYR_BASE: ${{ github.workspace }}/deps/zephyr
           ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk-1.0.0
         run: firmware-zephyr/scripts/test.sh
 
       - name: West build (xiao_ble + BLE)
         env:
-          ZEPHYR_BASE: ${{ github.workspace }}/zephyr
+          ZEPHYR_BASE: ${{ github.workspace }}/deps/zephyr
           ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk-1.0.0
           WEST_TOP: ${{ github.workspace }}
         run: firmware-zephyr/scripts/build.sh

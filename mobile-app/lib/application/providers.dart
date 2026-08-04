@@ -205,11 +205,7 @@ class ConnectionController extends _$ConnectionController {
       final remembered = _remembered ?? await _store.readRememberedDevice();
       if (remembered == null) return;
       await connectDevice(
-        BleScanResult(
-          deviceId: remembered.id,
-          name: remembered.name,
-          rssi: 0,
-        ),
+        BleScanResult(deviceId: remembered.id, name: remembered.name, rssi: 0),
       );
       return;
     }
@@ -685,7 +681,9 @@ class ConnectionController extends _$ConnectionController {
     if (!_companionSupported) return false;
     final ok = await _companionSync.sync();
     if (ok) {
-      state = state.copyWith(lastMessage: 'Время и погода отправлены на устройство');
+      state = state.copyWith(
+        lastMessage: 'Время и погода отправлены на устройство',
+      );
     }
     return ok;
   }
