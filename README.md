@@ -67,6 +67,7 @@ see [`CHANGELOG.md`](CHANGELOG.md) for notes. Pre-releases use `-beta.N` / `-alp
 | --- | --- |
 | [Firmware architecture](docs/03-firmware-architecture.md) | Firmware layers, cooperative scheduler, ISR pulse processing, fixed-point calculations, ride and power state machines, display, storage, BLE, and diagnostics |
 | [Mobile application architecture](docs/04-mobile-app-architecture.md) | Planned Flutter/Riverpod stack, connection state machine, repository layer, configuration drafts, screens, permissions, and testing strategy |
+| [Mobile application current state](docs/09-mobile-app-current-state.md) | What is actually implemented on `dev` vs. the plan, companion sync, firmware-migration backup, log export, and known code-review issues |
 | [Hardware design](docs/05-hardware-design.md) | BOM, wiring, pinout, battery measurement and calibration, charging, mechanical installation, power budget, and hardware checks |
 
 ### Firmware ↔ application contract
