@@ -1,6 +1,6 @@
 # 08. Миграция прошивки на Zephyr RTOS
 
-Обновлено: 2026-08-02
+Обновлено: 2026-08-04
 
 Цель: перенести firmware BikeComp с **PlatformIO + Arduino (Adafruit nRF52)** на
 **Zephyr RTOS v4.1** для Seeed XIAO nRF52840 Sense / Super-nRF52840, сохранив
@@ -78,7 +78,12 @@
 
 ## 4. Матрица паритета (STATUS.md → Zephyr)
 
-Состояние на 2026-08-03 после завершения Z1 (ветка `dev`).
+Состояние на 2026-08-04. **Важно:** после завершения Z3/Z4 (коммит `e1d2c27`)
+в Arduino-сборку добавилось 5 коммитов новой функциональности (PowerManager FSM,
+deep sleep адаптер, BLE Companion Sync часов/погоды, USB regression harness,
+интеграция в `app_controller.cpp`), которые **не перенесены** в
+`firmware-zephyr/` — см. [Z5 в `tasks/firmware/zephyr.md`](../tasks/firmware/zephyr.md#z5--синхронизация-с-arduino-обнаружено-2026-08-04).
+Строки ниже, отмеченные «Z5», проверены напрямую по коду (не только по докам).
 
 | Возможность STATUS.md | Arduino | Zephyr | Фаза |
 | --- | :---: | :---: | --- |
@@ -96,13 +101,16 @@
 | Display layout/formatter (domain) | ✓ | ✓ (shared) | Z0 |
 | OLED render 128×64/32 | ✓ | ✓ | Z2 (u8g2) |
 | Display power / burn-in | ✓ | ✓ | Z2 |
-| BLE GATT 7 characteristics | ✓ | — | Z3 |
-| Advertising / pairing window | ✓ | — | Z3 |
-| Safe + dangerous commands | ✓ | — | Z3 |
-| Error log + sensor test | ✓ | — | Z3 |
+| BLE GATT characteristics | ✓ (8, +Companion) | ✗ (7, старый набор) | Z3 / **Z5.3** |
+| Advertising / pairing window | ✓ | ✓ | Z3 |
+| Safe + dangerous commands | ✓ | ✓ | Z3 |
+| Error log + sensor test | ✓ | ✓ | Z3 |
 | Serial console commands | ✓ | ✓ | Z1 |
 | Diagnostics GET_DIAGNOSTIC | ✓ | ✓ (encode) | Z0 |
-| Deep sleep | отложено | отложено | — |
+| PowerManager FSM (scheduler periods, agressive BLE PS) | ✓ | ✗ модуль не слинкован | **Z5.1** |
+| Deep sleep (compiled-in adapter) | ✓ (nRF52 адаптер) | ✗ (`g_deep_sleep_supported` жёстко `false`) | **Z5.2** |
+| BLE Companion Sync (часы/погода на OLED) | ✓ | ✗ отсутствует целиком | **Z5.3** |
+| USB serial regression harness | ✓ (`tools/usb_regression.py`) | ✗ не подключён | **Z5.4** |
 
 ---
 
