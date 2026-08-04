@@ -23,6 +23,7 @@
 #include "ble_identity.h"
 #include "ble_protocol.h"
 #include "ble_telemetry.h"
+#include "companion_snapshot.h"
 #include "error_log.h"
 #include "platform.h"
 #include "protocol_codec.h"
@@ -46,6 +47,8 @@ namespace {
   BT_UUID_128_ENCODE(0x7c9a0007, 0x4b7d, 0x4f2e, 0x9c1a, 0x2e6d5f8b31a4)
 #define BIKECOMP_UUID_ERROR_LOG_VAL \
   BT_UUID_128_ENCODE(0x7c9a0008, 0x4b7d, 0x4f2e, 0x9c1a, 0x2e6d5f8b31a4)
+#define BIKECOMP_UUID_COMPANION_WRITE_VAL \
+  BT_UUID_128_ENCODE(0x7c9a000b, 0x4b7d, 0x4f2e, 0x9c1a, 0x2e6d5f8b31a4)
 
 static const struct bt_uuid_128 bikecomp_service_uuid =
     BT_UUID_INIT_128(BIKECOMP_UUID_SERVICE_VAL);
@@ -63,6 +66,8 @@ static const struct bt_uuid_128 command_result_uuid =
     BT_UUID_INIT_128(BIKECOMP_UUID_COMMAND_RESULT_VAL);
 static const struct bt_uuid_128 error_log_uuid =
     BT_UUID_INIT_128(BIKECOMP_UUID_ERROR_LOG_VAL);
+static const struct bt_uuid_128 companion_write_uuid =
+    BT_UUID_INIT_128(BIKECOMP_UUID_COMPANION_WRITE_VAL);
 
 enum BikecompAttrIndex {
   kAttrDeviceInfoVal = 2,
@@ -94,9 +99,10 @@ bool g_config_valid = false;
 bool g_display_ok = false;
 bool g_fs_ok = false;
 bool g_usb_connected = false;
-bool g_deep_sleep_supported = false;
+bool g_deep_sleep_supported = static_cast<bool>(IS_ENABLED(CONFIG_BIKECOMP_DEEP_SLEEP));
 bool g_ble_always_advertise = true;
 bool g_advertising_restart_pending = false;
+bool g_aggressive_ble_power_save = false;
 
 uint16_t g_telemetry_seq = 0;
 uint32_t g_telemetry_last_publish_ms = 0;
@@ -109,6 +115,14 @@ constexpr uint16_t kInvalidConnBinding = 0xFFFFu;
 uint16_t g_conn_binding_id = 0;
 uint16_t g_pairing_allowed_conn_binding = kInvalidConnBinding;
 PendingConfigWrite g_pending_config_write = {};
+
+struct PendingCompanionWrite {
+  enum class State : uint8_t { kIdle = 0, kPending };
+  State state = State::kIdle;
+  CompanionSnapshotPacket packet = {};
+};
+
+PendingCompanionWrite g_pending_companion_write = {};
 PendingSafeCommand g_pending_safe_command = {};
 PendingDangerousCommand g_pending_dangerous_command = {};
 DangerousCommandSession g_dangerous_command_session = {};
@@ -232,6 +246,14 @@ void onConfigWrite(struct bt_conn* conn, const uint8_t* data, uint16_t len) {
   }
 }
 
+void onCompanionWrite(struct bt_conn* conn, const uint8_t* data, uint16_t len) {
+  (void)conn;
+  CompanionSnapshotPacket packet = {};
+  if (!decodeCompanionSnapshot(data, len, packet)) return;
+  g_pending_companion_write.packet = packet;
+  g_pending_companion_write.state = PendingCompanionWrite::State::kPending;
+}
+
 void onCommandWrite(struct bt_conn* conn, const uint8_t* data, uint16_t len) {
   uint8_t command_id = 0;
   if (data != nullptr && len >= 2) {
@@ -328,6 +350,21 @@ ssize_t writeConfig(struct bt_conn* conn, const struct bt_gatt_attr* attr,
   return len;
 }
 
+ssize_t writeCompanion(struct bt_conn* conn, const struct bt_gatt_attr* attr,
+                       const void* buf, uint16_t len, uint16_t offset,
+                       uint8_t flags) {
+  (void)attr;
+  (void)flags;
+  if (offset != 0) {
+    return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+  }
+  if (len != kCompanionSnapshotSize) {
+    return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+  }
+  onCompanionWrite(conn, static_cast<const uint8_t*>(buf), len);
+  return len;
+}
+
 ssize_t writeCommand(struct bt_conn* conn, const struct bt_gatt_attr* attr,
                      const void* buf, uint16_t len, uint16_t offset,
                      uint8_t flags) {
@@ -421,7 +458,10 @@ BT_GATT_SERVICE_DEFINE(
                            BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
                            BT_GATT_PERM_READ_ENCRYPT, readVariableBuffer,
                            nullptr, g_error_log_buf),
-    BT_GATT_CCC(nullptr, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE_ENCRYPT));
+    BT_GATT_CCC(nullptr, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE_ENCRYPT),
+    BT_GATT_CHARACTERISTIC(&companion_write_uuid.uuid, BT_GATT_CHRC_WRITE,
+                           BT_GATT_PERM_WRITE_ENCRYPT, nullptr, writeCompanion,
+                           nullptr));
 
 void publishErrorLogIfDirty() {
   if (!g_error_log_dirty) {
@@ -598,7 +638,7 @@ bool seedGattBuffers(const DeviceConfig& config, const BleBootSeed& seed,
   g_display_ok = seed.display_ok;
   g_fs_ok = seed.fs_ok;
   g_usb_connected = seed.usb_connected;
-  g_deep_sleep_supported = false;
+  g_deep_sleep_supported = static_cast<bool>(IS_ENABLED(CONFIG_BIKECOMP_DEEP_SLEEP));
 
   g_device_info_packet = {};
   g_device_info_packet.struct_version = kBleStructVersion;
@@ -728,6 +768,23 @@ bool BleManager::bleConnected() const {
   return g_active_conn != nullptr;
 }
 
+void BleManager::stopAdvertising() {
+  bike::stopAdvertising();  // calls the existing static free function in this TU
+}
+
+void BleManager::applyPowerSaveAdvertising(bool aggressive_power_save) {
+  if (!ok_) return;
+  const bool was_aggressive = g_aggressive_ble_power_save;
+  g_aggressive_ble_power_save = aggressive_power_save;
+  if (aggressive_power_save) {
+    stopAdvertising();
+    return;
+  }
+  if (was_aggressive && g_active_conn == nullptr) {
+    startAdvertising();
+  }
+}
+
 void BleManager::recordError(ErrorLogCode code, ErrorLogSeverity severity,
                              uint16_t detail, uint32_t now_ms) {
   if (!ok_) {
@@ -782,6 +839,18 @@ bool BleManager::takePendingConfigWrite(uint8_t out[kConfigurationSize]) {
 
 void BleManager::completePendingConfigWrite() {
   configWriteQueueFinish(g_pending_config_write);
+}
+
+bool BleManager::hasPendingCompanionWrite() const {
+  return g_pending_companion_write.state ==
+         PendingCompanionWrite::State::kPending;
+}
+
+bool BleManager::takePendingCompanionWrite(CompanionSnapshotPacket& out) {
+  if (!hasPendingCompanionWrite()) return false;
+  out = g_pending_companion_write.packet;
+  g_pending_companion_write.state = PendingCompanionWrite::State::kIdle;
+  return true;
 }
 
 void BleManager::publishConfigWriteResult(const ConfigWriteResult& result) {

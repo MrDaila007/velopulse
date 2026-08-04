@@ -3,11 +3,14 @@
 #include "ambient_light_manager.h"
 #include "battery_manager.h"
 #include "ble_manager.h"
+#include "companion_snapshot.h"
 #include "config.h"
 #include "diagnostics.h"
 #include "display_manager.h"
 #include "littlefs_backend.h"
 #include "odometer_save_policy.h"
+#include "platform/deep_sleep.h"
+#include "power_manager.h"
 #include "pulse_filter.h"
 #include "ride_state.h"
 #include "scheduler.h"
@@ -44,9 +47,19 @@ class AppController {
   void processPendingConfigWrite(uint32_t now_ms);
   void processPendingSafeCommand(uint32_t now_ms);
   void processPendingDangerousCommand(uint32_t now_ms);
+  void processPendingCompanionWrite(uint32_t now_ms);
   void processSerialConsole(uint32_t now_ms);
   void dumpConfig() const;
   void applyConfig(const DeviceConfig& config);
+  void configurePowerManager();
+  PowerManagerInput buildPowerManagerInput(uint32_t now_ms) const;
+  void applySchedulerPeriods(uint32_t now_ms);
+  void handlePowerManagerResult(const PowerManagerUpdateResult& result,
+                                uint32_t now_ms);
+  void updatePowerManager(uint32_t now_ms);
+  void tryEnterDeepSleep(uint32_t now_ms);
+  void printPowerStatus() const;
+  void printStatus();
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
   void maybePersistOdometer(uint32_t now_ms);
   bool persistOdometer(OdometerSaveTrigger trigger);
@@ -74,6 +87,8 @@ class AppController {
   BatteryManager battery_;
   DisplayManager display_;
   BleManager ble_;
+  PowerManager power_manager_;
+  CompanionState companion_state_ = {};
   SerialCommandParser serial_command_parser_;
   ScheduledTask tasks_[6];
   Scheduler scheduler_;

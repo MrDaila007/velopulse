@@ -30,4 +30,9 @@ constexpr uint8_t kBoardLedBluePin = 6;    // P0.06 / D12
 constexpr uint8_t kBoardLedGreenPin = 30;  // P0.30 / D13
 constexpr uint8_t kBoardChargeIndicatorPin = 17;  // P0.17 / D23
 
+// Raw nRF52840 GPIO numbers for deep-sleep SENSE config (mirrors firmware/include/board_pins.h).
+constexpr uint32_t kHallSenseNrfGpio = 3u;   // P0.03
+constexpr uint32_t kHallDriveNrfGpio = 2u;   // P0.02
+constexpr uint32_t kBoardChargeNrfGpio = 17u;  // P0.17
+
 }  // namespace bike

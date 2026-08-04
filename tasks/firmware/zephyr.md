@@ -94,6 +94,58 @@ BLE-контракта (`protocol/`) и паритета с `STATUS.md` (Э4, 20
 что Arduino `STATUS.md` «Проверки», и закрывает hardware gate Э4/Э5 без изменения
 `protocol/`.
 
+### Z5 — Синхронизация с Arduino (обнаружено 2026-08-04)
+
+Проверка на 2026-08-04 показала, что после коммита `e1d2c27` (Z3/Z4 приёмка) в
+`firmware/` (Arduino) добавились 5 коммитов с новой функциональностью, ни один
+из которых **не отражён** в `firmware-zephyr/`. Паритет из раздела 4 и таблицы
+Z4.3 выше устарел. Zephyr сейчас на уровне «после Z4», Arduino — уже впереди.
+
+Конкретный разрыв (проверено по коду, не только по докам):
+
+- [x] Z5.1 `firmware/lib/domain/power_manager.{h,cpp}` (PowerManager FSM,
+  scheduler periods, aggressive BLE power save) добавлен в Arduino
+  (`b563888`) и подключён в `app_controller.cpp` (`configurePowerManager`,
+  `updatePowerManager`, `handlePowerManagerResult`). Перенесён в `firmware-zephyr/app/CMakeLists.txt`
+  `DOMAIN_SOURCES` и интегрирован в Zephyr-сборку.
+- [x] Z5.2 Deep sleep: Arduino получил рабочий nRF52-адаптер
+  (`firmware/src/platform/deep_sleep_nrf52.cpp`, `86b0828`), `ble_manager.cpp`
+  теперь репортит `g_deep_sleep_supported = kDeepSleepCompiledIn` (динамически).
+  В Zephyr реализован эквивалент через raw nrfx `nrf_power_system_off()` (не
+  Zephyr PM subsystem/`sys_poweroff()`) за тем же интерфейсом `platform/deep_sleep.h`.
+  Код; полевая верификация.
+- [x] Z5.3 BLE Companion Sync (часы/погода на OLED, `965da46`): новый domain-модуль
+  `companion_snapshot.{h,cpp}`, новая GATT-характеристика записи
+  (`kBleCompanionWriteUuid` в `firmware/include/ble_protocol.h`), wiring в
+  `app_controller.cpp`/`ble_manager.cpp`. Перенесён в Zephyr: `companion_snapshot`
+  добавлена в `DOMAIN_SOURCES`, GATT-сервис расширен на 8 характеристик с Companion Write.
+- [ ] Z5.4 USB serial regression harness (`serial_usb_test.{h,cpp}`, `015abeb`,
+  используется `tools/usb_regression.py` + `tools/fixtures/usb/*`) — не
+  подключён к Zephyr-сборке. Решить, нужен ли тот же regression-harness на
+  Zephyr consol/shell или это Arduino-only debug-инструмент (зафиксировать
+  решение здесь).
+- [x] Z5.5 `firmware/src/app_controller.cpp` вырос на ~500 строк в `b3d39ff`
+  (интеграция power saving, USB-тестов, status-команды). Построчно сверить с
+  `firmware-zephyr/app/src/app_controller.cpp` и перенести всё, что относится
+  к общей логике оркестрации (а не к Arduino HAL). Покрыто Task 1-3 (PowerManager
+  FSM, deep sleep, Companion Sync).
+- [x] Z5.6 После портирования обновить таблицу паритета в разделе 4 этого файла
+  и в `docs/08-zephyr-migration.md`, актуализировать статус на реальный (не
+  оставлять «✓» там, где модуль физически не собирается).
+- [x] Z5.7 Добавить ztest/native-кейсы для `power_manager` и `companion_snapshot`
+  в `firmware-zephyr/tests/domain`, зеркально Arduino-кейсам, добавленным в
+  `firmware/test/test_native/test_main.cpp` этими же коммитами.
+
+Версионирование (`tools/sync_versions.py`) уже покрывает
+`firmware-zephyr/app/prj.conf` и `Kconfig` — отдельной задачи не требует.
+
+**DoD Z5:** `firmware-zephyr/app/CMakeLists.txt` `DOMAIN_SOURCES` включает все
+модули `firmware/lib/domain`, реально используемые Arduino-сборкой (или задача
+явно выше документирует, почему модуль Zephyr не нужен); GATT-сервис Zephyr
+экспонирует то же число характеристик, что Arduino; `west build` + `twister`
+проходят с новыми модулями; таблицы паритета в разделе 4 и `docs/08-zephyr-migration.md`
+отражают фактическое состояние кода, а не состояние на момент Z4.
+
 ## Ссылки
 
 - [`docs/08-zephyr-migration.md`](../../docs/08-zephyr-migration.md)

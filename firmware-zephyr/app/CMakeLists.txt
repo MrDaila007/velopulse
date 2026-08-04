@@ -4,45 +4,16 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(bikecomp_zephyr)
 
 set(FIRMWARE_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../firmware)
-set(DOMAIN_DIR ${FIRMWARE_ROOT}/lib/domain)
 
-set(DOMAIN_SOURCES
-  ${DOMAIN_DIR}/ambient_light_model.cpp
-  ${DOMAIN_DIR}/battery_model.cpp
-  ${DOMAIN_DIR}/ble_advertising.cpp
-  ${DOMAIN_DIR}/ble_command.cpp
-  ${DOMAIN_DIR}/ble_config_write.cpp
-  ${DOMAIN_DIR}/ble_device_info.cpp
-  ${DOMAIN_DIR}/ble_identity.cpp
-  ${DOMAIN_DIR}/ble_telemetry.cpp
-  ${DOMAIN_DIR}/boot_counter.cpp
-  ${DOMAIN_DIR}/config_codec.cpp
-  ${DOMAIN_DIR}/config_validator.cpp
-  ${DOMAIN_DIR}/crc32.cpp
-  ${DOMAIN_DIR}/diagnostics.cpp
-  ${DOMAIN_DIR}/display_burn_in.cpp
-  ${DOMAIN_DIR}/display_formatter.cpp
-  ${DOMAIN_DIR}/display_layout.cpp
-  ${DOMAIN_DIR}/display_power.cpp
-  ${DOMAIN_DIR}/error_log.cpp
-  ${DOMAIN_DIR}/odometer_save_policy.cpp
-  ${DOMAIN_DIR}/page_carousel.cpp
-  ${DOMAIN_DIR}/protocol_codec.cpp
-  ${DOMAIN_DIR}/pulse_filter.cpp
-  ${DOMAIN_DIR}/ride_state.cpp
-  ${DOMAIN_DIR}/scheduler.cpp
-  ${DOMAIN_DIR}/serial_console.cpp
-  ${DOMAIN_DIR}/speed_calculator.cpp
-  ${DOMAIN_DIR}/speed_interval_guard.cpp
-  ${DOMAIN_DIR}/storage_manager.cpp
-  ${DOMAIN_DIR}/storage_migration.cpp
-  ${DOMAIN_DIR}/trip_computer.cpp
-)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/domain_sources.cmake)
+set(DOMAIN_DIR ${BIKECOMP_DOMAIN_DIR})
+set(DOMAIN_SOURCES ${BIKECOMP_DOMAIN_SOURCES})
 
 set(PLATFORM_SOURCES
   src/platform/time_console.cpp
   src/platform/adc_io.cpp
   src/platform/littlefs_backend.cpp
+  src/platform/deep_sleep_zephyr.cpp
 )
 
 set(SERVICE_SOURCES
@@ -113,6 +84,12 @@ if(CONFIG_BIKECOMP_OPEN_PAIRING)
   target_compile_definitions(app PRIVATE BIKECOMP_OPEN_PAIRING=1)
 else()
   target_compile_definitions(app PRIVATE BIKECOMP_OPEN_PAIRING=0)
+endif()
+
+if(CONFIG_BIKECOMP_DEEP_SLEEP)
+  target_compile_definitions(app PRIVATE BIKECOMP_FEATURE_DEEP_SLEEP=1)
+else()
+  target_compile_definitions(app PRIVATE BIKECOMP_FEATURE_DEEP_SLEEP=0)
 endif()
 
 target_compile_options(app PRIVATE

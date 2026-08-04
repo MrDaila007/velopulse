@@ -13,6 +13,7 @@ set(BIKECOMP_DOMAIN_SOURCES
   ${BIKECOMP_DOMAIN_DIR}/ble_identity.cpp
   ${BIKECOMP_DOMAIN_DIR}/ble_telemetry.cpp
   ${BIKECOMP_DOMAIN_DIR}/boot_counter.cpp
+  ${BIKECOMP_DOMAIN_DIR}/companion_snapshot.cpp
   ${BIKECOMP_DOMAIN_DIR}/config_codec.cpp
   ${BIKECOMP_DOMAIN_DIR}/config_validator.cpp
   ${BIKECOMP_DOMAIN_DIR}/crc32.cpp
@@ -24,6 +25,7 @@ set(BIKECOMP_DOMAIN_SOURCES
   ${BIKECOMP_DOMAIN_DIR}/error_log.cpp
   ${BIKECOMP_DOMAIN_DIR}/odometer_save_policy.cpp
   ${BIKECOMP_DOMAIN_DIR}/page_carousel.cpp
+  ${BIKECOMP_DOMAIN_DIR}/power_manager.cpp
   ${BIKECOMP_DOMAIN_DIR}/protocol_codec.cpp
   ${BIKECOMP_DOMAIN_DIR}/pulse_filter.cpp
   ${BIKECOMP_DOMAIN_DIR}/ride_state.cpp

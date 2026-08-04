@@ -1,5 +1,7 @@
 #include "app_controller.h"
 
+#include <cstdio>
+
 #include "platform.h"
 #include <zephyr/autoconf.h>
 #include <zephyr/devicetree.h>
@@ -25,6 +27,13 @@
 
 namespace bike {
 namespace {
+
+constexpr size_t kTaskPulses = 0;
+constexpr size_t kTaskState = 1;
+constexpr size_t kTaskAmbient = 2;
+constexpr size_t kTaskBattery = 3;
+constexpr size_t kTaskDisplay = 4;
+constexpr size_t kTaskBle = 5;
 
 int interruptMode(uint8_t active_edge) {
   if (active_edge == 1) return RISING;
@@ -107,6 +116,11 @@ void AppController::begin() {
   Serial.print(resetreas, HEX);
   Serial.println(')');
 
+  if (deepSleepWakeFromSleep()) {
+    Serial.print("wake_source=");
+    Serial.println(deepSleepWakeSourceName());
+  }
+
   const bool fs_ok = storage_.begin();
   Serial.print("Flash FS: ");
   Serial.println(fs_ok ? "OK" : "MOUNT FAILED");
@@ -167,6 +181,9 @@ void AppController::begin() {
   ride_state_.reset(millis());
   odometer_save_.noteRideState(ride_state_.state(), millis());
   odometer_save_.noteDisplayPower(display_.powerState());
+
+  configurePowerManager();
+  applySchedulerPeriods(millis());
 
   BleBootSeed ble_seed;
   ble_seed.config_from_flash =
@@ -446,7 +463,17 @@ void AppController::loop() {
   const uint32_t now_ms = millis();
   processSerialConsole(now_ms);
   scheduler_.run(now_ms);
-  yield();
+  updatePowerManager(now_ms);
+
+  if (power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
+    const uint32_t next_due = scheduler_.nextDueMs(now_ms);
+    if (next_due > now_ms && next_due != UINT32_MAX) {
+      const uint32_t delay_ms = next_due - now_ms;
+      if (delay_ms > 1u) k_msleep(delay_ms);
+    }
+  } else {
+    yield();
+  }
 }
 
 void AppController::processSerialConsole(uint32_t now_ms) {
@@ -581,6 +608,16 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         gpio_watch_logging_ = false;
         restoreHallInterrupt();
         Serial.println("OK gpio-watch logging=0 (polling on)");
+        break;
+
+      case SerialCommand::kPowerStatus:
+        printPowerStatus();
+        Serial.println("OK power-status");
+        break;
+
+      case SerialCommand::kStatus:
+        printStatus();
+        Serial.println("OK status");
         break;
 
       case SerialCommand::kUnknown:
@@ -752,6 +789,7 @@ void AppController::processPulses(uint32_t now_ms) {
 
     ble_.noteMovement();
     display_.noteActivity(now_ms);
+    power_manager_.noteActivity(now_ms);
     odometer_save_.noteDisplayPower(display_.powerState());
     applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
     uint16_t speed = 0;
@@ -798,6 +836,22 @@ void AppController::updateDisplay(uint32_t now_ms) {
   DisplaySnapshot snapshot;
   snapshot.trip = trip_computer_.snapshot();
   snapshot.battery = battery_.snapshot();
+  const CompanionHeaderView companion = companion_state_.header(now_ms);
+  if (companion.valid) {
+    snprintf(snapshot.companion_header, sizeof(snapshot.companion_header), "%s",
+             companion.text);
+    snapshot.companion_header_valid = true;
+    snapshot.companion_header_stale = companion.stale;
+  }
+  const CompanionWeatherView weather = companion_state_.weather(now_ms);
+  if (weather.valid) {
+    snprintf(snapshot.companion_weather_temp, sizeof(snapshot.companion_weather_temp),
+             "%s", weather.temp);
+    snprintf(snapshot.companion_weather_rain, sizeof(snapshot.companion_weather_rain),
+             "%s", weather.rain);
+    snapshot.companion_weather_valid = true;
+    snapshot.companion_weather_stale = weather.stale;
+  }
   display_.render(snapshot);
 }
 
@@ -840,9 +894,164 @@ void AppController::applyConfig(const DeviceConfig& new_config) {
   odometer_save_.configure(config_.odometer_save_interval_m);
   display_.applyRuntimeConfig(config_, millis());
   battery_.applyRuntimeConfig(config_, millis());
+  configurePowerManager();
   if (config_.active_edge != previous_edge) {
     wheel_sensor_.begin(kHallPin, interruptMode(config_.active_edge));
   }
+}
+
+void AppController::configurePowerManager() {
+  PowerManagerConfig pm_config;
+  pm_config.power_save_mode = config_.power_save_mode;
+  pm_config.deep_sleep_enabled = config_.deep_sleep_enabled;
+  pm_config.deep_sleep_timeout_s = config_.deep_sleep_timeout_s;
+  power_manager_.configure(pm_config);
+  power_manager_.setBleAlwaysAdvertise(config_.ble_always_advertise);
+}
+
+PowerManagerInput AppController::buildPowerManagerInput(uint32_t now_ms) const {
+  PowerManagerInput input;
+  input.ride_state = ride_state_.state();
+  input.display_power = display_.powerState();
+  input.now_ms = now_ms;
+  input.ble_connected = ble_.bleConnected();
+  input.charging = battery_.snapshot().charge_status == ChargeStatus::kCharging;
+  input.sensor_test_active = ble_.sensorTestActive();
+  input.display_test_active = display_.displayTestActive();
+  return input;
+}
+
+void AppController::applySchedulerPeriods(uint32_t now_ms) {
+  const SchedulerPeriods periods = power_manager_.schedulerPeriods();
+  scheduler_.setTaskPeriod(kTaskPulses, periods.pulses_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskState, periods.state_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskAmbient, periods.ambient_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskBattery, periods.battery_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskDisplay, periods.display_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskBle, periods.ble_ms, now_ms);
+}
+
+void AppController::handlePowerManagerResult(
+    const PowerManagerUpdateResult& result, uint32_t now_ms) {
+  if (result.request_deep_sleep_save) {
+    odometer_save_.requestDeepSleepSave();
+    maybePersistOdometer(now_ms);
+  }
+  if (result.mode_changed &&
+      power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
+    ble_.applyPowerSaveAdvertising(power_manager_.aggressiveBlePowerSave());
+  }
+  if (result.request_enter_deep_sleep) {
+    tryEnterDeepSleep(now_ms);
+  }
+}
+
+void AppController::tryEnterDeepSleep(uint32_t now_ms) {
+#if defined(BIKECOMP_FEATURE_DEEP_SLEEP) && BIKECOMP_FEATURE_DEEP_SLEEP
+  if (!config_.deep_sleep_enabled || power_manager_.sleepBlocked()) return;
+
+  odometer_save_.requestDeepSleepSave();
+  const uint64_t odometer_mm = trip_computer_.snapshot().odometer_mm;
+  const OdometerSaveTrigger trigger = odometer_save_.evaluate(odometer_mm, now_ms);
+  if (trigger != OdometerSaveTrigger::kNone && !persistOdometer(trigger)) {
+    return;
+  }
+
+  display_.turnOff(now_ms);
+  ble_.stopAdvertising();
+  wheel_sensor_.suspendInterrupt();
+
+  const bool sense_low = config_.active_edge != 1u;
+  deepSleepPrepareAndEnter(kHallSenseNrfGpio, sense_low);
+#else
+  (void)now_ms;
+#endif
+}
+
+void AppController::updatePowerManager(uint32_t now_ms) {
+  if (ble_.bleConnected()) display_.noteActivity(now_ms);
+  const PowerManagerUpdateResult result =
+      power_manager_.update(buildPowerManagerInput(now_ms));
+  handlePowerManagerResult(result, now_ms);
+  applySchedulerPeriods(now_ms);
+  ble_.applyPowerSaveAdvertising(power_manager_.aggressiveBlePowerSave());
+}
+
+void AppController::printPowerStatus() const {
+  Serial.print("Power: mode=");
+  Serial.print(systemPowerModeName(power_manager_.systemMode()));
+  Serial.print(", deep_sleep_armed=");
+  Serial.print(power_manager_.deepSleepArmed() ? '1' : '0');
+  Serial.print(", blocked=");
+  Serial.print(powerSleepBlockReasonName(power_manager_.blockReason()));
+  Serial.print(", display_off_ms=");
+  Serial.print(power_manager_.displayOffSinceMs());
+  Serial.print(", low_power_entries=");
+  Serial.println(power_manager_.lowPowerIdleEntryCount());
+}
+
+void AppController::printStatus() {
+  const TripSnapshot trip = trip_computer_.snapshot();
+  const BatterySnapshot battery = battery_.snapshot();
+  const DiagnosticSnapshot diag = diagnosticSnapshot();
+  const char* ride = "IDLE";
+  switch (trip.ride_state) {
+    case RideState::kMoving: ride = "MOVING"; break;
+    case RideState::kPaused: ride = "PAUSED"; break;
+    default: break;
+  }
+  const char* display = "bright";
+  switch (display_.powerState()) {
+    case DisplayPowerState::kDim: display = "dim"; break;
+    case DisplayPowerState::kOff: display = "off"; break;
+    default: break;
+  }
+  Serial.print("Status: speed_x100=");
+  Serial.print(trip.speed_x100);
+  Serial.print(" avg_speed_x100=");
+  Serial.print(trip.average_speed_x100);
+  Serial.print(" max_speed_x100=");
+  Serial.print(trip.max_speed_x100);
+  Serial.print(" trip_mm=");
+  Serial.print(trip.trip_distance_mm);
+  Serial.print(" rev=");
+  Serial.print(trip.revolutions);
+  Serial.print(" moving_ms=");
+  Serial.print(trip.moving_time_ms);
+  Serial.print(" ride=");
+  Serial.print(ride);
+  Serial.print(" battery_mv=");
+  Serial.print(battery.millivolts);
+  Serial.print(" battery_pct=");
+  Serial.print(battery.percent);
+  Serial.print(" battery_valid=");
+  Serial.print(battery.valid ? 1 : 0);
+  Serial.print(" usb=");
+  Serial.print(battery.usb_present ? 1 : 0);
+  Serial.print(" display=");
+  Serial.print(display);
+  Serial.print(" raw_pulses=");
+  Serial.print(diag.raw_pulse_count);
+  Serial.print(" debounce_rej=");
+  Serial.print(diag.rejected_debounce);
+  Serial.print(" overspeed_rej=");
+  Serial.print(diag.rejected_overspeed);
+  Serial.print(" power_mode=");
+  Serial.print(systemPowerModeName(power_manager_.systemMode()));
+  Serial.print(" deep_sleep_armed=");
+  Serial.print(power_manager_.deepSleepArmed() ? 1 : 0);
+
+  const uint32_t now_ms = millis();
+  const CompanionHeaderView companion = companion_state_.header(now_ms);
+  Serial.print(" clock=");
+  Serial.print(companion.valid ? companion.text : "--");
+  Serial.print(" clock_valid=");
+  Serial.print(companion.valid ? 1 : 0);
+  const CompanionWeatherView weather = companion_state_.weather(now_ms);
+  Serial.print(" weather_temp=");
+  Serial.print(weather.valid ? weather.temp : "--");
+  Serial.print(" weather_rain=");
+  Serial.println(weather.valid ? weather.rain : "--");
 }
 
 void AppController::processPendingConfigWrite(uint32_t now_ms) {
@@ -1046,10 +1255,17 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
   if (clear_bonds_after_result) ble_.clearBonds();
 }
 
+void AppController::processPendingCompanionWrite(uint32_t now_ms) {
+  CompanionSnapshotPacket packet = {};
+  if (!ble_.takePendingCompanionWrite(packet)) return;
+  companion_state_.apply(packet, now_ms);
+}
+
 void AppController::updateBle(uint32_t now_ms) {
   processPendingConfigWrite(now_ms);
   processPendingSafeCommand(now_ms);
   processPendingDangerousCommand(now_ms);
+  processPendingCompanionWrite(now_ms);
 
   const uint32_t overflow = wheel_sensor_.overflowCount();
   if (overflow != logged_isr_overflow_) {

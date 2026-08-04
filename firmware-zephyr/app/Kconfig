@@ -36,3 +36,12 @@ config BIKECOMP_ZEPHYR_DISPLAY_STUB
 	help
 	  Phase-1 migration keeps OLED rendering disabled. Disable once the
 	  Zephyr SSD1306/U8g2 adapter is complete.
+
+config BIKECOMP_DEEP_SLEEP
+	bool "Enable deep sleep (System OFF) adapter"
+	default y
+	help
+	  Mirrors Arduino BIKECOMP_FEATURE_DEEP_SLEEP. Code path is compiled in;
+	  actual entry still requires config_.deep_sleep_enabled at runtime and
+	  is gated by the same hardware bench verification as the Arduino build
+	  (see tasks/firmware/README.md "Общие firmware-долги").
