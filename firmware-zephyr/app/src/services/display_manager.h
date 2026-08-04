@@ -27,6 +27,7 @@ class DisplayManager {
   void setAmbientBrightness(uint8_t brightness_pct, bool valid);
   void render(const DisplaySnapshot& snapshot, bool force = false);
   bool isOk() const { return display_ok_; }
+  bool displayTestActive() const { return test_active_; }
   DisplayPowerState powerState() const { return power_.state(); }
   uint8_t effectiveBrightnessPct() const { return effective_brightness_pct_; }
 

@@ -26,6 +26,13 @@
 namespace bike {
 namespace {
 
+constexpr size_t kTaskPulses = 0;
+constexpr size_t kTaskState = 1;
+constexpr size_t kTaskAmbient = 2;
+constexpr size_t kTaskBattery = 3;
+constexpr size_t kTaskDisplay = 4;
+constexpr size_t kTaskBle = 5;
+
 int interruptMode(uint8_t active_edge) {
   if (active_edge == 1) return RISING;
   if (active_edge == 2) return CHANGE;
@@ -167,6 +174,9 @@ void AppController::begin() {
   ride_state_.reset(millis());
   odometer_save_.noteRideState(ride_state_.state(), millis());
   odometer_save_.noteDisplayPower(display_.powerState());
+
+  configurePowerManager();
+  applySchedulerPeriods(millis());
 
   BleBootSeed ble_seed;
   ble_seed.config_from_flash =
@@ -446,7 +456,17 @@ void AppController::loop() {
   const uint32_t now_ms = millis();
   processSerialConsole(now_ms);
   scheduler_.run(now_ms);
-  yield();
+  updatePowerManager(now_ms);
+
+  if (power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
+    const uint32_t next_due = scheduler_.nextDueMs(now_ms);
+    if (next_due > now_ms && next_due != UINT32_MAX) {
+      const uint32_t delay_ms = next_due - now_ms;
+      if (delay_ms > 1u) k_msleep(delay_ms);
+    }
+  } else {
+    yield();
+  }
 }
 
 void AppController::processSerialConsole(uint32_t now_ms) {
@@ -581,6 +601,16 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         gpio_watch_logging_ = false;
         restoreHallInterrupt();
         Serial.println("OK gpio-watch logging=0 (polling on)");
+        break;
+
+      case SerialCommand::kPowerStatus:
+        printPowerStatus();
+        Serial.println("OK power-status");
+        break;
+
+      case SerialCommand::kStatus:
+        printStatus();
+        Serial.println("OK status");
         break;
 
       case SerialCommand::kUnknown:
@@ -752,6 +782,7 @@ void AppController::processPulses(uint32_t now_ms) {
 
     ble_.noteMovement();
     display_.noteActivity(now_ms);
+    power_manager_.noteActivity(now_ms);
     odometer_save_.noteDisplayPower(display_.powerState());
     applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
     uint16_t speed = 0;
@@ -840,9 +871,129 @@ void AppController::applyConfig(const DeviceConfig& new_config) {
   odometer_save_.configure(config_.odometer_save_interval_m);
   display_.applyRuntimeConfig(config_, millis());
   battery_.applyRuntimeConfig(config_, millis());
+  configurePowerManager();
   if (config_.active_edge != previous_edge) {
     wheel_sensor_.begin(kHallPin, interruptMode(config_.active_edge));
   }
+}
+
+void AppController::configurePowerManager() {
+  PowerManagerConfig pm_config;
+  pm_config.power_save_mode = config_.power_save_mode;
+  pm_config.deep_sleep_enabled = config_.deep_sleep_enabled;
+  pm_config.deep_sleep_timeout_s = config_.deep_sleep_timeout_s;
+  power_manager_.configure(pm_config);
+  power_manager_.setBleAlwaysAdvertise(config_.ble_always_advertise);
+}
+
+PowerManagerInput AppController::buildPowerManagerInput(uint32_t now_ms) const {
+  PowerManagerInput input;
+  input.ride_state = ride_state_.state();
+  input.display_power = display_.powerState();
+  input.now_ms = now_ms;
+  input.ble_connected = ble_.bleConnected();
+  input.charging = battery_.snapshot().charge_status == ChargeStatus::kCharging;
+  input.sensor_test_active = ble_.sensorTestActive();
+  input.display_test_active = display_.displayTestActive();
+  return input;
+}
+
+void AppController::applySchedulerPeriods(uint32_t now_ms) {
+  const SchedulerPeriods periods = power_manager_.schedulerPeriods();
+  scheduler_.setTaskPeriod(kTaskPulses, periods.pulses_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskState, periods.state_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskAmbient, periods.ambient_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskBattery, periods.battery_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskDisplay, periods.display_ms, now_ms);
+  scheduler_.setTaskPeriod(kTaskBle, periods.ble_ms, now_ms);
+}
+
+void AppController::handlePowerManagerResult(
+    const PowerManagerUpdateResult& result, uint32_t now_ms) {
+  if (result.request_deep_sleep_save) {
+    odometer_save_.requestDeepSleepSave();
+    maybePersistOdometer(now_ms);
+  }
+  if (result.mode_changed &&
+      power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
+    ble_.applyPowerSaveAdvertising(power_manager_.aggressiveBlePowerSave());
+  }
+  // NOTE: result.request_enter_deep_sleep is handled by AppController::tryEnterDeepSleep
+  // added in Task 2 of docs/superpowers/plans/2026-08-04-zephyr-parity-z5.md.
+}
+
+void AppController::updatePowerManager(uint32_t now_ms) {
+  if (ble_.bleConnected()) display_.noteActivity(now_ms);
+  const PowerManagerUpdateResult result =
+      power_manager_.update(buildPowerManagerInput(now_ms));
+  handlePowerManagerResult(result, now_ms);
+  applySchedulerPeriods(now_ms);
+  ble_.applyPowerSaveAdvertising(power_manager_.aggressiveBlePowerSave());
+}
+
+void AppController::printPowerStatus() const {
+  Serial.print("Power: mode=");
+  Serial.print(systemPowerModeName(power_manager_.systemMode()));
+  Serial.print(", deep_sleep_armed=");
+  Serial.print(power_manager_.deepSleepArmed() ? '1' : '0');
+  Serial.print(", blocked=");
+  Serial.print(powerSleepBlockReasonName(power_manager_.blockReason()));
+  Serial.print(", display_off_ms=");
+  Serial.print(power_manager_.displayOffSinceMs());
+  Serial.print(", low_power_entries=");
+  Serial.println(power_manager_.lowPowerIdleEntryCount());
+}
+
+void AppController::printStatus() {
+  const TripSnapshot trip = trip_computer_.snapshot();
+  const BatterySnapshot battery = battery_.snapshot();
+  const DiagnosticSnapshot diag = diagnosticSnapshot();
+  const char* ride = "IDLE";
+  switch (trip.ride_state) {
+    case RideState::kMoving: ride = "MOVING"; break;
+    case RideState::kPaused: ride = "PAUSED"; break;
+    default: break;
+  }
+  const char* display = "bright";
+  switch (display_.powerState()) {
+    case DisplayPowerState::kDim: display = "dim"; break;
+    case DisplayPowerState::kOff: display = "off"; break;
+    default: break;
+  }
+  Serial.print("Status: speed_x100=");
+  Serial.print(trip.speed_x100);
+  Serial.print(" avg_speed_x100=");
+  Serial.print(trip.average_speed_x100);
+  Serial.print(" max_speed_x100=");
+  Serial.print(trip.max_speed_x100);
+  Serial.print(" trip_mm=");
+  Serial.print(trip.trip_distance_mm);
+  Serial.print(" rev=");
+  Serial.print(trip.revolutions);
+  Serial.print(" moving_ms=");
+  Serial.print(trip.moving_time_ms);
+  Serial.print(" ride=");
+  Serial.print(ride);
+  Serial.print(" battery_mv=");
+  Serial.print(battery.millivolts);
+  Serial.print(" battery_pct=");
+  Serial.print(battery.percent);
+  Serial.print(" battery_valid=");
+  Serial.print(battery.valid ? 1 : 0);
+  Serial.print(" usb=");
+  Serial.print(battery.usb_present ? 1 : 0);
+  Serial.print(" display=");
+  Serial.print(display);
+  Serial.print(" raw_pulses=");
+  Serial.print(diag.raw_pulse_count);
+  Serial.print(" debounce_rej=");
+  Serial.print(diag.rejected_debounce);
+  Serial.print(" overspeed_rej=");
+  Serial.print(diag.rejected_overspeed);
+  Serial.print(" power_mode=");
+  Serial.print(systemPowerModeName(power_manager_.systemMode()));
+  Serial.print(" deep_sleep_armed=");
+  Serial.println(power_manager_.deepSleepArmed() ? 1 : 0);
 }
 
 void AppController::processPendingConfigWrite(uint32_t now_ms) {

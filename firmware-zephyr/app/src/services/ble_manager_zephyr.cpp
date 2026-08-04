@@ -97,6 +97,7 @@ bool g_usb_connected = false;
 bool g_deep_sleep_supported = false;
 bool g_ble_always_advertise = true;
 bool g_advertising_restart_pending = false;
+bool g_aggressive_ble_power_save = false;
 
 uint16_t g_telemetry_seq = 0;
 uint32_t g_telemetry_last_publish_ms = 0;
@@ -726,6 +727,23 @@ bool BleManager::bleConnected() const {
     return false;
   }
   return g_active_conn != nullptr;
+}
+
+void BleManager::stopAdvertising() {
+  bike::stopAdvertising();  // calls the existing static free function in this TU
+}
+
+void BleManager::applyPowerSaveAdvertising(bool aggressive_power_save) {
+  if (!ok_) return;
+  const bool was_aggressive = g_aggressive_ble_power_save;
+  g_aggressive_ble_power_save = aggressive_power_save;
+  if (aggressive_power_save) {
+    stopAdvertising();
+    return;
+  }
+  if (was_aggressive && g_active_conn == nullptr) {
+    startAdvertising();
+  }
 }
 
 void BleManager::recordError(ErrorLogCode code, ErrorLogSeverity severity,

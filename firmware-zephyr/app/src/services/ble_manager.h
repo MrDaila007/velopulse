@@ -52,6 +52,8 @@ class BleManager {
   bool statusLedActive() const;
   bool bleAdvertising() const;
   bool bleConnected() const;
+  void applyPowerSaveAdvertising(bool aggressive_power_save);
+  void stopAdvertising();
 
   void clearBonds();
 
