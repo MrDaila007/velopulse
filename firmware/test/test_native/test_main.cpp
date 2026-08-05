@@ -38,6 +38,7 @@
 #include "ride_state.h"
 #include "scheduler.h"
 #include "serial_console.h"
+#include "serial_profile.h"
 #include "serial_usb_test.h"
 #include "speed_calculator.h"
 #include "speed_interval_guard.h"
@@ -83,7 +84,10 @@ void test_serial_console_trims_rejects_and_recovers_after_overflow() {
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kSelftest),
                           static_cast<uint8_t>(result));
 
-  const char* overflow = "this-command-is-far-too-long\n";
+  const char* overflow =
+      "this-command-is-way-too-long-for-the-serial-console-buffer-and-should-"
+      "overflow-the-parser-limit-because-it-exceeds-one-hundred-twenty-eight-"
+      "characters\n";
   for (size_t i = 0; overflow[i] != '\0'; ++i) {
     result = parser.feed(overflow[i]);
   }
@@ -96,6 +100,43 @@ void test_serial_console_trims_rejects_and_recovers_after_overflow() {
   }
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kDumpConfig),
                           static_cast<uint8_t>(result));
+}
+
+void test_serial_console_parses_profile_commands_with_args() {
+  SerialCommandParser parser;
+  SerialCommand result = SerialCommand::kNone;
+  const char* command = "set-odo-mm 123456\n";
+  for (size_t i = 0; command[i] != '\0'; ++i) {
+    result = parser.feed(command[i]);
+  }
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kSetOdometerMm),
+                          static_cast<uint8_t>(result));
+  TEST_ASSERT_EQUAL_STRING("123456", parser.args());
+
+  const char* load =
+      "load-config 010f340864033c0084033c041f14f40103030000e8030000000102030400"
+      "42696b65436f6d702d585858580000000000\n";
+  for (size_t i = 0; load[i] != '\0'; ++i) {
+    result = parser.feed(load[i]);
+  }
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(SerialCommand::kLoadConfig),
+                          static_cast<uint8_t>(result));
+  TEST_ASSERT_EQUAL(96, strlen(parser.args()));
+}
+
+void test_serial_profile_parses_wire_and_decimal() {
+  uint8_t payload[kDeviceConfigPayloadSize] = {};
+  TEST_ASSERT_TRUE(parseWireV1Hex(
+      "010f340864033c0084033c041f14f40103030000e803000000010203040042696b65436f"
+      "6d702d585858580000000000",
+      payload));
+  TEST_ASSERT_EQUAL_UINT8(0x01, payload[0]);
+
+  uint64_t value = 0;
+  TEST_ASSERT_TRUE(parseUint64Decimal(" 12345678 ", value));
+  TEST_ASSERT_EQUAL_UINT64(12345678ull, value);
+  TEST_ASSERT_FALSE(parseUint64Decimal("", value));
+  TEST_ASSERT_FALSE(parseWireV1Hex("00", payload));
 }
 
 void test_serial_console_parses_status_command() {
@@ -2725,6 +2766,8 @@ int main(int, char**) {
   RUN_TEST(test_scheduler_period_and_wrap);
   RUN_TEST(test_serial_console_parses_supported_commands_and_crlf);
   RUN_TEST(test_serial_console_trims_rejects_and_recovers_after_overflow);
+  RUN_TEST(test_serial_console_parses_profile_commands_with_args);
+  RUN_TEST(test_serial_profile_parses_wire_and_decimal);
   RUN_TEST(test_serial_console_parses_status_command);
   RUN_TEST(test_serial_console_parses_ambient_commands);
   RUN_TEST(test_serial_console_parses_display_commands);

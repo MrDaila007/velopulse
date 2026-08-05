@@ -15,6 +15,7 @@
 #include "ride_state.h"
 #include "scheduler.h"
 #include "serial_console.h"
+#include "serial_profile.h"
 #include "speed_calculator.h"
 #include "storage_manager.h"
 #include "trip_computer.h"
@@ -44,11 +45,13 @@ class AppController {
   void updateDisplay(uint32_t now_ms);
   void updateBattery(uint32_t now_ms);
   void updateBle(uint32_t now_ms);
+  bool ensureBleInitialized(uint32_t now_ms);
   void processPendingConfigWrite(uint32_t now_ms);
   void processPendingSafeCommand(uint32_t now_ms);
   void processPendingDangerousCommand(uint32_t now_ms);
   void processPendingCompanionWrite(uint32_t now_ms);
   void processSerialConsole(uint32_t now_ms);
+  bool applyLoadConfigHex(const char* hex);
   void dumpConfig() const;
   void applyConfig(const DeviceConfig& config);
   void configurePowerManager();
@@ -64,6 +67,7 @@ class AppController {
   void maybePersistOdometer(uint32_t now_ms);
   bool persistOdometer(OdometerSaveTrigger trigger);
   bool saveAndApplyOdometer(uint64_t odometer_mm, uint64_t total_revolutions);
+  bool loadConfigFromWire(const uint8_t payload[kDeviceConfigPayloadSize]);
   void printDiagnostics() const;
   void printAmbientLine() const;
   void printDisplayState() const;
@@ -90,6 +94,7 @@ class AppController {
   PowerManager power_manager_;
   CompanionState companion_state_ = {};
   SerialCommandParser serial_command_parser_;
+  PendingWireV1Reader pending_wire_v1_;
   ScheduledTask tasks_[6];
   Scheduler scheduler_;
   uint8_t selftest_mask_ = 0;
@@ -100,6 +105,10 @@ class AppController {
   bool critical_battery_active_ = false;
   bool reboot_pending_ = false;
   uint32_t reboot_requested_ms_ = 0;
+  bool ble_init_pending_ = false;
+  BleBootSeed ble_boot_seed_ = {};
+  bool boot_config_recovered_ = false;
+  ResetReason boot_reset_reason_ = ResetReason::kUnknown;
   bool ambient_raw_logging_ = false;
   bool hall_watch_logging_ = false;
   uint32_t hall_watch_last_ms_ = 0;

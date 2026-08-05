@@ -196,7 +196,7 @@ void DisplayManager::render(const DisplaySnapshot& snapshot, bool force) {
   const bool page_changed = carousel_.update(now);
   const uint32_t period =
       snapshot.trip.ride_state == RideState::kMoving ? 250u : 1000u;
-  if (!force && !shift_changed && !page_changed &&
+  if (!force && last_render_ms_ != 0u && !shift_changed && !page_changed &&
       static_cast<uint32_t>(now - last_render_ms_) < period) {
     return;
   }

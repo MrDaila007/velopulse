@@ -65,7 +65,8 @@ LDR даёт `raw=0`, `valid=0` и возвращает пользователь
 
 ## Serial console
 
-Команды (115200, CR/LF): `open-pairing`, `dump-config`, `reset-odo`, `selftest`,
+Команды (115200, CR/LF): `open-pairing`, `dump-config`, `load-config`, `set-odo-mm`,
+`reset-odo`, `selftest`,
 `ambient-raw`, `ambient-stop`, `display-state`, `wake-display`, `power-status`, `status`,
 `test-on` / `test-off` (USB regression protocol, см. `tools/usb_regression.py`). Скрипты в `tools/`.
 
@@ -96,3 +97,25 @@ USB regression (host sends fixture lines, firmware executes and answers OK/FAIL)
 python3 tools/usb_regression.py --port /dev/ttyACM0
 python3 -m unittest tools/test_usb_regression.py
 ```
+
+Перенос и точечное редактирование конфига/одометра (Arduino ↔ Zephyr):
+
+```bash
+# прочитать все поля
+python3 tools/bike_profile.py show --port /dev/ttyACM0
+
+# сохранить полный снимок в JSON
+python3 tools/bike_profile.py pull --port /dev/ttyACM0 -o bike-profile.json
+
+# перезаписать отдельные поля (сначала читает устройство, затем пишет только изменения)
+python3 tools/bike_profile.py set --port /dev/ttyACM0 wheelCircumferenceMm=2150 odometerM=42
+
+# или отредактировать JSON и применить только указанные поля
+python3 tools/bike_profile.py patch --port /dev/ttyACM0 -i changes.json
+
+# полная замена из файла (после смены прошивки)
+python3 tools/bike_profile.py push --port /dev/ttyACM0 -i bike-profile.json
+python3 -m unittest tools/test_bike_profile.py
+```
+
+Формат JSON совместим с резервной копией в мобильном приложении (Настройки → Обслуживание).

@@ -31,6 +31,7 @@ set(BIKECOMP_DOMAIN_SOURCES
   ${BIKECOMP_DOMAIN_DIR}/ride_state.cpp
   ${BIKECOMP_DOMAIN_DIR}/scheduler.cpp
   ${BIKECOMP_DOMAIN_DIR}/serial_console.cpp
+  ${BIKECOMP_DOMAIN_DIR}/serial_profile.cpp
   ${BIKECOMP_DOMAIN_DIR}/speed_calculator.cpp
   ${BIKECOMP_DOMAIN_DIR}/speed_interval_guard.cpp
   ${BIKECOMP_DOMAIN_DIR}/storage_manager.cpp

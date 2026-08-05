@@ -14,6 +14,7 @@
 #include "board_leds.h"
 #include "board_pins.h"
 #include "config_codec.h"
+#include "serial_profile.h"
 #include "boot_counter.h"
 #include "zephyr_smoke.h"
 
@@ -196,28 +197,12 @@ void AppController::begin() {
   ble_seed.boot_count = boot_count;
   ble_seed.boot_ms = millis();
   ble_seed.open_pairing_always = (BIKECOMP_OPEN_PAIRING != 0);
-  const bool ble_ok = ble_.begin(config_, ble_seed);
-  Serial.print("BLE GATT: ");
-  Serial.println(ble_ok ? "OK" : "INIT FAILED");
-  if (ble_ok) {
-    const uint32_t now_ms = millis();
-    if (!display_ok) {
-      ble_.recordError(ErrorLogCode::kI2cTimeout, ErrorLogSeverity::kError,
-                       kDisplayI2cAddress, now_ms);
-    }
-    if (!fs_ok) {
-      ble_.recordError(ErrorLogCode::kFlashError, ErrorLogSeverity::kError,
-                       0, now_ms);
-    }
-    if (config_info.recovered) {
-      ble_.recordError(ErrorLogCode::kConfigCrc, ErrorLogSeverity::kWarn,
-                       0, now_ms);
-    }
-    if (reset_reason == ResetReason::kWatchdog) {
-      ble_.recordError(ErrorLogCode::kWatchdogReset, ErrorLogSeverity::kError,
-                       0, now_ms);
-    }
-  }
+  ble_seed.boot_ms = millis();
+  ble_seed.open_pairing_always = (BIKECOMP_OPEN_PAIRING != 0);
+  ble_boot_seed_ = ble_seed;
+  ble_init_pending_ = true;
+  boot_config_recovered_ = config_info.recovered;
+  boot_reset_reason_ = reset_reason;
 
   selftest_mask_ = 0;
   if (display_ok) selftest_mask_ |= kSelftestDisplayOk;
@@ -225,8 +210,7 @@ void AppController::begin() {
   if (battery_.snapshot().valid) selftest_mask_ |= kSelftestAdcOk;
   if (fs_ok) selftest_mask_ |= kSelftestFsOk;
   if (ble_seed.config_from_flash) selftest_mask_ |= kSelftestConfigValid;
-  if (ble_ok) selftest_mask_ |= kSelftestBleOk;
-  // kSelftestWatchdogOk stays unset until Watchdog is initialized (docs §12.2).
+  // kSelftestBleOk set after deferred BLE init; kSelftestWatchdogOk stays unset.
   printDiagnostics();
   ZephyrSmokeContext smoke{};
   smoke.fs_mounted = fs_ok;
@@ -234,6 +218,7 @@ void AppController::begin() {
   smoke.hall_configured = true;
   smoke.selftest_mask = selftest_mask_;
   runZephyrSmokeChecks(smoke);
+  updateDisplay(millis());
 }
 
 DiagnosticSnapshot AppController::diagnosticSnapshot() const {
@@ -482,9 +467,22 @@ void AppController::processSerialConsole(uint32_t now_ms) {
   while (Serial.available() > 0) {
     const int value = Serial.read();
     if (value < 0) break;
+    const char ch = static_cast<char>(value);
+
+    if (pending_wire_v1_.active()) {
+      const bool complete = pending_wire_v1_.feed(ch);
+      if (complete) {
+        applyLoadConfigHex(pending_wire_v1_.line());
+        pending_wire_v1_.reset();
+      } else if (ch == '\r' || ch == '\n') {
+        Serial.println("ERROR load-config parse");
+        pending_wire_v1_.reset();
+      }
+      continue;
+    }
 
     const SerialCommand command =
-        serial_command_parser_.feed(static_cast<char>(value));
+        serial_command_parser_.feed(ch);
     switch (command) {
       case SerialCommand::kNone:
         break;
@@ -497,6 +495,31 @@ void AppController::processSerialConsole(uint32_t now_ms) {
       case SerialCommand::kDumpConfig:
         dumpConfig();
         break;
+
+      case SerialCommand::kLoadConfig: {
+        const char* hex = serial_command_parser_.args();
+        if (hex[0] == '\0') {
+          pending_wire_v1_.begin();
+        } else {
+          applyLoadConfigHex(hex);
+        }
+        break;
+      }
+
+      case SerialCommand::kSetOdometerMm: {
+        uint64_t odometer_mm = 0;
+        if (!parseUint64Decimal(serial_command_parser_.args(), odometer_mm)) {
+          Serial.println("ERROR set-odo-mm parse");
+        } else if (!saveAndApplyOdometer(odometer_mm,
+                                         trip_computer_.totalRevolutions())) {
+          Serial.println("ERROR set-odo-mm storage");
+        } else {
+          Serial.print("OK set-odo-mm odo_mm=");
+          printUint64(odometer_mm);
+          Serial.println();
+        }
+        break;
+      }
 
       case SerialCommand::kResetOdometer:
         Serial.println(saveAndApplyOdometer(0, 0)
@@ -744,8 +767,13 @@ bool AppController::persistOdometer(OdometerSaveTrigger trigger) {
   } else {
     ble_.recordError(ErrorLogCode::kFlashError, ErrorLogSeverity::kError,
                      static_cast<uint16_t>(trigger), millis());
+    // Avoid hammering flash/serial if a one-shot trigger cannot be persisted.
+    if (trigger != OdometerSaveTrigger::kDistance) {
+      odometer_save_.acknowledge(trigger);
+    }
   }
 
+#if BIKECOMP_HOTPATH_SERIAL
   Serial.print("Odo save: trigger=");
   Serial.print(odometerSaveTriggerName(trigger));
   Serial.print(", result=");
@@ -758,6 +786,7 @@ bool AppController::persistOdometer(OdometerSaveTrigger trigger) {
   Serial.print(storage_.counters().skipped_writes);
   Serial.print(", write_errors=");
   Serial.println(storage_.counters().write_errors);
+#endif
   return ok;
 }
 
@@ -769,6 +798,32 @@ bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
   if (!storage_.mounted() || !storage_.saveOdometer(data)) return false;
   trip_computer_.restorePersistentTotals(odometer_mm, total_revolutions);
   odometer_save_.markSaved(odometer_mm);
+  return true;
+}
+
+bool AppController::loadConfigFromWire(
+    const uint8_t payload[kDeviceConfigPayloadSize]) {
+  DeviceConfig parsed;
+  if (!decodeDeviceConfig(payload, kDeviceConfigPayloadSize, parsed)) {
+    return false;
+  }
+  applyConfig(parsed);
+  if (!storage_.mounted() || !storage_.saveConfig(config_)) return false;
+  ble_.publishAppliedConfig(config_, /*config_valid=*/true);
+  return true;
+}
+
+bool AppController::applyLoadConfigHex(const char* hex) {
+  uint8_t payload[kDeviceConfigPayloadSize];
+  if (!parseWireV1Hex(hex, payload)) {
+    Serial.println("ERROR load-config parse");
+    return false;
+  }
+  if (!loadConfigFromWire(payload)) {
+    Serial.println("ERROR load-config storage");
+    return false;
+  }
+  Serial.println("OK load-config");
   return true;
 }
 
@@ -1019,8 +1074,12 @@ void AppController::printStatus() {
   Serial.print(trip.max_speed_x100);
   Serial.print(" trip_mm=");
   Serial.print(trip.trip_distance_mm);
+  Serial.print(" odo_mm=");
+  printUint64(trip.odometer_mm);
   Serial.print(" rev=");
   Serial.print(trip.revolutions);
+  Serial.print(" total_rev=");
+  printUint64(trip_computer_.totalRevolutions());
   Serial.print(" moving_ms=");
   Serial.print(trip.moving_time_ms);
   Serial.print(" ride=");
@@ -1267,6 +1326,7 @@ void AppController::processPendingCompanionWrite(uint32_t now_ms) {
 }
 
 void AppController::updateBle(uint32_t now_ms) {
+  ensureBleInitialized(now_ms);
   processPendingConfigWrite(now_ms);
   processPendingSafeCommand(now_ms);
   processPendingDangerousCommand(now_ms);
@@ -1308,6 +1368,35 @@ void AppController::updateBle(uint32_t now_ms) {
   input.now_ms = now_ms;
   ble_.serviceTelemetry(input, now_ms);
   updateBoardStatusLed(ble_.bleAdvertising(), ble_.bleConnected(), now_ms);
+}
+
+bool AppController::ensureBleInitialized(uint32_t now_ms) {
+  if (!ble_init_pending_) return true;
+
+  ble_init_pending_ = false;
+  const bool ble_ok = ble_.begin(config_, ble_boot_seed_);
+  Serial.print("BLE GATT: ");
+  Serial.println(ble_ok ? "OK" : "INIT FAILED");
+  if (ble_ok) {
+    selftest_mask_ |= kSelftestBleOk;
+    if (!ble_boot_seed_.display_ok) {
+      ble_.recordError(ErrorLogCode::kI2cTimeout, ErrorLogSeverity::kError,
+                       kDisplayI2cAddress, now_ms);
+    }
+    if (!ble_boot_seed_.fs_ok) {
+      ble_.recordError(ErrorLogCode::kFlashError, ErrorLogSeverity::kError, 0,
+                       now_ms);
+    }
+    if (boot_config_recovered_) {
+      ble_.recordError(ErrorLogCode::kConfigCrc, ErrorLogSeverity::kWarn, 0,
+                       now_ms);
+    }
+    if (boot_reset_reason_ == ResetReason::kWatchdog) {
+      ble_.recordError(ErrorLogCode::kWatchdogReset, ErrorLogSeverity::kError,
+                       0, now_ms);
+    }
+  }
+  return ble_ok;
 }
 
 }  // namespace bike

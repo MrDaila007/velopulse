@@ -5,13 +5,16 @@
 
 namespace bike {
 
-constexpr size_t kSerialCommandMaxLength = 16;
+constexpr size_t kSerialCommandMaxLength = 128;
+constexpr size_t kSerialCommandArgsMaxLength = 112;
 
 enum class SerialCommand : uint8_t {
   kNone = 0,
   kOpenPairing,
   kDumpConfig,
   kResetOdometer,
+  kLoadConfig,
+  kSetOdometerMm,
   kSelftest,
   kAmbientRaw,
   kAmbientStop,
@@ -40,10 +43,12 @@ enum class SerialCommand : uint8_t {
 class SerialCommandParser {
  public:
   SerialCommand feed(char value);
+  const char* args() const;
   void reset();
 
  private:
   char buffer_[kSerialCommandMaxLength + 1] = {};
+  char args_[kSerialCommandArgsMaxLength + 1] = {};
   size_t length_ = 0;
   bool overflow_ = false;
 };

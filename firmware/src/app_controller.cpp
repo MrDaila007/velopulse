@@ -32,6 +32,7 @@
 #include "board_leds.h"
 #include "board_pins.h"
 #include "config_codec.h"
+#include "serial_profile.h"
 #include "display_profile.h"
 #include "board_pins.h"
 #include "boot_counter.h"
@@ -974,6 +975,18 @@ void AppController::processSerialConsole(uint32_t now_ms) {
       continue;
     }
 
+    if (pending_wire_v1_.active()) {
+      const bool complete = pending_wire_v1_.feed(ch);
+      if (complete) {
+        applyLoadConfigHex(pending_wire_v1_.line());
+        pending_wire_v1_.reset();
+      } else if (ch == '\r' || ch == '\n') {
+        Serial.println("ERROR load-config parse");
+        pending_wire_v1_.reset();
+      }
+      continue;
+    }
+
     const SerialCommand command = serial_command_parser_.feed(ch);
     if (command != SerialCommand::kNone &&
         command != SerialCommand::kUnknown) {
@@ -991,6 +1004,31 @@ void AppController::processSerialConsole(uint32_t now_ms) {
       case SerialCommand::kDumpConfig:
         dumpConfig();
         break;
+
+      case SerialCommand::kLoadConfig: {
+        const char* hex = serial_command_parser_.args();
+        if (hex[0] == '\0') {
+          pending_wire_v1_.begin();
+        } else {
+          applyLoadConfigHex(hex);
+        }
+        break;
+      }
+
+      case SerialCommand::kSetOdometerMm: {
+        uint64_t odometer_mm = 0;
+        if (!parseUint64Decimal(serial_command_parser_.args(), odometer_mm)) {
+          Serial.println("ERROR set-odo-mm parse");
+        } else if (!saveAndApplyOdometer(odometer_mm,
+                                         trip_computer_.totalRevolutions())) {
+          Serial.println("ERROR set-odo-mm storage");
+        } else {
+          Serial.print("OK set-odo-mm odo_mm=");
+          printUint64(odometer_mm);
+          Serial.println();
+        }
+        break;
+      }
 
       case SerialCommand::kResetOdometer:
         Serial.println(saveAndApplyOdometer(0, 0)
@@ -1295,6 +1333,32 @@ bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
   if (!storage_.mounted() || !storage_.saveOdometer(data)) return false;
   trip_computer_.restorePersistentTotals(odometer_mm, total_revolutions);
   odometer_save_.markSaved(odometer_mm);
+  return true;
+}
+
+bool AppController::loadConfigFromWire(
+    const uint8_t payload[kDeviceConfigPayloadSize]) {
+  DeviceConfig parsed;
+  if (!decodeDeviceConfig(payload, kDeviceConfigPayloadSize, parsed)) {
+    return false;
+  }
+  applyConfig(parsed);
+  if (!storage_.mounted() || !storage_.saveConfig(config_)) return false;
+  ble_.publishAppliedConfig(config_, /*config_valid=*/true);
+  return true;
+}
+
+bool AppController::applyLoadConfigHex(const char* hex) {
+  uint8_t payload[kDeviceConfigPayloadSize];
+  if (!parseWireV1Hex(hex, payload)) {
+    Serial.println("ERROR load-config parse");
+    return false;
+  }
+  if (!loadConfigFromWire(payload)) {
+    Serial.println("ERROR load-config storage");
+    return false;
+  }
+  Serial.println("OK load-config");
   return true;
 }
 

@@ -129,7 +129,7 @@ DangerousCommandSession g_dangerous_command_session = {};
 ErrorLogBuffer g_error_log_entries;
 bool g_error_log_dirty = false;
 
-static struct k_sem g_bt_enable_sem;
+static K_SEM_DEFINE(g_bt_enable_sem, 0, 1);
 static struct k_work_delayable g_adv_slow_work;
 static struct k_work_delayable g_adv_idle_stop_work;
 static bool g_adv_fast_phase = true;
@@ -698,7 +698,10 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   if (err != 0) {
     return false;
   }
-  k_sem_take(&g_bt_enable_sem, K_FOREVER);
+  if (k_sem_take(&g_bt_enable_sem, K_SECONDS(15)) != 0) {
+    Serial.println("BLE INIT TIMEOUT");
+    return false;
+  }
   if (!g_bt_ready) {
     return false;
   }

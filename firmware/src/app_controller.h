@@ -14,6 +14,7 @@
 #include "ride_state.h"
 #include "scheduler.h"
 #include "serial_console.h"
+#include "serial_profile.h"
 #include "serial_usb_test.h"
 #include "speed_calculator.h"
 #include "storage_manager.h"
@@ -50,6 +51,7 @@ class AppController {
   void processPendingDangerousCommand(uint32_t now_ms);
   void processPendingCompanionWrite(uint32_t now_ms);
   void processSerialConsole(uint32_t now_ms);
+  bool applyLoadConfigHex(const char* hex);
   void dumpConfig() const;
   void applyConfig(const DeviceConfig& config);
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
@@ -57,6 +59,7 @@ class AppController {
   bool persistOdometer(OdometerSaveTrigger trigger);
   bool saveAndApplyOdometer(uint64_t odometer_mm,
                             uint64_t total_revolutions);
+  bool loadConfigFromWire(const uint8_t payload[kDeviceConfigPayloadSize]);
   void printDiagnostics() const;
   void printAmbientLine() const;
   void printDisplayState() const;
@@ -121,6 +124,7 @@ class AppController {
   BleManager ble_;
   PowerManager power_manager_;
   SerialCommandParser serial_command_parser_;
+  PendingWireV1Reader pending_wire_v1_;
   ScheduledTask tasks_[6];
   Scheduler scheduler_;
   uint8_t selftest_mask_ = 0;

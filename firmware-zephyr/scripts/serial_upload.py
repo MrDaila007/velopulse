@@ -114,8 +114,9 @@ def touch_1200(port: str) -> None:
       ser.dtr = True
       time.sleep(0.05)
       ser.dtr = False
-  except serial.SerialException as exc:
+  except (serial.SerialException, BrokenPipeError) as exc:
     print(f"Warning: 1200 touch failed on {port}: {exc}", file=sys.stderr)
+  time.sleep(0.5)
 
 
 def wait_for_port(before: set[str], timeout_s: float) -> str | None:
@@ -231,14 +232,28 @@ def main() -> int:
 
   before = port_names()
   upload_port = port
+  attempts = 1 if args.no_touch else 3
+  last_error: subprocess.CalledProcessError | None = None
 
-  if not args.no_touch:
-    touch_1200(port)
-    upload_port = wait_for_port(before, args.wait) or port
+  for attempt in range(1, attempts + 1):
+    if not args.no_touch:
+      touch_1200(port)
+      upload_port = wait_for_port(before, args.wait) or port
+      time.sleep(0.3)
 
-  run_serial_upload(nrfutil, pkg_path, upload_port, args.baud, touch=False)
-  print("Upload complete.")
-  return 0
+    print(f"DFU attempt {attempt}/{attempts} on {upload_port}")
+    try:
+      run_serial_upload(nrfutil, pkg_path, upload_port, args.baud, touch=False)
+      print("Upload complete.")
+      return 0
+    except subprocess.CalledProcessError as exc:
+      last_error = exc
+      print(f"DFU attempt {attempt} failed.", file=sys.stderr)
+      time.sleep(1.0)
+
+  if last_error is not None:
+    raise last_error
+  raise SystemExit("DFU upload failed")
 
 
 if __name__ == "__main__":
