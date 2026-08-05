@@ -40,6 +40,22 @@ CI verifies that generated files match the manifest.
 Release tags (`v*`) trigger [`.github/workflows/release.yml`](.github/workflows/release.yml);
 see [`CHANGELOG.md`](CHANGELOG.md) for notes. Pre-releases use `-beta.N` / `-alpha.N` suffixes.
 
+To cut a release from `dev`:
+
+```bash
+# 1. Edit version.toml + CHANGELOG.md, then:
+python3 tools/sync_versions.py
+git add version.toml CHANGELOG.md && git commit -m "chore: prepare v0.2.0-beta.N release"
+
+# 2. Tag and push (triggers Release workflow + iOS TestFlight on tag):
+git tag -a v0.2.0-beta.N -m "v0.2.0-beta.N"
+git push origin dev v0.2.0-beta.N
+```
+
+Manual dry-run without tagging: GitHub → Actions → **Release** → **Run workflow**,
+enter the tag name (e.g. `v0.2.0-beta.2`). Release notes are taken from the matching
+`CHANGELOG.md` section via `tools/changelog_section.py`.
+
 ## Repository layout
 
 ```text
