@@ -66,6 +66,17 @@ if [ -z "${WEST_TOP}" ]; then
   fi
 fi
 
+if [ -z "${U8G2_ROOT:-}" ]; then
+  for candidate in \
+    "${REPO_ROOT}/deps/u8g2" \
+    "/data/zephyrproject-v4.4/modules/u8g2"; do
+    if [ -d "${candidate}/csrc" ]; then
+      export U8G2_ROOT="${candidate}"
+      break
+    fi
+  done
+fi
+
 cd "${WEST_TOP}"
 CONF_ARGS=(-DEXTRA_DTC_OVERLAY_FILE="${OVERLAY}")
 if grep -q '^CONFIG_BIKECOMP_ZEPHYR_BLE_STUB=n' "${ROOT}/app/prj.conf" 2>/dev/null; then

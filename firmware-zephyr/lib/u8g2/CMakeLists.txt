@@ -3,6 +3,8 @@
 if(NOT DEFINED U8G2_ROOT)
   if(DEFINED ENV{U8G2_ROOT})
     set(U8G2_ROOT "$ENV{U8G2_ROOT}")
+  elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../../../deps/u8g2/csrc/u8g2_font.c")
+    set(U8G2_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../deps/u8g2")
   elseif(EXISTS "/data/zephyrproject-v4.4/modules/u8g2")
     set(U8G2_ROOT "/data/zephyrproject-v4.4/modules/u8g2")
   else()
