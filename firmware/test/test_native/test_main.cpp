@@ -941,6 +941,12 @@ void test_speed_gap_short_spike_corrected() {
   TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
 }
 
+void test_speed_gap_pause_recovery_uses_new_cadence() {
+  SpeedCalculator speed;
+  TEST_ASSERT_EQUAL_UINT16(126u, speed.onInterval(2100, 6000000, 6000000, false, 3));
+  TEST_ASSERT_EQUAL_UINT16(8400u, speed.onInterval(2100, 90000, 6090000, false, 3));
+}
+
 void test_speed_gap_revolutions_unaffected() {
   TripComputer trip;
   trip.onRevolution(2100, 0);
@@ -955,6 +961,41 @@ void test_speed_gap_reset_clears_guard() {
   TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
   speed.reset();
   TEST_ASSERT_EQUAL_UINT32(0u, speed.speedIntervalCorrectedCount());
+}
+
+void test_pulse_to_speed_pipeline_sets_max_speed() {
+  PulseFilter filter;
+  SpeedCalculator speed;
+  TripComputer trip;
+
+  uint32_t ts = 1000000u;
+  for (uint8_t i = 0; i < 8u; ++i) {
+    const PulseDecision decision = filter.process(ts);
+    if (decision.accepted) {
+      uint16_t speed_x100 = 0;
+      if (decision.interval_us > 0) {
+        speed_x100 = speed.onInterval(2100, decision.interval_us, ts, true, 3);
+      }
+      trip.onRevolution(2100, speed_x100);
+    }
+    ts += 300000u;
+  }
+
+  TEST_ASSERT_GREATER_THAN(1u, trip.snapshot().revolutions);
+  TEST_ASSERT_GREATER_THAN(0u, trip.snapshot().max_speed_x100);
+  TEST_ASSERT_GREATER_THAN(0u, trip.snapshot().speed_x100);
+  trip.addMovingTime(2100u * 360u);
+  TEST_ASSERT_GREATER_THAN(0u, trip.snapshot().average_speed_x100);
+}
+
+void test_pulse_filter_rejects_zero_interval() {
+  PulseFilterConfig cfg;
+  cfg.debounce_ms = 0;
+  PulseFilter filter(cfg);
+  TEST_ASSERT_TRUE(filter.process(1000000u).accepted);
+  const PulseDecision second = filter.process(1000000u);
+  TEST_ASSERT_FALSE(second.accepted);
+  TEST_ASSERT_EQUAL(PulseRejection::kOverspeed, second.rejection);
 }
 
 void test_trip_accumulation_average_and_reset() {
@@ -2671,8 +2712,11 @@ int main(int, char**) {
   RUN_TEST(test_speed_boundary_circumferences);
   RUN_TEST(test_speed_gap_long_interval_corrected);
   RUN_TEST(test_speed_gap_short_spike_corrected);
+  RUN_TEST(test_speed_gap_pause_recovery_uses_new_cadence);
   RUN_TEST(test_speed_gap_revolutions_unaffected);
   RUN_TEST(test_speed_gap_reset_clears_guard);
+  RUN_TEST(test_pulse_to_speed_pipeline_sets_max_speed);
+  RUN_TEST(test_pulse_filter_rejects_zero_interval);
   RUN_TEST(test_trip_accumulation_average_and_reset);
   RUN_TEST(test_trip_restores_only_persistent_totals);
   RUN_TEST(test_trip_test_revolution_skips_persistent_totals);

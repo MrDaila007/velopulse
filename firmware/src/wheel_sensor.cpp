@@ -53,6 +53,10 @@ bool analogLevelIsOpen(uint16_t raw, bool previous_open) {
 
 }  // namespace
 
+#if !BIKECOMP_HALL_ANALOG
+WheelSensor* WheelSensor::instance_ = nullptr;
+#endif
+
 void configureHallPins(uint8_t sense_pin) {
 #if BIKECOMP_HALL_TWO_WIRE
   pinMode(kHallDrivePin, OUTPUT);
@@ -60,6 +64,36 @@ void configureHallPins(uint8_t sense_pin) {
   pinMode(sense_pin, INPUT_PULLUP);
 #else
   configureSingleWireHallPin(sense_pin);
+#endif
+}
+
+void WheelSensor::pushPulse(uint32_t timestamp_us) {
+  const uint8_t next = static_cast<uint8_t>((head_ + 1u) & (kPulseBufferSize - 1u));
+  if (next != tail_) {
+    timestamps_[head_] = timestamp_us;
+    passive_before_[head_] = saw_passive_;
+    saw_passive_ = false;
+    head_ = next;
+  } else {
+    ++overflow_count_;
+  }
+  ++raw_pulse_count_;
+}
+
+void WheelSensor::attachSenseInterrupt() {
+#if !BIKECOMP_HALL_ANALOG
+  if (!configured_ || interrupt_attached_) return;
+  instance_ = this;
+  attachInterrupt(digitalPinToInterrupt(pin_), isrThunk, edge_);
+  interrupt_attached_ = true;
+#endif
+}
+
+void WheelSensor::detachSenseInterrupt() {
+#if !BIKECOMP_HALL_ANALOG
+  if (!interrupt_attached_) return;
+  detachInterrupt(digitalPinToInterrupt(pin_));
+  interrupt_attached_ = false;
 #endif
 }
 
@@ -78,10 +112,12 @@ void WheelSensor::begin(uint8_t pin, int edge) {
   last_polled_high_ = digitalRead(pin_) == HIGH;
 #endif
   saw_passive_ = last_polled_high_;
+  attachSenseInterrupt();
 }
 
 void WheelSensor::suspendInterrupt() {
   if (!configured_) return;
+  detachSenseInterrupt();
   polling_enabled_ = false;
 }
 
@@ -98,12 +134,14 @@ void WheelSensor::resumeInterrupt(int edge) {
 #endif
   saw_passive_ = last_polled_high_;
   polling_enabled_ = true;
+  attachSenseInterrupt();
 }
 
 void WheelSensor::pollPin() {
-  if (!configured_ || !polling_enabled_) return;
+  if (!configured_) return;
 
 #if BIKECOMP_HALL_ANALOG
+  if (!polling_enabled_) return;
   last_analog_raw_ = readHallAdc();
   const bool high = analogLevelIsOpen(last_analog_raw_, analog_open_);
   analog_open_ = high;
@@ -112,6 +150,8 @@ void WheelSensor::pollPin() {
 #endif
 
   if (high) saw_passive_ = true;
+
+#if BIKECOMP_HALL_ANALOG
   if (high == last_polled_high_) return;
 
   const bool rising = high && !last_polled_high_;
@@ -119,19 +159,30 @@ void WheelSensor::pollPin() {
   last_polled_high_ = high;
 
   if (!edgeMatches(edge_, rising, falling)) return;
+  pushPulse(micros());
+#elif !BIKECOMP_HALL_ANALOG
+  if (interrupt_attached_ || !polling_enabled_) return;
 
-  const uint32_t now = micros();
-  const uint8_t next = static_cast<uint8_t>((head_ + 1u) & (kPulseBufferSize - 1u));
-  if (next != tail_) {
-    timestamps_[head_] = now;
-    passive_before_[head_] = saw_passive_;
-    saw_passive_ = false;
-    head_ = next;
-  } else {
-    ++overflow_count_;
-  }
-  ++raw_pulse_count_;
+  if (high == last_polled_high_) return;
+
+  const bool rising = high && !last_polled_high_;
+  const bool falling = !high && last_polled_high_;
+  last_polled_high_ = high;
+
+  if (!edgeMatches(edge_, rising, falling)) return;
+  pushPulse(micros());
+#endif
 }
+
+#if !BIKECOMP_HALL_ANALOG
+void WheelSensor::isrThunk() {
+  if (instance_ != nullptr) instance_->onInterrupt();
+}
+
+void WheelSensor::onInterrupt() {
+  pushPulse(micros());
+}
+#endif
 
 bool WheelSensor::pop(PulseEvent& event) {
   if (tail_ == head_) return false;

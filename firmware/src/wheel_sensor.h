@@ -36,6 +36,15 @@ class WheelSensor {
   uint8_t pin() const { return pin_; }
 
  private:
+#if !BIKECOMP_HALL_ANALOG
+  static void isrThunk();
+  void onInterrupt();
+  static WheelSensor* instance_;
+  void attachSenseInterrupt();
+  void detachSenseInterrupt();
+#endif
+  void pushPulse(uint32_t timestamp_us);
+
   uint8_t pin_ = 0xFF;
   volatile uint32_t timestamps_[kPulseBufferSize] = {};
   volatile bool passive_before_[kPulseBufferSize] = {};
@@ -47,6 +56,7 @@ class WheelSensor {
   int edge_ = FALLING;
   bool configured_ = false;
   bool polling_enabled_ = true;
+  bool interrupt_attached_ = false;
   bool last_polled_high_ = true;
   uint16_t last_analog_raw_ = 0;
   bool analog_open_ = true;

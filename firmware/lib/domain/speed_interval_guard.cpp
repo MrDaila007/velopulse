@@ -29,10 +29,17 @@ uint32_t SpeedIntervalGuard::sanitize(uint32_t interval_us) {
     }
   } else if (interval_us < (last_good_us_ * kShortGapNumerator) /
                                 kShortGapDenominator) {
-    effective = last_good_us_;
-    ++corrected_count_;
+    // Only collapse obvious half-revolution bounce spikes (roughly 25-50% of
+    // the last good interval). Much shorter intervals are usually cadence
+    // recovery after a pause, not a duplicate pulse.
+    const uint32_t quarter = last_good_us_ / 4u;
+    if (interval_us >= quarter) {
+      effective = last_good_us_;
+      ++corrected_count_;
+    }
   }
 
+  if (effective == 0) effective = interval_us;
   last_good_us_ = effective;
   return effective;
 }

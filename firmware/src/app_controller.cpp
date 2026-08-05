@@ -763,9 +763,13 @@ void AppController::applyAcceptedPulse(const PulseDecision& decision,
     display_.noteActivity(now_ms);
     odometer_save_.noteDisplayPower(display_.powerState());
   }
+  const RideState before_pulse = ride_state_.state();
   applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
+  if (before_pulse != RideState::kMoving) {
+    speed_calculator_.resetIntervalGuard();
+  }
   uint16_t speed = 0;
-  if (!decision.first_pulse) {
+  if (decision.interval_us > 0) {
     const bool smooth =
         usb_test_mode_ ? usb_test_smoothing_enabled_ : config_.smoothing_enabled;
     speed = speed_calculator_.onInterval(
@@ -1328,7 +1332,7 @@ void AppController::updateState(uint32_t now_ms) {
   const uint32_t now_us = usb_test_mode_ ? usb_test_last_ts_us_ : micros();
   const uint16_t speed = speed_calculator_.updateForTimeout(
       now_us, static_cast<uint32_t>(config_.stop_timeout_s) * 1000000u);
-  if (ride_state_.state() == RideState::kMoving) {
+  if (ride_state_.state() == RideState::kMoving && speed_calculator_.hasPulse()) {
     trip_computer_.setCurrentSpeed(speed);
   }
   maybePersistOdometer(effective_ms);

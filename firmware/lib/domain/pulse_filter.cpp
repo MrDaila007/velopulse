@@ -15,11 +15,10 @@ void PulseFilter::reset() {
 }
 
 uint32_t PulseFilter::minimumIntervalUs() const {
-  if (config_.max_speed_kmh == 0) {
-    return 0;
-  }
+  uint8_t max_speed_kmh = config_.max_speed_kmh;
+  if (max_speed_kmh < 20u) max_speed_kmh = 100u;
   return static_cast<uint32_t>(config_.wheel_circumference_mm) * 360000u /
-         (static_cast<uint32_t>(config_.max_speed_kmh) * 100u);
+         (static_cast<uint32_t>(max_speed_kmh) * 100u);
 }
 
 PulseDecision PulseFilter::process(uint32_t timestamp_us,
@@ -45,6 +44,11 @@ PulseDecision PulseFilter::process(uint32_t timestamp_us,
 
   if (has_accepted_pulse_) {
     const uint32_t interval_us = timestamp_us - last_accepted_us_;
+    if (interval_us == 0) {
+      ++counters_.rejected_overspeed;
+      result.rejection = PulseRejection::kOverspeed;
+      return result;
+    }
     if (interval_us < minimumIntervalUs()) {
       ++counters_.rejected_overspeed;
       result.rejection = PulseRejection::kOverspeed;

@@ -16,7 +16,10 @@ class SpeedCalculator {
   uint16_t updateForTimeout(uint32_t now_us, uint32_t zero_timeout_us);
   void reset();
 
+  void resetIntervalGuard() { interval_guard_.reset(); }
+
   uint16_t speedX100() const { return speed_x100_; }
+  bool hasPulse() const { return has_pulse_; }
   uint32_t speedIntervalCorrectedCount() const {
     return interval_guard_.correctedCount();
   }
