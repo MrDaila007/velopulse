@@ -4,6 +4,40 @@ All notable changes to VeloPulse / BikeComp are documented here.
 Version numbers follow [`version.toml`](version.toml); git tags use `v` + semver
 (with optional `-beta.N` / `-alpha.N` pre-release suffix).
 
+## [0.2.0-beta.3] — 2026-08-06
+
+Third **beta** release: fixes live speed and max speed stuck at zero while distance,
+average speed, and pulse counting continued to work.
+
+### Firmware (Arduino) 0.2.0
+
+- **Speed fix:** restore Hall sensor ISR edge capture (polling-only regression since
+  `0.2.0-beta.1`) so pulse intervals are measured reliably.
+- **Speed fix:** tighten `SpeedIntervalGuard` so post-pause cadence is not stretched
+  back to stale long gaps; reset the guard when movement resumes from idle/pause.
+- **Pulse filter:** reject zero-length accepted intervals; clamp invalid `max_speed_kmh`
+  when computing overspeed floor.
+
+### Mobile app 1.1.0+5
+
+- No functional mobile changes; build number bumped for release traceability.
+
+### Upgrade
+
+1. Flash `firmware-128x64/firmware.hex` (or `firmware-128x32` for 32 px OLED) — **required**
+   if live speed showed `0.0` while trip distance and average speed were updating.
+2. Install **`bikecomp-mobile-v0.2.0-beta.3.apk`** over beta.2 (optional; same app
+   features as `1.1.0+4`).
+
+### Release assets
+
+- `firmware-128x64/` — Arduino firmware for SSD1306 128×64.
+- `firmware-128x32/` — Arduino firmware for 128×32 OLED profile.
+- `firmware-zephyr/` — experimental Zephyr `zephyr.hex`, `zephyr.uf2`, `zephyr.elf`.
+- `bikecomp-mobile-v0.2.0-beta.3.apk` — Android companion app.
+
+[0.2.0-beta.3]: https://github.com/MrDaila007/velopulse/releases/tag/v0.2.0-beta.3
+
 ## [0.2.0-beta.2] — 2026-08-05
 
 Second **beta** release: CI/release pipeline hardening, Zephyr Z5 Arduino parity catch-up,
