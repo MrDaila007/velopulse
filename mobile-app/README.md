@@ -1,8 +1,8 @@
 # BikeComp Mobile MVP
 
-Мобильное приложение (Android и iOS) для поиска, настройки и обслуживания
-велокомпьютера BikeComp. Application ID / Bundle ID — `app.bikecomp.mobile`.
-Android: `minSdk 24`, `compileSdk/targetSdk 36`. iOS: `13.0+`.
+Мобильное приложение (Android) для поиска, настройки и обслуживания
+велокомпьютера BikeComp. Application ID — `app.bikecomp.mobile`.
+`minSdk 24`, `compileSdk/targetSdk 36`.
 
 Ползунок яркости задаёт пользовательский максимум для автоматического LDR-регулятора.
 В Maintenance тест OLED предлагает все три wire-совместимых паттерна: заливку,
@@ -41,7 +41,7 @@ Fake предоставляет профили idle/moving/paused/low-battery, s
 
 - `MAJOR.MINOR` — ориентир по BLE protocol (`1.1` = companion write, время/погода)
 - `PATCH` — функции и исправления приложения
-- `BUILD` — номер сборки для Android (`versionCode`) и iOS
+- `BUILD` — номер сборки для Android (`versionCode`)
 
 Перед установкой на телефон увеличивайте `BUILD` (`+3`, `+4`, …) или `PATCH`.
 В приложении версия показана внизу экрана **Настройки**.
@@ -55,15 +55,6 @@ Fake предоставляет профили idle/moving/paused/low-battery, s
 ../tool/flutterw test
 ../tool/flutterw build apk --debug
 ../tool/flutterw build apk --release
-```
-
-### iOS
-
-Сборка и TestFlight описаны в [`ios/TESTFLIGHT.ru.md`](ios/TESTFLIGHT.ru.md).
-
-```bash
-# Только на macOS с Xcode:
-./tool/build-ios.sh
 ```
 
 Golden codec-тесты читают нормативные fixtures из `../protocol/fixtures`. Аппаратная

@@ -2,7 +2,7 @@
 
 - [ ] v1.1 Nordic Secure BLE DFU.
 - [ ] v1.1 Стандартный Cycling Speed and Cadence GATT profile.
-- [x] v1.1 iOS-версия Flutter-приложения (сборка + TestFlight workflow, см. `mobile-app/ios/TESTFLIGHT.ru.md`).
+- [x] v1.1 Android-версия Flutter-приложения (release APK в CI/Release workflow).
 - [ ] v1.2 Журнал поездок/GPS во внешней QSPI Flash.
 - [ ] v1.2 Второй Hall-датчик каденса.
 - [ ] v2.0 IMU: наклон и автоматическая подсветка.

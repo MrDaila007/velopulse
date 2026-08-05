@@ -47,7 +47,7 @@ To cut a release from `dev`:
 python3 tools/sync_versions.py
 git add version.toml CHANGELOG.md && git commit -m "chore: prepare v0.2.0-beta.N release"
 
-# 2. Tag and push (triggers Release workflow + iOS TestFlight on tag):
+# 2. Tag and push (triggers Release workflow):
 git tag -a v0.2.0-beta.N -m "v0.2.0-beta.N"
 git push origin dev v0.2.0-beta.N
 ```
