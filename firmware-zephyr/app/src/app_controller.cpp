@@ -791,9 +791,13 @@ void AppController::processPulses(uint32_t now_ms) {
     display_.noteActivity(now_ms);
     power_manager_.noteActivity(now_ms);
     odometer_save_.noteDisplayPower(display_.powerState());
+    const RideState before_pulse = ride_state_.state();
     applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
+    if (before_pulse != RideState::kMoving) {
+      speed_calculator_.resetIntervalGuard();
+    }
     uint16_t speed = 0;
-    if (!decision.first_pulse) {
+    if (decision.interval_us > 0) {
       speed = speed_calculator_.onInterval(config_.wheel_circumference_mm,
                                            decision.interval_us,
                                            event.timestamp_us,
@@ -816,7 +820,9 @@ void AppController::updateState(uint32_t now_ms) {
   applyRideUpdate(ride_state_.update(now_ms), now_ms);
   const uint16_t speed = speed_calculator_.updateForTimeout(
       micros(), static_cast<uint32_t>(config_.stop_timeout_s) * 1000000u);
-  if (ride_state_.state() == RideState::kMoving) trip_computer_.setCurrentSpeed(speed);
+  if (ride_state_.state() == RideState::kMoving && speed_calculator_.hasPulse()) {
+    trip_computer_.setCurrentSpeed(speed);
+  }
   maybePersistOdometer(now_ms);
 }
 

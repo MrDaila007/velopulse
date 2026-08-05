@@ -56,6 +56,60 @@ ZTEST(motion, test_speed_gap_short_spike_corrected) {
   zassert_equal(1u, speed.speedIntervalCorrectedCount(), "correction count");
 }
 
+ZTEST(motion, test_speed_gap_pause_recovery_uses_new_cadence) {
+  SpeedCalculator speed;
+  zassert_equal(126u, speed.onInterval(2100, 6000000, 6000000, false, 3),
+                "post-pause baseline");
+  zassert_equal(8400u, speed.onInterval(2100, 90000, 6090000, false, 3),
+                "recovery cadence");
+}
+
+ZTEST(motion, test_speed_gap_reset_clears_guard) {
+  SpeedCalculator speed;
+  zassert_equal(2520u, speed.onInterval(2100, 300000, 300000, false, 3),
+                "baseline speed");
+  zassert_equal(2520u, speed.onInterval(2100, 100000, 400000, false, 3),
+                "spike corrected");
+  speed.resetIntervalGuard();
+  zassert_equal(0u, speed.speedIntervalCorrectedCount(), "guard cleared");
+}
+
+ZTEST(motion, test_pulse_to_speed_pipeline_sets_max_speed) {
+  PulseFilter filter;
+  SpeedCalculator speed;
+  TripComputer trip;
+
+  uint32_t ts = 1000000u;
+  for (uint8_t i = 0; i < 8u; ++i) {
+    const PulseDecision decision = filter.process(ts);
+    if (decision.accepted) {
+      uint16_t speed_x100 = 0;
+      if (decision.interval_us > 0) {
+        speed_x100 = speed.onInterval(2100, decision.interval_us, ts, true, 3);
+      }
+      trip.onRevolution(2100, speed_x100);
+    }
+    ts += 300000u;
+  }
+
+  zassert_true(trip.snapshot().revolutions > 1u, "revs");
+  zassert_true(trip.snapshot().max_speed_x100 > 0u, "max speed");
+  zassert_true(trip.snapshot().speed_x100 > 0u, "current speed");
+  trip.addMovingTime(2100u * 360u);
+  zassert_true(trip.snapshot().average_speed_x100 > 0u, "average speed");
+}
+
+ZTEST(motion, test_pulse_filter_rejects_zero_interval) {
+  PulseFilterConfig cfg;
+  cfg.debounce_ms = 0;
+  PulseFilter filter(cfg);
+  zassert_true(filter.process(1000000u).accepted, "first pulse");
+  const PulseDecision second = filter.process(1000000u);
+  zassert_false(second.accepted, "zero interval rejected");
+  zassert_equal(static_cast<int>(PulseRejection::kOverspeed),
+                static_cast<int>(second.rejection), "overspeed");
+}
+
 ZTEST(motion, test_trip_accumulation_and_reset) {
   TripComputer trip;
   for (uint32_t i = 0; i < 1000u; ++i) {
