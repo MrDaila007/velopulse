@@ -86,3 +86,22 @@
 &i2c1 {
 	clock-frequency = <I2C_BITRATE_FAST>;
 };
+
+/*
+ * Expand LittleFS storage: default UF2 layout leaves only 32 kB, which is too
+ * small for A/B config + odometer slots. App uses ~250 kB of the 788 kB slot.
+ */
+&flash0 {
+	partitions {
+		/delete-node/ partition@ec000;
+
+		code_partition: partition@27000 {
+			reg = <0x00027000 0x000a5000>;
+		};
+
+		storage_partition: partition@cc000 {
+			label = "Storage";
+			reg = <0x000cc000 0x00028000>;
+		};
+	};
+};

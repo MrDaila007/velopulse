@@ -252,6 +252,14 @@ def main() -> int:
       time.sleep(1.0)
 
   if last_error is not None:
+    print(
+        "\nDFU upload failed. Tips:\n"
+        "  - Close serial monitor / bike_profile.py (only one client on the port).\n"
+        "  - Do NOT use --no-touch unless the board is already in bootloader.\n"
+        "  - Retry: make upload   (sends 1200 baud to enter bootloader).\n"
+        "  - Fallback: double-tap RESET, copy build/zephyr/zephyr.uf2 to XIAO drive.\n",
+        file=sys.stderr,
+    )
     raise last_error
   raise SystemExit("DFU upload failed")
 

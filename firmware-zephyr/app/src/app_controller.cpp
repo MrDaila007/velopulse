@@ -6,6 +6,7 @@
 #include <zephyr/autoconf.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/fs/fs.h>
 #include <zephyr/kernel.h>
 
 #include "ble_device_info.h"
@@ -249,6 +250,15 @@ void AppController::printDiagnostics() const {
   Serial.print(diag.free_heap_units);
   Serial.print(", i2c_err=");
   Serial.print(diag.i2c_error_count);
+  Serial.print(", write_errors=");
+  Serial.print(storage_.counters().write_errors);
+  struct fs_statvfs fs_stats;
+  if (storage_.mounted() && fs_statvfs("/bikecomp", &fs_stats) == 0) {
+    Serial.print(", fs_blocks=");
+    Serial.print(static_cast<uint32_t>(fs_stats.f_blocks));
+    Serial.print(", fs_free=");
+    Serial.print(static_cast<uint32_t>(fs_stats.f_bfree));
+  }
   Serial.print(", selftest=0x");
   if (diag.selftest_mask < 0x10u) Serial.print('0');
   Serial.print(diag.selftest_mask, HEX);

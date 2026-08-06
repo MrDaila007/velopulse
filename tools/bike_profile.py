@@ -527,8 +527,14 @@ def cmd_pull(args: argparse.Namespace) -> int:
     return 0
 
 
+def _require_input_file(args: argparse.Namespace) -> Path:
+    if not args.input_file:
+        raise SystemExit("profile JSON file required (positional FILE or -i/--input)")
+    return Path(args.input_file)
+
+
 def cmd_push(args: argparse.Namespace) -> int:
-    profile = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    profile = json.loads(_require_input_file(args).read_text(encoding="utf-8"))
     with open_port(args.port, args.baud) as port:
         push_profile(port, profile, args.wait)
     print(
@@ -552,7 +558,7 @@ def cmd_set(args: argparse.Namespace) -> int:
 
 
 def cmd_patch(args: argparse.Namespace) -> int:
-    patch = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    patch = json.loads(_require_input_file(args).read_text(encoding="utf-8"))
     with open_port(args.port, args.baud) as port:
         current = pull_profile(port, args.wait)
         updated = merge_profile(current, patch)
@@ -569,7 +575,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Read/write BikeComp config and odometer fields over USB serial",
     )
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--port", default="/dev/ttyACM0")
+    common.add_argument("-p", "--port", default="/dev/ttyACM0")
     common.add_argument("--baud", type=int, default=115200)
     common.add_argument("--wait", type=float, default=2.0)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -588,7 +594,13 @@ def build_parser() -> argparse.ArgumentParser:
     push = subparsers.add_parser(
         "push", parents=[common], help="write full profile from JSON file"
     )
-    push.add_argument("-i", "--input", required=True, help="profile JSON file")
+    push.add_argument(
+        "input_file",
+        nargs="?",
+        metavar="FILE",
+        help="profile JSON file (or use -i/--input)",
+    )
+    push.add_argument("-i", "--input", dest="input_file", help="profile JSON file")
     push.set_defaults(func=cmd_push)
 
     set_cmd = subparsers.add_parser(
@@ -609,7 +621,13 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="merge partial JSON over device state and write changed fields",
     )
-    patch.add_argument("-i", "--input", required=True, help="partial profile JSON")
+    patch.add_argument(
+        "input_file",
+        nargs="?",
+        metavar="FILE",
+        help="partial profile JSON (or use -i/--input)",
+    )
+    patch.add_argument("-i", "--input", dest="input_file", help="partial profile JSON")
     patch.set_defaults(func=cmd_patch)
     return parser
 
