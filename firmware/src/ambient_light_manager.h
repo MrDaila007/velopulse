@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include "ambient_light_calibrator.h"
 #include "ambient_light_model.h"
 
 #ifndef BIKECOMP_AMBIENT_LIGHT
@@ -32,14 +33,17 @@ namespace bike {
 
 class AmbientLightManager {
  public:
-  void begin(uint32_t now_ms);
+  void begin(uint32_t now_ms, uint16_t raw_dark, uint16_t raw_bright);
   bool update(uint32_t now_ms);
 
   const AmbientLightSnapshot& snapshot() const { return model_.snapshot(); }
   bool enabled() const { return BIKECOMP_AMBIENT_LIGHT != 0; }
+  const AmbientLightCalibrator& calibration() const { return calibrator_; }
+  void markCalibrationPersisted() { calibrator_.markPersisted(); }
 
  private:
   AmbientLightModel model_;
+  AmbientLightCalibrator calibrator_;
   uint32_t last_sample_ms_ = 0;
   uint32_t power_started_ms_ = 0;
   bool powered_ = false;
