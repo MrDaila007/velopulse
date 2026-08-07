@@ -33,6 +33,7 @@ AmbientCalibrationSaveTrigger AmbientCalibrationSavePolicy::evaluate(
 
 void AmbientCalibrationSavePolicy::acknowledge(
     AmbientCalibrationSaveTrigger trigger, uint32_t now_ms) {
+  if (trigger == AmbientCalibrationSaveTrigger::kNone) return;
   switch (trigger) {
     case AmbientCalibrationSaveTrigger::kReboot:
       reboot_pending_ = false;

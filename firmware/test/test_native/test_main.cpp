@@ -1722,8 +1722,38 @@ void test_ambient_calibration_save_one_shot_triggers_and_usb_disconnect() {
   policy.noteUsbPresent(false);
   TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
                     policy.evaluate(false, 0));
+
+  // Deep sleep outranks a still-pending usb disconnect request.
+  policy.requestDeepSleepSave();
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kDeepSleep,
+                    policy.evaluate(false, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kDeepSleep, 0);
+  // Usb disconnect request is still pending after acknowledging deep sleep only.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
+                    policy.evaluate(false, 0));
+
+  // Usb disconnect outranks a throttled change, even when calibration_changed
+  // is true.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
+                    policy.evaluate(true, 0));
+
   policy.acknowledge(AmbientCalibrationSaveTrigger::kUsbDisconnect, 0);
   TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+}
+
+void test_ambient_calibration_save_usb_absent_baseline_first_call() {
+  AmbientCalibrationSavePolicy policy;
+
+  // First-ever noteUsbPresent call establishes "absent" as the baseline;
+  // it must not be treated as a disconnect transition.
+  policy.noteUsbPresent(false);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+
+  // A genuine later disconnect still triggers normally.
+  policy.noteUsbPresent(true);
+  policy.noteUsbPresent(false);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
+                    policy.evaluate(false, 0));
 }
 
 void test_ble_identity_resolves_placeholder_name() {
@@ -2933,6 +2963,7 @@ int main(int, char**) {
   RUN_TEST(test_odometer_save_flash_error_keeps_oneshot_pending);
   RUN_TEST(test_ambient_calibration_save_throttles_changes_and_prioritizes_one_shots);
   RUN_TEST(test_ambient_calibration_save_one_shot_triggers_and_usb_disconnect);
+  RUN_TEST(test_ambient_calibration_save_usb_absent_baseline_first_call);
   RUN_TEST(test_ble_identity_resolves_placeholder_name);
   RUN_TEST(test_map_nrf_reset_reason_priority);
   RUN_TEST(test_pairing_window_and_device_info_flags);
