@@ -10,8 +10,10 @@ namespace bike {
 constexpr uint32_t kRecordMagic = 0x50434B42u;
 constexpr uint16_t kConfigRecordVersion = 2;
 constexpr uint16_t kOdometerRecordVersion = 2;
+constexpr uint16_t kAmbientCalibrationRecordVersion = 1;
 constexpr size_t kRecordHeaderSize = 16;
 constexpr size_t kOdometerPayloadSize = 16;
+constexpr size_t kAmbientCalibrationPayloadSize = 5;
 constexpr size_t kMaximumRecordSize = 64;
 
 struct RecordHeader {
@@ -53,6 +55,18 @@ bool decodeOdometer(const uint8_t* input,
                     size_t length,
                     OdometerData& odometer);
 
+struct AmbientCalibrationData {
+  uint16_t raw_dark = 0;
+  uint16_t raw_bright = 0;
+  uint8_t quality = 0;
+};
+
+void encodeAmbientCalibration(const AmbientCalibrationData& calibration,
+                              uint8_t output[kAmbientCalibrationPayloadSize]);
+bool decodeAmbientCalibration(const uint8_t* input,
+                              size_t length,
+                              AmbientCalibrationData& calibration);
+
 enum class StorageIoResult : uint8_t {
   kOk = 0,
   kNotFound,
@@ -77,6 +91,8 @@ struct StoragePaths {
   const char* config_b = "/cfg_b";
   const char* odometer_a = "/odo_a";
   const char* odometer_b = "/odo_b";
+  const char* ambient_calibration_a = "/alc_a";
+  const char* ambient_calibration_b = "/alc_b";
 };
 
 enum class StorageSource : uint8_t {
@@ -102,8 +118,10 @@ struct StorageCounters {
   uint32_t write_errors = 0;
   uint32_t config_slot_recoveries = 0;
   uint32_t odometer_slot_recoveries = 0;
+  uint32_t ambient_calibration_slot_recoveries = 0;
   uint32_t config_defaults_restored = 0;
   uint32_t odometer_defaults_restored = 0;
+  uint32_t ambient_calibration_defaults_restored = 0;
   uint32_t config_migrations = 0;
   uint32_t odometer_migrations = 0;
 };
@@ -118,6 +136,9 @@ class StorageManager {
   bool saveConfig(const DeviceConfig& config);
   bool loadOdometer(OdometerData& odometer, StorageLoadInfo& info);
   bool saveOdometer(const OdometerData& odometer);
+  bool loadAmbientCalibration(AmbientCalibrationData& calibration,
+                              StorageLoadInfo& info);
+  bool saveAmbientCalibration(const AmbientCalibrationData& calibration);
 
   bool mounted() const { return mounted_; }
   const StorageCounters& counters() const { return counters_; }
@@ -125,9 +146,11 @@ class StorageManager {
 
  private:
   struct Slot;
+  enum class PayloadKind : uint8_t { kConfig, kOdometer, kAmbientCalibration };
 
   void readConfigSlot(const char* path, Slot& slot);
   void readOdometerSlot(const char* path, Slot& slot);
+  void readAmbientCalibrationSlot(const char* path, Slot& slot);
   bool writeSlot(const char* path,
                  const uint8_t* payload,
                  size_t payload_length,
@@ -138,7 +161,7 @@ class StorageManager {
                    const uint8_t* payload,
                    size_t payload_length,
                    uint16_t version,
-                   bool config_payload,
+                   PayloadKind kind,
                    bool force_write);
 
   StorageBackend& backend_;

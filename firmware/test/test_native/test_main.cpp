@@ -766,6 +766,59 @@ void test_odometer_alternates_and_recovers_older_slot() {
   TEST_ASSERT_TRUE(info.recovered);
 }
 
+void test_ambient_calibration_encode_decode_round_trip() {
+  AmbientCalibrationData original{123u, 3800u, 1u};
+  uint8_t payload[kAmbientCalibrationPayloadSize];
+  encodeAmbientCalibration(original, payload);
+
+  AmbientCalibrationData decoded;
+  TEST_ASSERT_TRUE(decodeAmbientCalibration(payload, sizeof(payload), decoded));
+  TEST_ASSERT_EQUAL_UINT16(original.raw_dark, decoded.raw_dark);
+  TEST_ASSERT_EQUAL_UINT16(original.raw_bright, decoded.raw_bright);
+  TEST_ASSERT_EQUAL_UINT8(original.quality, decoded.quality);
+
+  TEST_ASSERT_FALSE(decodeAmbientCalibration(payload, sizeof(payload) - 1, decoded));
+}
+
+void test_ambient_calibration_defaults_without_flash_write_then_alternates_slots() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  AmbientCalibrationData loaded;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadAmbientCalibration(loaded, info));
+  TEST_ASSERT_EQUAL(StorageSource::kDefaults, info.source);
+  TEST_ASSERT_EQUAL_UINT16(0u, loaded.raw_dark);
+  // Unlike config/odometer, an absent calibration record must NOT be
+  // eagerly written -- the caller decides the real bootstrap values.
+  TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/alc_a"));
+  TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/alc_b"));
+  TEST_ASSERT_EQUAL_UINT32(0u, storage.counters().writes);
+
+  AmbientCalibrationData saved{266u, 1126u,
+                               static_cast<uint8_t>(AmbientCalibrationQuality::kOk)};
+  TEST_ASSERT_TRUE(storage.saveAmbientCalibration(saved));
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/alc_a"));
+
+  StorageManager reloaded(backend);
+  TEST_ASSERT_TRUE(reloaded.begin());
+  AmbientCalibrationData from_flash;
+  TEST_ASSERT_TRUE(reloaded.loadAmbientCalibration(from_flash, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
+  TEST_ASSERT_EQUAL_UINT16(266u, from_flash.raw_dark);
+  TEST_ASSERT_EQUAL_UINT16(1126u, from_flash.raw_bright);
+
+  from_flash.raw_dark = 200u;
+  TEST_ASSERT_TRUE(reloaded.saveAmbientCalibration(from_flash));
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/alc_b"));
+
+  // Saving the same value again is a no-op (dedup by content).
+  const uint32_t writes_before = reloaded.counters().writes;
+  TEST_ASSERT_TRUE(reloaded.saveAmbientCalibration(from_flash));
+  TEST_ASSERT_EQUAL_UINT32(writes_before, reloaded.counters().writes);
+}
+
 void test_migrate_config_v1_to_v2_preserves_fields() {
   DeviceConfig original;
   original.brightness_pct = 55;
@@ -2769,6 +2822,8 @@ int main(int, char**) {
   RUN_TEST(test_storage_falls_back_from_corrupt_or_invalid_newest_slot);
   RUN_TEST(test_storage_restores_defaults_when_both_slots_are_corrupt);
   RUN_TEST(test_odometer_alternates_and_recovers_older_slot);
+  RUN_TEST(test_ambient_calibration_encode_decode_round_trip);
+  RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_migrate_config_v1_to_v2_preserves_fields);
   RUN_TEST(test_migrate_odometer_v1_to_v2_preserves_totals);
   RUN_TEST(test_storage_migrates_config_v1_fixture_and_rewrites_v2);
