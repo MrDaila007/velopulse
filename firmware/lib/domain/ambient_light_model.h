@@ -5,6 +5,7 @@
 namespace bike {
 
 constexpr uint16_t kAmbientAdcMaximum = 4095u;
+constexpr uint16_t kAmbientInvalidRailMargin = 4u;
 constexpr uint32_t kAmbientMinimumLevelDwellMs = 2000u;
 
 struct AmbientLightSnapshot {
