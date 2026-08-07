@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "ambient_light_calibrator.h"
 #include "ambient_light_model.h"
 #include "battery_model.h"
 #include "ble_advertising.h"
@@ -1269,6 +1270,73 @@ void test_ambient_light_model_ema_hysteresis_dwell_and_invalid_fallback() {
   TEST_ASSERT_TRUE(model.addSample(0u, 4250u));
   TEST_ASSERT_FALSE(model.snapshot().valid);
   TEST_ASSERT_EQUAL_UINT8(42u, model.cappedBrightness(42u));
+}
+
+void test_ambient_light_calibrator_expands_bounds_and_tracks_changed() {
+  AmbientLightCalibrator calibrator;
+  calibrator.configure(266, 1126);
+  TEST_ASSERT_EQUAL_UINT16(266u, calibrator.rawDark());
+  TEST_ASSERT_EQUAL_UINT16(1126u, calibrator.rawBright());
+  TEST_ASSERT_FALSE(calibrator.changed());
+
+  calibrator.addSample(500);  // inside current bounds, no change
+  TEST_ASSERT_EQUAL_UINT16(266u, calibrator.rawDark());
+  TEST_ASSERT_EQUAL_UINT16(1126u, calibrator.rawBright());
+  TEST_ASSERT_FALSE(calibrator.changed());
+
+  calibrator.addSample(150);  // new low
+  TEST_ASSERT_EQUAL_UINT16(150u, calibrator.rawDark());
+  TEST_ASSERT_TRUE(calibrator.changed());
+
+  calibrator.addSample(2000);  // new high
+  TEST_ASSERT_EQUAL_UINT16(2000u, calibrator.rawBright());
+
+  calibrator.markPersisted();
+  TEST_ASSERT_FALSE(calibrator.changed());
+
+  calibrator.addSample(100);  // lower again after persisting
+  TEST_ASSERT_EQUAL_UINT16(100u, calibrator.rawDark());
+  TEST_ASSERT_TRUE(calibrator.changed());
+}
+
+void test_ambient_light_calibrator_rejects_rail_samples() {
+  AmbientLightCalibrator calibrator;
+  calibrator.configure(266, 1126);
+
+  calibrator.addSample(0);      // presence-check-failure-style sentinel
+  calibrator.addSample(4);      // at the rail margin, still rejected
+  calibrator.addSample(4095);   // pinned bright rail
+  calibrator.addSample(4091);   // at the rail margin, still rejected
+  TEST_ASSERT_EQUAL_UINT16(266u, calibrator.rawDark());
+  TEST_ASSERT_EQUAL_UINT16(1126u, calibrator.rawBright());
+  TEST_ASSERT_FALSE(calibrator.changed());
+
+  calibrator.addSample(5);      // just past the margin, admitted
+  calibrator.addSample(4090);   // just past the margin, admitted
+  TEST_ASSERT_EQUAL_UINT16(5u, calibrator.rawDark());
+  TEST_ASSERT_EQUAL_UINT16(4090u, calibrator.rawBright());
+}
+
+void test_ambient_light_calibrator_quality_checks_width_and_absolute_bounds() {
+  AmbientLightCalibrator calibrator;
+
+  calibrator.configure(266, 1126);  // real factory default must read as kOk
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kOk, calibrator.quality());
+
+  calibrator.configure(1700, 2400);  // width 700 ok, but dark too high
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kNarrow, calibrator.quality());
+
+  calibrator.configure(200, 700);  // dark ok, but bright too low
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kNarrow, calibrator.quality());
+
+  calibrator.configure(500, 700);  // width 200, below minimum
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kNarrow, calibrator.quality());
+
+  calibrator.configure(200, 1200);  // width 1000, dark 200, bright 1200: all pass
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kOk, calibrator.quality());
+
+  calibrator.configure(700, 700);  // degenerate zero-width range
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kNarrow, calibrator.quality());
 }
 
 void test_battery_raw_conversion_and_calibration() {
@@ -2742,6 +2810,9 @@ int main(int, char**) {
   RUN_TEST(test_battery_raw_conversion_and_calibration);
   RUN_TEST(test_ambient_light_model_normalizes_levels_caps_and_contrast);
   RUN_TEST(test_ambient_light_model_ema_hysteresis_dwell_and_invalid_fallback);
+  RUN_TEST(test_ambient_light_calibrator_expands_bounds_and_tracks_changed);
+  RUN_TEST(test_ambient_light_calibrator_rejects_rail_samples);
+  RUN_TEST(test_ambient_light_calibrator_quality_checks_width_and_absolute_bounds);
   RUN_TEST(test_battery_soc_table_and_interpolation);
   RUN_TEST(test_battery_ema_monotonicity_and_usb_growth);
   RUN_TEST(test_battery_low_threshold_hysteresis);
