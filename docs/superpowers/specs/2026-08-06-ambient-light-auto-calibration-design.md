@@ -76,6 +76,15 @@ class AmbientLightCalibrator {
     width ≥ 500-800, `kMaxAcceptableDark` ≈ 300-500, `kMinAcceptableBright` ≈ 3500-3600. Exact
     numbers are an implementation-time tuning detail, not a design commitment — this design fixes
     the *shape* of the check (width + absolute bounds), not the constants.
+- **Bootstrap and known limitation:** the calibrator's starting `raw_dark`/`raw_bright` are
+  whatever `configure()` receives at boot — the loaded-from-flash calibration if one exists,
+  otherwise the existing compile-time defaults (100/3900). This was confirmed deliberately: no
+  separate "empty/unseen" bootstrap state. Consequence — since those defaults already satisfy the
+  `kOk` thresholds above, and updates are expand-only, `quality` reads `kOk` starting from the
+  first sample and can never revert to `kNarrow`. It does not certify that *this specific unit*
+  has observed genuine darkness/brightness yet. Read `quality` together with the logged
+  `raw_dark`/`raw_bright` drift over time, not as a standalone trust signal — the numeric bounds
+  are the actually useful signal this iteration produces.
 
 ## Storage
 
