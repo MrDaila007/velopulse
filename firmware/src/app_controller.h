@@ -56,6 +56,9 @@ class AppController {
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
   void maybePersistOdometer(uint32_t now_ms);
   bool persistOdometer(OdometerSaveTrigger trigger);
+  void maybePersistAmbientCalibration(uint32_t now_ms);
+  bool persistAmbientCalibration(AmbientCalibrationSaveTrigger trigger,
+                                 uint32_t now_ms);
   bool saveAndApplyOdometer(uint64_t odometer_mm,
                             uint64_t total_revolutions);
   void printDiagnostics() const;

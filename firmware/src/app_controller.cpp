@@ -619,6 +619,8 @@ void AppController::handlePowerManagerResult(
   if (result.request_deep_sleep_save) {
     odometer_save_.requestDeepSleepSave();
     maybePersistOdometer(now_ms);
+    ambient_calibration_save_.requestDeepSleepSave();
+    maybePersistAmbientCalibration(now_ms);
   }
   if (result.mode_changed &&
       power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
@@ -641,6 +643,8 @@ void AppController::tryEnterDeepSleep(uint32_t now_ms) {
       !persistOdometer(trigger)) {
     return;
   }
+  ambient_calibration_save_.requestDeepSleepSave();
+  maybePersistAmbientCalibration(now_ms);
 
   display_.turnOff(now_ms);
   ble_.stopAdvertising();
@@ -1300,6 +1304,41 @@ bool AppController::persistOdometer(OdometerSaveTrigger trigger) {
   return ok;
 }
 
+void AppController::maybePersistAmbientCalibration(uint32_t now_ms) {
+  if (usb_test_mode_) return;
+  const bool changed = ambient_light_.calibration().changed();
+  const AmbientCalibrationSaveTrigger trigger =
+      ambient_calibration_save_.evaluate(changed, now_ms);
+  if (trigger == AmbientCalibrationSaveTrigger::kNone) return;
+  persistAmbientCalibration(trigger, now_ms);
+}
+
+bool AppController::persistAmbientCalibration(AmbientCalibrationSaveTrigger trigger,
+                                              uint32_t now_ms) {
+  const AmbientLightCalibrator& calibrator = ambient_light_.calibration();
+  AmbientCalibrationData data;
+  data.raw_dark = calibrator.rawDark();
+  data.raw_bright = calibrator.rawBright();
+  data.quality = static_cast<uint8_t>(calibrator.quality());
+  const bool ok = storage_.mounted() && storage_.saveAmbientCalibration(data);
+  if (ok) {
+    ambient_light_.markCalibrationPersisted();
+    ambient_calibration_save_.acknowledge(trigger, now_ms);
+  }
+
+  Serial.print("Ambient cal save: trigger=");
+  Serial.print(ambientCalibrationSaveTriggerName(trigger));
+  Serial.print(", result=");
+  Serial.print(ok ? "OK" : "ERROR");
+  Serial.print(", raw_dark=");
+  Serial.print(data.raw_dark);
+  Serial.print(", raw_bright=");
+  Serial.print(data.raw_bright);
+  Serial.print(", quality=");
+  Serial.println(ambientCalibrationQualityName(calibrator.quality()));
+  return ok;
+}
+
 bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
                                          uint64_t total_revolutions) {
   OdometerData data;
@@ -1356,6 +1395,7 @@ void AppController::updateAmbient(uint32_t now_ms) {
   const AmbientLightSnapshot& ambient = ambient_light_.snapshot();
   display_.setAmbientBrightness(ambient.brightness_pct, ambient.valid);
   if (ambient_raw_logging_) printAmbientLine();
+  maybePersistAmbientCalibration(now_ms);
 }
 
 void AppController::updateDisplay(uint32_t now_ms) {
@@ -1392,9 +1432,11 @@ void AppController::updateBattery(uint32_t now_ms) {
   if (!usb_test_mode_) {
     odometer_save_.noteUsbPresent(snapshot.usb_present);
     odometer_save_.noteBatteryPercent(snapshot.percent, snapshot.valid);
+    ambient_calibration_save_.noteUsbPresent(snapshot.usb_present);
   }
   ble_.noteUsbPresent(snapshot.usb_present);
   maybePersistOdometer(now_ms);
+  maybePersistAmbientCalibration(now_ms);
   const bool critical = snapshot.valid && snapshot.percent <= 5u;
   if (critical && !critical_battery_active_) {
     ble_.recordError(ErrorLogCode::kCriticalBattery, ErrorLogSeverity::kWarn,
@@ -1588,6 +1630,8 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
       if (!persistOdometer(OdometerSaveTrigger::kReboot)) {
         result.status = CommandStatus::kErrStorage;
       } else {
+        ambient_calibration_save_.requestRebootSave();
+        maybePersistAmbientCalibration(now_ms);
         reboot_pending_ = true;
         reboot_requested_ms_ = now_ms;
       }
