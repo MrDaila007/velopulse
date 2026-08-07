@@ -72,10 +72,13 @@ class AmbientLightCalibrator {
     - `raw_dark <= kMaxAcceptableDark`
     - `raw_bright >= kMinAcceptableBright`
   - Otherwise `kNarrow`.
-  - Starting reference values for tuning during implementation (12-bit ADC, 0-4095 range):
-    width ≥ 500-800, `kMaxAcceptableDark` ≈ 300-500, `kMinAcceptableBright` ≈ 3500-3600. Exact
-    numbers are an implementation-time tuning detail, not a design commitment — this design fixes
-    the *shape* of the check (width + absolute bounds), not the constants.
+  - Reference values, grounded in the values actually flashed to hardware — `firmware/platformio.ini`
+    sets `BIKECOMP_AMBIENT_RAW_DARK=266` / `BIKECOMP_AMBIENT_RAW_BRIGHT=1126` (width 860) for every
+    real board env (`xiao_ble_sense` and its variants); the 100/3900 fallback in the header is only
+    used if those build flags are absent, which doesn't happen on real builds. Thresholds must
+    treat the real factory pair as passing (consistent with the bootstrap decision above):
+    `kMinWidth = 400`, `kMaxAcceptableDark = 600`, `kMinAcceptableBright = 900`. Exact numbers can
+    still be retuned during implementation, but must keep 266/1126 classified as `kOk`.
 - **Bootstrap and known limitation:** the calibrator's starting `raw_dark`/`raw_bright` are
   whatever `configure()` receives at boot — the loaded-from-flash calibration if one exists,
   otherwise the existing compile-time defaults (100/3900). This was confirmed deliberately: no
