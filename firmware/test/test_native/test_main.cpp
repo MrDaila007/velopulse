@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "ambient_calibration_save_policy.h"
 #include "ambient_light_calibrator.h"
 #include "ambient_light_model.h"
 #include "battery_model.h"
@@ -1676,6 +1677,55 @@ void test_odometer_save_flash_error_keeps_oneshot_pending() {
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 0));
 }
 
+void test_ambient_calibration_save_throttles_changes_and_prioritizes_one_shots() {
+  AmbientCalibrationSavePolicy policy;
+
+  // No change yet: nothing to save.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+
+  // First observed change saves immediately (no prior save to throttle against).
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kThrottledChange,
+                    policy.evaluate(true, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kThrottledChange, 1000);
+
+  // Too soon after the last save: throttled even though it changed again.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone,
+                    policy.evaluate(true, 1000 + 299999u));
+  // Exactly at the interval: allowed.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kThrottledChange,
+                    policy.evaluate(true, 1000 + 300000u));
+
+  // No change at all: never saves regardless of elapsed time.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone,
+                    policy.evaluate(false, 1000 + 999999u));
+}
+
+void test_ambient_calibration_save_one_shot_triggers_and_usb_disconnect() {
+  AmbientCalibrationSavePolicy policy;
+
+  policy.requestDeepSleepSave();
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kDeepSleep,
+                    policy.evaluate(false, 0));
+  policy.requestRebootSave();
+  // Reboot outranks a still-pending deep sleep request.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kReboot, policy.evaluate(false, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kReboot, 0);
+  // Deep sleep request is still pending after acknowledging reboot only.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kDeepSleep,
+                    policy.evaluate(false, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kDeepSleep, 0);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+
+  // First noteUsbPresent call only establishes the baseline, no trigger.
+  policy.noteUsbPresent(true);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+  policy.noteUsbPresent(false);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
+                    policy.evaluate(false, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kUsbDisconnect, 0);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+}
+
 void test_ble_identity_resolves_placeholder_name() {
   TEST_ASSERT_TRUE(isDeviceNamePlaceholder(nullptr));
   TEST_ASSERT_TRUE(isDeviceNamePlaceholder(""));
@@ -2881,6 +2931,8 @@ int main(int, char**) {
   RUN_TEST(test_odometer_save_unchanged_skips_sequence_growth);
   RUN_TEST(test_odometer_save_flash_error_keeps_distance_retry);
   RUN_TEST(test_odometer_save_flash_error_keeps_oneshot_pending);
+  RUN_TEST(test_ambient_calibration_save_throttles_changes_and_prioritizes_one_shots);
+  RUN_TEST(test_ambient_calibration_save_one_shot_triggers_and_usb_disconnect);
   RUN_TEST(test_ble_identity_resolves_placeholder_name);
   RUN_TEST(test_map_nrf_reset_reason_priority);
   RUN_TEST(test_pairing_window_and_device_info_flags);
