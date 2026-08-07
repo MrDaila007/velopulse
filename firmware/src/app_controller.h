@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ambient_calibration_save_policy.h"
 #include "ambient_light_manager.h"
 #include "battery_manager.h"
 #include "ble_manager.h"
@@ -110,6 +111,7 @@ class AppController {
   InternalFsBackend storage_backend_;
   StorageManager storage_;
   OdometerSavePolicy odometer_save_;
+  AmbientCalibrationSavePolicy ambient_calibration_save_;
   WheelSensor wheel_sensor_;
   PulseFilter pulse_filter_;
   SpeedCalculator speed_calculator_;

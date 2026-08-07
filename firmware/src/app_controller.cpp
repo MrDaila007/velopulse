@@ -152,9 +152,12 @@ void AppController::begin() {
 
   StorageLoadInfo config_info;
   StorageLoadInfo odometer_info;
+  StorageLoadInfo calibration_info;
   bool config_ok = false;
   bool odometer_ok = false;
+  bool calibration_ok = false;
   OdometerData odometer;
+  AmbientCalibrationData calibration;
   if (fs_ok) {
     config_ok = storage_.loadConfig(config_, config_info);
     odometer_ok = storage_.loadOdometer(odometer, odometer_info);
@@ -162,12 +165,14 @@ void AppController::begin() {
       trip_computer_.restorePersistentTotals(
           odometer.odometer_mm, odometer.total_revolutions);
     }
+    calibration_ok = storage_.loadAmbientCalibration(calibration, calibration_info);
   }
   printLoadInfo("Config", config_info, config_ok);
 #if BIKECOMP_HALL_ACTIVE_EDGE >= 0
   config_.active_edge = static_cast<uint8_t>(BIKECOMP_HALL_ACTIVE_EDGE);
 #endif
   printLoadInfo("Odometer", odometer_info, odometer_ok);
+  printLoadInfo("AmbientCalibration", calibration_info, calibration_ok);
   Serial.print("Odometer value: ");
   printUint64(trip_computer_.snapshot().odometer_mm);
   Serial.print(" mm, total revolutions: ");
@@ -189,7 +194,15 @@ void AppController::begin() {
   Serial.print("OLED 0x3C: ");
   Serial.println(display_ok ? "OK" : "NOT FOUND; counting remains active");
   battery_.begin(config_, millis());
-  ambient_light_.begin(millis());
+  uint16_t ambient_raw_dark = BIKECOMP_AMBIENT_RAW_DARK;
+  uint16_t ambient_raw_bright = BIKECOMP_AMBIENT_RAW_BRIGHT;
+  if (calibration_ok && calibration_info.source != StorageSource::kDefaults &&
+      static_cast<AmbientCalibrationQuality>(calibration.quality) ==
+          AmbientCalibrationQuality::kOk) {
+    ambient_raw_dark = calibration.raw_dark;
+    ambient_raw_bright = calibration.raw_bright;
+  }
+  ambient_light_.begin(millis(), ambient_raw_dark, ambient_raw_bright);
   Serial.print("Battery: ");
   Serial.print(battery_.snapshot().millivolts);
   Serial.print(" mV, ");
