@@ -67,7 +67,7 @@ ZTEST(codec_storage, test_config_validator_accepts_boundaries) {
   maximum.deep_sleep_timeout_s = 3600;
   maximum.brightness_pct = 100;
   maximum.page_switch_period_s = 60;
-  maximum.enabled_pages_mask = 0x1F;
+  maximum.enabled_pages_mask = 0x7F;
   maximum.low_battery_pct = 50;
   maximum.odometer_save_interval_m = 5000;
   maximum.smoothing_window = 5;

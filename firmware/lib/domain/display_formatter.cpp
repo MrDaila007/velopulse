@@ -1,6 +1,7 @@
 #include "display_formatter.h"
 
 #include <stdio.h>
+#include <string.h>
 
 namespace bike {
 
@@ -15,6 +16,38 @@ const char* stateLabel(RideState state) {
     default:
       return "IDLE";
   }
+}
+
+void formatWeatherClock(char* lower, size_t capacity,
+                        const DisplaySnapshot& snapshot) {
+  if (snapshot.companion_header_valid && snapshot.companion_header[0] != '\0') {
+    snprintf(lower, capacity, "WX %s", snapshot.companion_header);
+    return;
+  }
+  snprintf(lower, capacity, "WX --:--");
+}
+
+void formatWeatherRain(char* lower, size_t capacity,
+                       const DisplaySnapshot& snapshot) {
+  if (!snapshot.companion_weather_valid) {
+    snprintf(lower, capacity, "RAIN --");
+    return;
+  }
+  if (snapshot.companion_weather_temp[0] != '\0' &&
+      snapshot.companion_weather_rain[0] != '\0') {
+    snprintf(lower, capacity, "%s %s", snapshot.companion_weather_temp,
+             snapshot.companion_weather_rain);
+    return;
+  }
+  if (snapshot.companion_weather_temp[0] != '\0') {
+    snprintf(lower, capacity, "%s", snapshot.companion_weather_temp);
+    return;
+  }
+  if (snapshot.companion_weather_rain[0] != '\0') {
+    snprintf(lower, capacity, "%s", snapshot.companion_weather_rain);
+    return;
+  }
+  snprintf(lower, capacity, "RAIN --");
 }
 }  // namespace
 
@@ -70,6 +103,12 @@ DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot,
       }
       break;
     }
+    case DisplayPage::kWeatherClock:
+      formatWeatherClock(frame.lower, sizeof(frame.lower), snapshot);
+      break;
+    case DisplayPage::kWeatherRain:
+      formatWeatherRain(frame.lower, sizeof(frame.lower), snapshot);
+      break;
     case DisplayPage::kTrip:
     default:
       snprintf(frame.lower, sizeof(frame.lower), "%s TRIP %lu.%02lu km", state,

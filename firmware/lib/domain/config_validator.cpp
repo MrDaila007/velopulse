@@ -42,7 +42,7 @@ ConfigValidationError ConfigValidator::validate(const DeviceConfig& config) {
     return ConfigValidationError::kPageSwitchPeriod;
   }
   if (config.enabled_pages_mask == 0 ||
-      (config.enabled_pages_mask & ~0x1Fu) != 0) {
+      (config.enabled_pages_mask & ~kValidEnabledPagesMask) != 0) {
     return ConfigValidationError::kEnabledPagesMask;
   }
   if (config.low_battery_pct < 5 || config.low_battery_pct > 50) {
