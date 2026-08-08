@@ -27,6 +27,7 @@
 | [docs/04-mobile-app-architecture.md](docs/04-mobile-app-architecture.md) | Исходный архитектурный план: стек Flutter/Riverpod, слои и каталоги, FSM подключения и переподключение, репозиторий устройства, черновик конфигурации и write-then-verify, 10 экранов, разрешения Android, таблица ошибок, тестирование через `FakeBleTransport` |
 | [docs/09-mobile-app-current-state.md](docs/09-mobile-app-current-state.md) | Фактическое состояние кода `mobile-app` на `dev`: расхождения с планом, companion sync, firmware-migration backup, экспорт лога, найденные проблемы код-ревью |
 | [docs/10-web-app.md](docs/10-web-app.md) | ПК веб-компаньон: Web Bluetooth, Web Serial, паритет с mobile MVP |
+| [docs/11-peripheral-features-from-opensource.md](docs/11-peripheral-features-from-opensource.md) | Обзор open-source велокомпьютеров: периферия, расчёты, приоритизированный backlog фич для BikeComp |
 | [docs/05-hardware-design.md](docs/05-hardware-design.md) | BOM, схема соединений, распиновка, измерение и калибровка батареи, зарядка, механика установки магнита и датчика, энергетический бюджет, аппаратные проверки и риски |
 
 ### Контракт прошивка ⇄ приложение
