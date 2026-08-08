@@ -18,7 +18,8 @@ RENDERER_SOURCES = (
     PROJECT / "firmware" / "lib" / "domain" / "display_layout.h",
     PROJECT / "firmware" / "include" / "types.h",
 )
-SCENARIO_ORDER = ("trip", "average", "maximum", "time", "odometer")
+SCENARIO_ORDER = ("trip", "average", "maximum", "time", "odometer", "weather_clock",
+                  "weather_rain")
 GOLDEN_SCENARIOS = SCENARIO_ORDER + ("idle", "paused", "battery_unknown", "low_battery")
 BOUNDARY_SCENARIOS = (
     "speed_0",

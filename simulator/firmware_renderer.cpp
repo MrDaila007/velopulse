@@ -68,7 +68,19 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
   else if (name == "maximum") page = DisplayPage::kMaximum;
   else if (name == "time") page = DisplayPage::kMovingTime;
   else if (name == "odometer") page = DisplayPage::kOdometer;
-  else if (name == "idle") {
+  else if (name == "weather_clock") {
+    page = DisplayPage::kWeatherClock;
+    snapshot.companion_header_valid = true;
+    std::snprintf(snapshot.companion_header, sizeof(snapshot.companion_header),
+                  "14:30");
+  } else if (name == "weather_rain") {
+    page = DisplayPage::kWeatherRain;
+    snapshot.companion_weather_valid = true;
+    std::snprintf(snapshot.companion_weather_temp,
+                  sizeof(snapshot.companion_weather_temp), "+18.5C");
+    std::snprintf(snapshot.companion_weather_rain,
+                  sizeof(snapshot.companion_weather_rain), "R40%%");
+  } else if (name == "idle") {
     page = DisplayPage::kTrip;
     snapshot.trip.speed_x100 = 0;
     snapshot.trip.trip_distance_mm = 0;

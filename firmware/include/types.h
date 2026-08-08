@@ -22,6 +22,8 @@ enum class DisplayPage : uint8_t {
   kMaximum = 2,
   kMovingTime = 3,
   kOdometer = 4,
+  kWeatherClock = 5,
+  kWeatherRain = 6,
 };
 
 struct TripSnapshot {

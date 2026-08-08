@@ -1188,7 +1188,7 @@ void AppController::dumpConfig() const {
   Serial.print("  batt_cal_offset_mv=");
   Serial.println(config_.batt_cal_offset_mv);
   Serial.print("  page_order=");
-  for (size_t i = 0; i < kDisplayPageCount; ++i) {
+  for (size_t i = 0; i < kConfigurablePageOrderCount; ++i) {
     if (i != 0) Serial.print(',');
     Serial.print(config_.page_order[i]);
   }

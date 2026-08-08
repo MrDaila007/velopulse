@@ -503,7 +503,7 @@ void test_config_validator_accepts_all_boundaries() {
   maximum.deep_sleep_timeout_s = 3600;
   maximum.brightness_pct = 100;
   maximum.page_switch_period_s = 60;
-  maximum.enabled_pages_mask = 0x1F;
+  maximum.enabled_pages_mask = 0x7F;
   maximum.low_battery_pct = 50;
   maximum.odometer_save_interval_m = 5000;
   maximum.smoothing_window = 5;
@@ -547,7 +547,7 @@ void test_config_validator_rejects_ranges_mask_order_and_name() {
   TEST_ASSERT_EQUAL(ConfigValidationError::kPageSwitchPeriod,
                     ConfigValidator::validate(config));
   config = {};
-  config.enabled_pages_mask = 0x20;
+  config.enabled_pages_mask = 0x80;
   TEST_ASSERT_EQUAL(ConfigValidationError::kEnabledPagesMask,
                     ConfigValidator::validate(config));
   config = {};
@@ -571,7 +571,7 @@ void test_config_validator_rejects_ranges_mask_order_and_name() {
   TEST_ASSERT_EQUAL(ConfigValidationError::kActiveEdge,
                     ConfigValidator::validate(config));
   config = {};
-  config.pinned_page = 5;
+  config.pinned_page = 7;
   TEST_ASSERT_EQUAL(ConfigValidationError::kPinnedPage,
                     ConfigValidator::validate(config));
   config = {};
@@ -1133,6 +1133,17 @@ void test_page_carousel_pinned_page() {
   TEST_ASSERT_EQUAL(DisplayPage::kAverage, carousel.currentPage());
 }
 
+void test_page_carousel_weather_pages() {
+  DeviceConfig config;
+  config.enabled_pages_mask = 0x60u;  // weather clock + rain only
+  PageCarousel carousel;
+  carousel.configure(config, 0);
+  TEST_ASSERT_EQUAL_UINT8(2u, carousel.pageCount());
+  TEST_ASSERT_EQUAL(DisplayPage::kWeatherClock, carousel.currentPage());
+  TEST_ASSERT_TRUE(carousel.update(4000));
+  TEST_ASSERT_EQUAL(DisplayPage::kWeatherRain, carousel.currentPage());
+}
+
 void test_display_power_dim_off_wake_disable_and_wrap() {
   DisplayPower power;
   power.configure(60, 1000);
@@ -1355,6 +1366,20 @@ void test_display_formatter_all_pages_and_battery() {
   TEST_ASSERT_EQUAL_STRING("MOV TIME 1:12:36", frame.lower);
   frame = DisplayFormatter::format(snapshot, DisplayPage::kOdometer);
   TEST_ASSERT_EQUAL_STRING("MOV ODO 1234.5 km", frame.lower);
+
+  snapshot.companion_header_valid = true;
+  snprintf(snapshot.companion_header, sizeof(snapshot.companion_header),
+           "14:30");
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kWeatherClock);
+  TEST_ASSERT_EQUAL_STRING("WX 14:30", frame.lower);
+
+  snapshot.companion_weather_valid = true;
+  snprintf(snapshot.companion_weather_temp,
+           sizeof(snapshot.companion_weather_temp), "+18.5C");
+  snprintf(snapshot.companion_weather_rain,
+           sizeof(snapshot.companion_weather_rain), "R40%%");
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kWeatherRain);
+  TEST_ASSERT_EQUAL_STRING("+18.5C R40%", frame.lower);
 }
 
 void test_display_formatter_battery_and_value_limits() {
@@ -2737,6 +2762,7 @@ int main(int, char**) {
   RUN_TEST(test_page_carousel_default_period_and_wrap);
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);
+  RUN_TEST(test_page_carousel_weather_pages);
   RUN_TEST(test_display_power_dim_off_wake_disable_and_wrap);
   RUN_TEST(test_display_burn_in_guard_cycles_catches_up_and_wraps);
   RUN_TEST(test_battery_raw_conversion_and_calibration);
