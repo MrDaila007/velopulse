@@ -26,6 +26,7 @@
 | [docs/03-firmware-architecture.md](docs/03-firmware-architecture.md) | Слои и модули прошивки, кооперативный планировщик, ISR и фильтрация импульсов, целочисленная математика скорости и дистанции, два конечных автомата (поездка и питание), дисплей и карусель страниц, батарея, хранение A/B + CRC, BLE-менеджер, диагностика, бюджет ресурсов |
 | [docs/04-mobile-app-architecture.md](docs/04-mobile-app-architecture.md) | Исходный архитектурный план: стек Flutter/Riverpod, слои и каталоги, FSM подключения и переподключение, репозиторий устройства, черновик конфигурации и write-then-verify, 10 экранов, разрешения Android, таблица ошибок, тестирование через `FakeBleTransport` |
 | [docs/09-mobile-app-current-state.md](docs/09-mobile-app-current-state.md) | Фактическое состояние кода `mobile-app` на `dev`: расхождения с планом, companion sync, firmware-migration backup, экспорт лога, найденные проблемы код-ревью |
+| [docs/10-web-app.md](docs/10-web-app.md) | ПК веб-компаньон: Web Bluetooth, Web Serial, паритет с mobile MVP |
 | [docs/05-hardware-design.md](docs/05-hardware-design.md) | BOM, схема соединений, распиновка, измерение и калибровка батареи, зарядка, механика установки магнита и датчика, энергетический бюджет, аппаратные проверки и риски |
 
 ### Контракт прошивка ⇄ приложение
@@ -73,6 +74,24 @@ flutter build apk --release
 
 Приложение можно разрабатывать **без железа**: `FakeBleTransport` эмулирует устройство,
 включая телеметрию, валидацию и ошибки.
+
+### ПК веб-компаньон
+
+Chrome/Edge: Web Bluetooth (синхронизация) + Web Serial (USB-отладка). См.
+[`docs/10-web-app.md`](docs/10-web-app.md).
+
+```bash
+cd web-app
+npm install
+npm run dev
+```
+
+Из корня репозитория:
+
+```bash
+npm run web:dev
+npm run web:open
+```
 
 ---
 
