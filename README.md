@@ -86,6 +86,7 @@ enter the tag name (e.g. `v0.2.0-beta.2`). Release notes are taken from the matc
 | [Mobile application architecture](docs/04-mobile-app-architecture.md) | Planned Flutter/Riverpod stack, connection state machine, repository layer, configuration drafts, screens, permissions, and testing strategy |
 | [Mobile application current state](docs/09-mobile-app-current-state.md) | What is actually implemented on `dev` vs. the plan, companion sync, firmware-migration backup, log export, and known code-review issues |
 | [PC web companion](docs/10-web-app.md) | Chrome/Edge web app: BLE parity with mobile MVP, USB serial debug console |
+| [Peripheral features from open source](docs/11-peripheral-features-from-opensource.md) | Survey of OSS bike computers: sensor connectivity, metric calculations, prioritized feature backlog |
 | [Hardware design](docs/05-hardware-design.md) | BOM, wiring, pinout, battery measurement and calibration, charging, mechanical installation, power budget, and hardware checks |
 
 ### Firmware ↔ application contract
