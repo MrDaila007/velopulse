@@ -12,7 +12,9 @@ constexpr uint16_t kDefaultDisplayTimeoutS = 60;
 constexpr uint16_t kDefaultDeepSleepTimeoutS = 900;
 constexpr uint8_t kDefaultBrightnessPct = 60;
 constexpr uint8_t kDefaultSmoothingWindow = 3;
-constexpr uint8_t kDisplayPageCount = 5;
+constexpr uint8_t kConfigurablePageOrderCount = 5;
+constexpr uint8_t kDisplayPageCount = 7;
+constexpr uint8_t kValidEnabledPagesMask = 0x7F;
 constexpr uint8_t kDefaultEnabledPagesMask = 0x1F;
 constexpr uint8_t kDefaultPageSwitchPeriodS = 4;
 constexpr uint8_t kDefaultLowBatteryPct = 20;
@@ -40,7 +42,7 @@ struct DeviceConfig {
   uint8_t pinned_page = 0;
   uint16_t batt_cal_scale_permille = kDefaultBatteryCalScalePermille;
   int16_t batt_cal_offset_mv = kDefaultBatteryCalOffsetMv;
-  uint8_t page_order[kDisplayPageCount] = {0, 1, 2, 3, 4};
+  uint8_t page_order[kConfigurablePageOrderCount] = {0, 1, 2, 3, 4};
   char device_name[16] = "BikeComp-XXXX";
 
   bool smoothing_enabled = true;

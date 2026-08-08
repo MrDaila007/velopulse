@@ -21,30 +21,25 @@ golden-тесты всегда проверяют текущий код прош
 ## Интерактивный GUI
 
 ```bash
-./simulator/run_gui.sh             # пять нижних страниц, смена раз в 4 секунды
-./simulator/run_gui.sh trip
-./simulator/run_gui.sh average
-./simulator/run_gui.sh maximum
-./simulator/run_gui.sh time
-./simulator/run_gui.sh odometer
-./simulator/run_gui.sh idle
-./simulator/run_gui.sh paused
-./simulator/run_gui.sh battery_unknown
-./simulator/run_gui.sh low_battery
+./simulator/run_gui.sh                 # demo, 128×64
+./simulator/run_gui.sh trip            # trip, 128×64
+./simulator/run_gui.sh trip 32         # trip, совместимый 128×32
+./simulator/run_gui.sh low_battery 64
 ```
 
-Скорость всегда остаётся в верхней зоне, батарея всегда видна справа сверху, меняется
-только нижняя строка. Окно имеет реальные 128×32 пикселя с масштабом 6×. Клавиши
-upstream-симулятора: `s` — PNG, `g` — запись GIF, `i` — инверсия.
+По умолчанию GUI открывает основную геометрию 128×64. Второй позиционный аргумент
+выбирает высоту 32 или 64; первый по-прежнему задаёт scenario. Скорость остаётся
+постоянной, а меняется нижняя строка. Масштаб — 6×.
 
 ## Headless-проверка
 
 ```bash
-./simulator/render.sh --scenario trip --output trip.png
+./simulator/render.sh --scenario trip --output trip-64.png
+./simulator/render.sh --display-height 32 --scenario trip --output trip-32.png
 ./simulator/render.sh --contact-sheet --output bikecomp-oled.png
 ./simulator/test.sh
 ```
 
-Golden-тесты сверяют пять страниц карусели, состояния IDLE/PAUSE, неизвестный заряд
-и предупреждение `LOW BATT` пиксель-в-пиксель. В `simulator/firmware_renderer.cpp`
-находятся только входные тестовые состояния; сам интерфейс там не описывается.
+Golden-тесты пиксель-в-пиксель сверяют девять сценариев отдельно для 128×32 и
+128×64. Дополнительно проверяются граничные скорости, батарея и fallback длинной
+строки. В `simulator/firmware_renderer.cpp` заданы только входные состояния.

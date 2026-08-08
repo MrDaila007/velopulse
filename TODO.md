@@ -1,6 +1,6 @@
 # BikeComp — задачи
 
-Обновлено: 2026-07-29
+Обновлено: 2026-08-01
 
 ## Состояние этапов
 
@@ -10,29 +10,50 @@
 | Э1 | Подтверждённое железо | Частично | [Hardware](tasks/hardware/README.md) |
 | Э2 | Базовая прошивка | Частично | [Firmware](tasks/firmware/README.md#э2-базовая-прошивка) |
 | Э3 | Данные переживают reboot | В работе | [Storage](tasks/firmware/storage.md) |
-| Э4 | BLE-контракт | Не начат | [BLE](tasks/firmware/ble.md) |
-| Э5 | MVP Android-приложения | Не начат | [Mobile](tasks/mobile/README.md#э5-mvp-приложение) |
+| Э4 | BLE-контракт | Частично | [BLE](tasks/firmware/ble.md) |
+| Э5 | MVP Android-приложения | В работе | [Mobile](tasks/mobile/README.md#э5-mvp-приложение) |
 | Э6 | Полное приложение | Не начат | [Mobile](tasks/mobile/README.md#э6-расширенное-приложение) |
 | Э7 | Испытания и v1.0 | Не начат | [Verification](tasks/verification/README.md) |
 
 ## Текущий инкремент
 
-Э3.5 — [экономное автосохранение одометра](tasks/firmware/storage.md#текущий-инкремент-35-автосохранение).
+Э3.5 hardware DoD частично закрыт на XIAO (`/dev/ttyACM0`): odo A/B embedded,
+ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
+power-loss вручную → M3. BLE Э4.1–4.14 программно выполнен: advertising, команды,
+nonce/TTL/binding, encryption и 5-минутное pairing window; 81/81 native, XIAO build
+и 52/52 Flutter tests проходят. Э4.13 Error Log/sensor-test
+и Э4.14 Serial-консоль выполнены; Serial проверен на XIAO (`dump-config`, `selftest`,
+`open-pairing`). Последняя аппаратно проверенная production загружена на XIAO.
+Подтверждённая lifecycle race
+старого scan transport устранена; Android UUID scan filter заменён локальным,
+Device Info/pairing/subscriptions упорядочены, link cleanup проверен тестами. Новый
+release APK установлен: пользователь подтвердил discovery/connect и работу с реальным
+XIAO. Базовая интеграция с приложением достигнута. Дальше полный Android hardware
+gate. Э5 проходит fake/automatic gate, но остаётся незакрытым до полной аппаратной
+приёмки.
 
-1. Реализовать независимую политику триггеров.
-2. Подключить её к поездке, дисплею, питанию и StorageManager.
-3. Покрыть границы native-тестами.
-4. Проверить `/odo_a/b` и ненулевой odometer на XIAO.
-5. Обновить `STATUS.md`, задачи и production-прошивку.
+Два OLED-профиля завершили software gate; primary 128×64 загружена на XIAO и
+подтверждена базовым hardware smoke (`selftest=0x3F`, `i2c_err=0`, пользовательская
+проверка интерфейса). Совместимый 128×32 сохраняет прежние пиксели. Добавлена защита
+от выгорания: default auto-off + четырёхфазный сдвиг всей разметки на один пиксель
+раз в минуту; native и simulator gate пройдены для обеих панелей.
+Автояркость завершила software gate: LDR manager, EMA/уровни/гистерезис, manual cap,
+invalid fallback, Serial diagnostics и Android UI/patterns реализованы. Production
+128×64 загружена; отсутствие LDR корректно даёт `raw=0`, `valid=0` и manual cap.
+Сборка делителя, калибровка и повторная загрузка constants остаются открыты.
 
 ## Порядок и зависимости
 
-1. Закрыть Storage Э3 и аппаратные долги Hall/стенда.
-2. Зафиксировать BLE structures и fixtures — Э4.1–4.3.
-3. Реализовать BLE firmware — Э4.4–4.14.
-4. После fixtures параллельно начать Flutter codecs и FakeBleTransport.
-5. Завершить MVP Э5 и расширенное приложение Э6.
-6. Выполнить soak, power и field tests Э7, затем собрать v1.0.
+1. Собрать LDR D2/D3, выбрать 10/22/47 кΩ по raw dark/room/outdoor, измерить ток,
+   обновить calibration constants и повторно загрузить production 128×64.
+2. Завершить расширенный OLED 128×64 gate: LOW BATT, три patterns, dim/off/wake,
+   четыре фазы burn-in shift и pulse smoke.
+3. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и долги Hall/стенда.
+4. BLE Э4.1–4.14 выполнены; завершить оставшийся hardware DoD Э4.
+5. Discovery/connect нового APK подтверждены; провести полный Android hardware gate.
+6. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
+7. После hardware gate Э5 начать Э6.
+8. Выполнить soak, power и field tests Э7, затем собрать v1.0.
 
 ## Папки задач
 

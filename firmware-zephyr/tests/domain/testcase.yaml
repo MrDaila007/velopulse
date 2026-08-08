@@ -1,0 +1,7 @@
+tests:
+  bikecomp.domain:
+    tags:
+      - bikecomp
+      - domain
+    type: unit
+    extra_args: M64_MODE=1

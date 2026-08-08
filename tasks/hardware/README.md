@@ -9,12 +9,25 @@
   Питание/заряд Li-Po подтверждены; аппаратный CHG недоступен.
 - [ ] 1.7 Собрать повторяемый pulse bench.
 - [ ] 1.8 Создать `hardware/wiring.md` и `hardware/images/`.
+- [x] 1.9 Подключить SSD1306 128×64 и выполнить hardware smoke primary-сборки.
+  Primary firmware загружена; `i2c_err=0`, `selftest=0x3F`, UI подтверждён пользователем.
+- [ ] 1.10 Собрать LDR-делитель на D2/D3, подобрать 10/22/47 кΩ и зафиксировать
+  raw dark/room/outdoor, плавность автояркости и средний ток.
+  Software gate закрыт: EMA 1/8, пять уровней, гистерезис/выдержка, manual cap,
+  invalid fallback и compatibility-флаг проверены native-тестами. Production
+  загружена на XIAO; без LDR аппаратно подтверждены `raw=0`, `valid=0` и возврат
+  к пользовательскому максимуму. Схема и процедура: `hardware/wiring.md`;
+  калибровка: `tools/ldr_calibrate.py`. Физическая сборка делителя и финальная
+  калибровка constants всё ещё открыты.
 
 ## Аппаратный DoD
 
 - [x] XIAO прошивается, Serial работает.
 - [x] I²C находит OLED.
-- [x] OLED выводит читаемый интерфейс без артефактов.
+- [x] OLED 128×32 выводит читаемый интерфейс без артефактов.
+- [ ] OLED 128×64: проверить splash, пять страниц, test patterns, dim/off/wake.
+  Serial gate `tools/oled_gate_serial.py` подтвердил dim/off/wake на XIAO 2026-08-01;
+  LOW BATT, test patterns и burn-in shift остаются визуальными.
 - [ ] Hall даёт ровно один pulse на магнит.
 - [ ] 10 медленных проходов дают ровно 10 pulses.
 - [ ] Эквивалент 60 км/ч проходит без потерь.

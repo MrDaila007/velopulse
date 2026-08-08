@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "description": "Convenience scripts for the BikeComp PC web companion (see web-app/)",
+  "scripts": {
+    "web:dev": "npm --prefix web-app run dev",
+    "web:open": "npm --prefix web-app run open",
+    "web:build": "npm --prefix web-app run build",
+    "web:test": "npm --prefix web-app test"
+  }
+}

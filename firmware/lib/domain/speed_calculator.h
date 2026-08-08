@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "speed_interval_guard.h"
+
 namespace bike {
 
 class SpeedCalculator {
@@ -14,7 +16,13 @@ class SpeedCalculator {
   uint16_t updateForTimeout(uint32_t now_us, uint32_t zero_timeout_us);
   void reset();
 
+  void resetIntervalGuard() { interval_guard_.reset(); }
+
   uint16_t speedX100() const { return speed_x100_; }
+  bool hasPulse() const { return has_pulse_; }
+  uint32_t speedIntervalCorrectedCount() const {
+    return interval_guard_.correctedCount();
+  }
 
  private:
   static constexpr uint8_t kMaxWindow = 5;
@@ -24,6 +32,7 @@ class SpeedCalculator {
   uint16_t speed_x100_ = 0;
   uint32_t last_pulse_us_ = 0;
   bool has_pulse_ = false;
+  SpeedIntervalGuard interval_guard_;
 };
 
 }  // namespace bike

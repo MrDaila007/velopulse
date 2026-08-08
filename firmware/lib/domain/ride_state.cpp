@@ -34,6 +34,7 @@ RideUpdate RideStateMachine::onPulse(uint32_t now_ms) {
   RideUpdate result = advance(now_ms);
   const RideState previous = state_;
   last_pulse_ms_ = now_ms;
+  had_pulse_ = true;
   state_ = RideState::kMoving;
   result.state = state_;
   result.state_changed = result.state_changed || previous != state_;
@@ -47,6 +48,11 @@ void RideStateMachine::reset(uint32_t now_ms) {
   last_pulse_ms_ = now_ms;
   last_tick_ms_ = now_ms;
   clock_started_ = true;
+  had_pulse_ = false;
+}
+
+void RideStateMachine::setStopTimeoutMs(uint32_t stop_timeout_ms) {
+  stop_timeout_ms_ = stop_timeout_ms;
 }
 
 }  // namespace bike

@@ -47,19 +47,23 @@ void encodeDeviceConfig(const DeviceConfig& config,
   output[19] = config.pinned_page;
   writeU16(output + 20, config.batt_cal_scale_permille);
   writeU16(output + 22, static_cast<uint16_t>(config.batt_cal_offset_mv));
-  memcpy(output + 24, config.page_order, kDisplayPageCount);
+  memcpy(output + 24, config.page_order, kConfigurablePageOrderCount);
   for (size_t i = 0; i < 15 && config.device_name[i] != '\0'; ++i) {
     output[30 + i] = static_cast<uint8_t>(config.device_name[i]);
   }
 }
 
-bool decodeDeviceConfig(const uint8_t* input,
-                        size_t length,
-                        DeviceConfig& config) {
-  if (input == nullptr || length != kDeviceConfigPayloadSize ||
-      input[0] != kDeviceConfigVersion || input[29] != 0 ||
-      input[46] != 0 || input[47] != 0) {
-    return false;
+DeviceConfigWireError tryDecodeDeviceConfigWire(const uint8_t* input,
+                                                size_t length,
+                                                DeviceConfig& config) {
+  if (input == nullptr || length != kDeviceConfigPayloadSize) {
+    return DeviceConfigWireError::kBadLength;
+  }
+  if (input[0] != kDeviceConfigVersion) {
+    return DeviceConfigWireError::kBadVersion;
+  }
+  if (input[29] != 0 || input[46] != 0 || input[47] != 0) {
+    return DeviceConfigWireError::kBadPadding;
   }
 
   DeviceConfig decoded;
@@ -88,9 +92,20 @@ bool decodeDeviceConfig(const uint8_t* input,
   decoded.pinned_page = input[19];
   decoded.batt_cal_scale_permille = readU16(input + 20);
   decoded.batt_cal_offset_mv = static_cast<int16_t>(readU16(input + 22));
-  memcpy(decoded.page_order, input + 24, kDisplayPageCount);
+  memcpy(decoded.page_order, input + 24, kConfigurablePageOrderCount);
   memcpy(decoded.device_name, input + 30, sizeof(decoded.device_name));
+  config = decoded;
+  return DeviceConfigWireError::kOk;
+}
 
+bool decodeDeviceConfig(const uint8_t* input,
+                        size_t length,
+                        DeviceConfig& config) {
+  DeviceConfig decoded;
+  if (tryDecodeDeviceConfigWire(input, length, decoded) !=
+      DeviceConfigWireError::kOk) {
+    return false;
+  }
   if (ConfigValidator::validate(decoded) != ConfigValidationError::kNone) {
     return false;
   }

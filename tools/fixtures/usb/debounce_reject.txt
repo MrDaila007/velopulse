@@ -1,0 +1,10 @@
+# Debounce should reject a pulse that arrives too soon
+reset
+smooth 0
+pulse 0
+pulse 210000
+pulse 1000
+read rejected_debounce
+expect rejected_debounce 1
+read revolutions
+expect revolutions 2

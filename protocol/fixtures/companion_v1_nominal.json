@@ -1,0 +1,9 @@
+{
+  "struct_version": 1,
+  "unix_time": 1704067200,
+  "tz_offset_min": 180,
+  "temp_c_x10": 185,
+  "pop_pct": 40,
+  "flags": 3,
+  "valid_until": 1704070800
+}

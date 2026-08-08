@@ -30,12 +30,12 @@ DisplayPage PageCarousel::validPinnedPage() const {
 
 void PageCarousel::configure(const DeviceConfig& config, uint32_t now_ms) {
   const DisplayPage previous = current_page_;
-  uint8_t enabled = config.enabled_pages_mask & kDefaultEnabledPagesMask;
+  uint8_t enabled = config.enabled_pages_mask & kValidEnabledPagesMask;
   if (enabled == 0) enabled = 0x01;
 
   bool added[kDisplayPageCount] = {};
   page_count_ = 0;
-  for (uint8_t i = 0; i < kDisplayPageCount; ++i) {
+  for (uint8_t i = 0; i < kConfigurablePageOrderCount; ++i) {
     const uint8_t page = config.page_order[i];
     if (!isValidPage(page) || added[page] || (enabled & (1u << page)) == 0) continue;
     pages_[page_count_++] = static_cast<DisplayPage>(page);

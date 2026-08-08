@@ -3,29 +3,58 @@
 [English](README.md) | [Русский](README.ru.md)
 
 VeloPulse is an open-source, battery-powered bicycle computer built around the
-Super-nRF52840 board and a 128×32 SSD1306 OLED display. It measures speed, trip
-distance, average and maximum speed, moving time, wheel revolutions, and the
-total odometer. Configuration and diagnostics through an Android BLE application
-are planned for v1.0.
+Super-nRF52840 board and SSD1306 OLED displays. The primary display is 128×64;
+a compatible 128×32 firmware profile is maintained from the same renderer. It
+measures speed, trip distance, average and maximum speed, moving time, wheel
+revolutions, and the total odometer, with configuration through an Android BLE app.
 
 The original product requirements are available in [`bike-tz.md`](bike-tz.md)
 (Russian).
 
 ## Project status
 
-The current firmware provides wheel-pulse processing, fixed-point trip metrics,
-the OLED interface, battery monitoring, display power saving, and redundant
-InternalFS storage with A/B slots, CRC32, record versions, and corruption recovery.
+The firmware provides wheel-pulse processing, trip metrics, redundant storage,
+complete BLE protocol v1, and compile-time OLED profiles for SSD1306 128×64 and
+128×32. The Flutter Android MVP scans, pairs, synchronizes, and displays live data.
 
-- Native domain tests: 30 passing.
-- nRF52840 production build: passing and verified on hardware.
-- OLED simulator and pixel-golden tests: passing.
-- Storage fallback and reboot recovery: verified on a XIAO-compatible board.
-- Next milestone: wear-aware odometer autosaving during a ride.
-- BLE firmware and the Flutter application are not implemented yet.
+- Native domain tests: 78 passing.
+- Both nRF52840 OLED profiles build successfully; 128×32 is hardware-verified.
+- The simulator verifies 18 pixel-golden frames across both display geometries.
+- Storage fallback and reboot recovery are verified on a XIAO-compatible board.
+- Android discovery/connect is verified with real firmware; the full hardware gate remains.
 
 See [`STATUS.md`](STATUS.md) for verified progress and [`TODO.md`](TODO.md) for the
 project roadmap.
+
+## Versioning
+
+Product versions live in [`version.toml`](version.toml) (BLE protocol, Arduino
+firmware, Zephyr firmware, mobile app). After editing, run:
+
+```bash
+python3 tools/sync_versions.py
+```
+
+CI verifies that generated files match the manifest.
+
+Release tags (`v*`) trigger [`.github/workflows/release.yml`](.github/workflows/release.yml);
+see [`CHANGELOG.md`](CHANGELOG.md) for notes. Pre-releases use `-beta.N` / `-alpha.N` suffixes.
+
+To cut a release from `dev`:
+
+```bash
+# 1. Edit version.toml + CHANGELOG.md, then:
+python3 tools/sync_versions.py
+git add version.toml CHANGELOG.md && git commit -m "chore: prepare v0.2.0-beta.N release"
+
+# 2. Tag and push (triggers Release workflow):
+git tag -a v0.2.0-beta.N -m "v0.2.0-beta.N"
+git push origin dev v0.2.0-beta.N
+```
+
+Manual dry-run without tagging: GitHub → Actions → **Release** → **Run workflow**,
+enter the tag name (e.g. `v0.2.0-beta.2`). Release notes are taken from the matching
+`CHANGELOG.md` section via `tools/changelog_section.py`.
 
 ## Repository layout
 
@@ -33,6 +62,7 @@ project roadmap.
 .
 ├── firmware/    PlatformIO firmware, domain library, and tests
 ├── simulator/   Headless/GUI OLED simulator and golden frames
+├── web-app/     PC web companion (Chrome Web Bluetooth + Web Serial)
 ├── protocol/    Firmware-to-application BLE contract
 ├── docs/        Architecture, hardware, planning, and acceptance documents
 └── tasks/       Structured backlog grouped by subsystem
@@ -54,6 +84,9 @@ project roadmap.
 | --- | --- |
 | [Firmware architecture](docs/03-firmware-architecture.md) | Firmware layers, cooperative scheduler, ISR pulse processing, fixed-point calculations, ride and power state machines, display, storage, BLE, and diagnostics |
 | [Mobile application architecture](docs/04-mobile-app-architecture.md) | Planned Flutter/Riverpod stack, connection state machine, repository layer, configuration drafts, screens, permissions, and testing strategy |
+| [Mobile application current state](docs/09-mobile-app-current-state.md) | What is actually implemented on `dev` vs. the plan, companion sync, firmware-migration backup, log export, and known code-review issues |
+| [PC web companion](docs/10-web-app.md) | Chrome/Edge web app: BLE parity with mobile MVP, USB serial debug console |
+| [Peripheral features from open source](docs/11-peripheral-features-from-opensource.md) | Survey of OSS bike computers: sensor connectivity, metric calculations, prioritized feature backlog |
 | [Hardware design](docs/05-hardware-design.md) | BOM, wiring, pinout, battery measurement and calibration, charging, mechanical installation, power budget, and hardware checks |
 
 ### Firmware ↔ application contract
@@ -86,6 +119,8 @@ pio test -e native
 
 # Build production firmware
 pio run -e xiao_ble_sense
+# Build the compatible 128x32 firmware
+pio run -e xiao_ble_sense_128x32
 
 # Upload to a connected board
 pio run -e xiao_ble_sense -t upload
@@ -113,11 +148,29 @@ Additional setup and GUI commands are documented in
 
 ## Mobile application
 
-The Android Flutter application is part of the v1.0 roadmap but has not been
-scaffolded yet. Its architecture and task list are available in:
+The Flutter Android MVP is implemented and successfully connected to real firmware.
+The remaining work is the full hardware acceptance gate and extended v1.0 screens:
 
 - [`docs/04-mobile-app-architecture.md`](docs/04-mobile-app-architecture.md)
 - [`tasks/mobile/README.md`](tasks/mobile/README.md)
+
+## PC web companion
+
+Chrome/Edge desktop app with Web Bluetooth (device sync) and Web Serial (USB debug):
+
+- [`docs/10-web-app.md`](docs/10-web-app.md)
+- [`web-app/`](web-app/)
+
+```bash
+cd web-app && npm install && npm run dev
+```
+
+From the repository root:
+
+```bash
+npm run web:dev    # start Vite
+npm run web:open   # open http://localhost:5173/scan in Chrome/Edge
+```
 
 ## Protocol change policy
 

@@ -1,0 +1,12 @@
+# 36 km/h with 2100 mm wheel, smoothing off
+reset
+smooth 0
+pulse 0
+pulse 210000
+pulse 210000
+read speed_x100
+expect-range speed_x100 3500 3600
+read revolutions
+expect revolutions 3
+read ride_state
+expect ride_state 1

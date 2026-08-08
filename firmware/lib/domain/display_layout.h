@@ -6,7 +6,9 @@
 
 namespace bike {
 
-enum class DisplayFont : uint8_t { kSpeed, kSmall };
+enum class DisplayProfile : uint8_t { k128x32, k128x64 };
+
+enum class DisplayFont : uint8_t { kSpeed, kSmall, kSpeedLarge, kMetricLarge };
 
 class DisplayCanvas {
  public:
@@ -18,6 +20,8 @@ class DisplayCanvas {
   virtual void drawBox(int16_t x, int16_t y, uint8_t width, uint8_t height) = 0;
 };
 
-void drawDisplayFrame(DisplayCanvas& canvas, const DisplayFrame& frame);
+void drawDisplayFrame(DisplayCanvas& canvas, const DisplayFrame& frame,
+                      DisplayProfile profile, int8_t x_offset = 0,
+                      int8_t y_offset = 0);
 
 }  // namespace bike

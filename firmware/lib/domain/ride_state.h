@@ -19,8 +19,11 @@ class RideStateMachine {
   RideUpdate onPulse(uint32_t now_ms);
   RideUpdate update(uint32_t now_ms);
   void reset(uint32_t now_ms = 0);
+  void setStopTimeoutMs(uint32_t stop_timeout_ms);
 
   RideState state() const { return state_; }
+  bool hasPulse() const { return had_pulse_; }
+  uint32_t lastPulseMs() const { return last_pulse_ms_; }
 
  private:
   RideUpdate advance(uint32_t now_ms);
@@ -29,6 +32,7 @@ class RideStateMachine {
   uint32_t last_pulse_ms_ = 0;
   uint32_t last_tick_ms_ = 0;
   bool clock_started_ = false;
+  bool had_pulse_ = false;
 };
 
 }  // namespace bike

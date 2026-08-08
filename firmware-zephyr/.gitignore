@@ -1,0 +1,7 @@
+/deps/
+/build/
+/build-test-domain/
+/twister-out/
+/.west/
+__pycache__/
+*.pyc

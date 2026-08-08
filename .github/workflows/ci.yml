@@ -1,0 +1,218 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    name: Firmware
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify version manifest is synced
+        working-directory: .
+        run: |
+          python3 tools/sync_versions.py
+          git diff --exit-code
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            firmware/.pio
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Run native tests
+        run: pio test -e native
+
+      - name: Build production firmware
+        run: pio run -e xiao_ble_sense -e xiao_ble_sense_128x32
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-binaries
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            firmware/.pio/build/xiao_ble_sense/firmware.hex
+            firmware/.pio/build/xiao_ble_sense/firmware.elf
+            firmware/.pio/build/xiao_ble_sense/firmware.zip
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.hex
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.elf
+            firmware/.pio/build/xiao_ble_sense_128x32/firmware.zip
+
+  firmware-zephyr:
+    name: Firmware Zephyr
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake gcc g++ device-tree-compiler
+
+      - name: Install west
+        run: pip install west
+
+      - name: Cache west workspace
+        uses: actions/cache@v4
+        id: west-cache
+        with:
+          path: deps
+          key: west-deps-v4.4-${{ hashFiles('firmware-zephyr/west.yml') }}
+
+      - name: Bootstrap west workspace
+        run: west update
+
+      - name: Install Zephyr Python dependencies
+        run: pip install -r deps/zephyr/scripts/requirements.txt
+
+      - name: Cache Zephyr SDK
+        uses: actions/cache@v4
+        id: sdk-cache
+        with:
+          path: zephyr-sdk-1.0.0
+          key: zephyr-sdk-1.0.0-linux-x86_64-minimal
+
+      - name: Install Zephyr SDK (arm-zephyr-eabi)
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o sdk.tar.xz \
+            https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.0/zephyr-sdk-1.0.0_linux-x86_64_minimal.tar.xz
+          mkdir -p zephyr-sdk-1.0.0
+          tar xf sdk.tar.xz -C zephyr-sdk-1.0.0 --strip-components=1
+          yes | zephyr-sdk-1.0.0/setup.sh -c -t arm-zephyr-eabi
+
+      - name: Run ztest domain suite
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/deps/zephyr
+          ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk-1.0.0
+        run: firmware-zephyr/scripts/test.sh
+
+      - name: West build (xiao_ble + BLE)
+        env:
+          ZEPHYR_BASE: ${{ github.workspace }}/deps/zephyr
+          ZEPHYR_SDK_INSTALL_DIR: ${{ github.workspace }}/zephyr-sdk-1.0.0
+          WEST_TOP: ${{ github.workspace }}
+        run: firmware-zephyr/scripts/build.sh
+
+      - name: Upload Zephyr firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zephyr-firmware
+          retention-days: 30
+          if-no-files-found: error
+          path: firmware-zephyr/build/zephyr/zephyr.hex
+
+  mobile-app:
+    name: Mobile App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y unzip curl
+
+      - name: Cache mobile toolchain
+        uses: actions/cache@v4
+        with:
+          path: .tooling
+          key: mobile-toolchain-${{ runner.os }}-${{ hashFiles('tool/bootstrap-mobile.sh') }}
+          restore-keys: |
+            mobile-toolchain-${{ runner.os }}-
+
+      - name: Bootstrap mobile toolchain
+        run: ./tool/bootstrap-mobile.sh
+
+      - name: Install dependencies
+        working-directory: mobile-app
+        run: ../tool/flutterw pub get
+
+      - name: Check formatting
+        working-directory: mobile-app
+        run: ../.tooling/flutter/bin/dart format --set-exit-if-changed lib test
+
+      - name: Analyze
+        working-directory: mobile-app
+        run: ../tool/flutterw analyze
+
+      - name: Run tests
+        working-directory: mobile-app
+        run: ../tool/flutterw test
+
+      - name: Build release APK
+        working-directory: mobile-app
+        run: ../tool/flutterw build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-app-apk
+          retention-days: 90
+          if-no-files-found: error
+          path: mobile-app/build/app/outputs/flutter-apk/app-release.apk
+
+  simulator:
+    name: Simulator
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb g++ build-essential git unzip python3-venv python3-tk
+
+      - name: Cache simulator dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            simulator/.vendor
+            simulator/.venv
+          key: simulator-${{ runner.os }}-${{ hashFiles('simulator/setup.sh', 'simulator/requirements.txt') }}
+          restore-keys: |
+            simulator-${{ runner.os }}-
+
+      - name: Set up simulator
+        working-directory: simulator
+        run: ./setup.sh
+
+      - name: Build firmware renderer
+        working-directory: simulator
+        run: CXX=g++ ./build_renderer.sh
+
+      - name: Run golden tests
+        working-directory: simulator
+        run: ./test.sh

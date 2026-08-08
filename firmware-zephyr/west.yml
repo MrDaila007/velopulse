@@ -1,0 +1,23 @@
+manifest:
+  version: "1.0"
+
+  self:
+    path: app
+
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+    - name: olikraus
+      url-base: https://github.com/olikraus
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.4.0
+      import:
+        path-prefix: deps
+    - name: u8g2
+      remote: olikraus
+      repo-path: u8g2
+      revision: ab9e48b2228351e9476682a70b7f3ee4909cd585
+      path: deps/u8g2

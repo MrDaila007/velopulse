@@ -14,6 +14,7 @@ class DisplayPower {
  public:
   void configure(uint16_t timeout_s, uint32_t now_ms);
   bool noteActivity(uint32_t now_ms);
+  bool forceOff(uint32_t now_ms);
   bool update(uint32_t now_ms);
 
   DisplayPowerState state() const { return state_; }

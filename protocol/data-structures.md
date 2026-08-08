@@ -185,25 +185,25 @@
 
 ### 5.1. Коды команд
 
-| ID | Команда | Payload | Подтверждение | ТЗ |
-| --: | --- | --- | :---: | --- |
-| `0x01` | `RESET_TRIP` | — | нет | §5.5 |
-| `0x02` | `RESET_MAX_SPEED` | — | нет | §16 |
-| `0x03` | `FORCE_SAVE` | — | нет | §16 |
-| `0x04` | `DISPLAY_ON` | — | нет | §16 |
-| `0x05` | `DISPLAY_OFF` | — | нет | §16 |
-| `0x06` | `DISPLAY_TEST` | u8 `pattern` (0=all on, 1=шахматка, 2=текст) | нет | §16 |
-| `0x07` | `SENSOR_TEST_START` | u16 `duration_s` (1…120) | нет | §24 |
-| `0x08` | `SENSOR_TEST_STOP` | — | нет | §24 |
-| `0x09` | `BATTERY_TEST` | — | нет | §16 |
-| `0x0A` | `START_DIAGNOSTIC` | — | нет | §16 |
-| `0x0B` | `GET_DIAGNOSTIC` | — | нет | §27 |
-| `0x20` | `RESET_ODOMETER` | u32 `token` | **да** | §5.5 |
-| `0x21` | `FACTORY_RESET` | u32 `token` | **да** | §16 |
-| `0x22` | `REBOOT` | u32 `token` | **да** | §16 |
-| `0x23` | `SET_BATTERY_CAL` | u16 scale, i16 offset, u32 token | **да** | §16 |
-| `0x30` | `SET_ODOMETER` | u32 `odometer_m`, u32 `token` | **да** | сервис |
-| `0x40` | `OPEN_PAIRING_WINDOW` | u16 `duration_s`, u32 `token` | **да** | §17 |
+| ID | Команда | Payload первого запроса | Payload подтверждения | ТЗ |
+| --: | --- | --- | --- | --- |
+| `0x01` | `RESET_TRIP` | — | не требуется | §5.5 |
+| `0x02` | `RESET_MAX_SPEED` | — | не требуется | §16 |
+| `0x03` | `FORCE_SAVE` | — | не требуется | §16 |
+| `0x04` | `DISPLAY_ON` | — | не требуется | §16 |
+| `0x05` | `DISPLAY_OFF` | — | не требуется | §16 |
+| `0x06` | `DISPLAY_TEST` | u8 `pattern` (0=all on, 1=шахматка, 2=текст) | не требуется | §16 |
+| `0x07` | `SENSOR_TEST_START` | u16 `duration_s` (1…120) | не требуется | §24 |
+| `0x08` | `SENSOR_TEST_STOP` | — | не требуется | §24 |
+| `0x09` | `BATTERY_TEST` | — | не требуется | §16 |
+| `0x0A` | `START_DIAGNOSTIC` | — | не требуется | §16 |
+| `0x0B` | `GET_DIAGNOSTIC` | — | не требуется | §27 |
+| `0x20` | `RESET_ODOMETER` | — | u32 `token` | §5.5 |
+| `0x21` | `FACTORY_RESET` | — | u32 `token` | §16 |
+| `0x22` | `REBOOT` | — | u32 `token` | §16 |
+| `0x23` | `SET_BATTERY_CAL` | u16 `scale`, i16 `offset` | u16 `scale`, i16 `offset`, u32 `token` | §16 |
+| `0x30` | `SET_ODOMETER` | u32 `odometer_m` | u32 `odometer_m`, u32 `token` | сервис |
+| `0x40` | `OPEN_PAIRING_WINDOW` | u16 `duration_s` | u16 `duration_s`, u32 `token` | §17 |
 
 Диапазон `0x01…0x1F` — безопасные команды, `0x20…0x4F` — опасные (требуют токена).
 
@@ -223,8 +223,13 @@
     │◀───────────────────────────────────────────│
 ```
 
+Для параметризованной команды приложение повторяет исходный payload без изменений и
+добавляет `token` последними четырьмя байтами. Диапазоны: `scale` = 800…1200 ‰,
+`offset` = −500…500 мВ, `duration_s` для окна сопряжения = 1…3600 с.
+
 Правила:
-* Nonce — 32 бита, генерируется аппаратным RNG, привязан к `command_id` и соединению.
+* Nonce — 32 бита, генерируется аппаратным RNG, привязан к `command_id`, исходному
+  payload и соединению.
 * TTL = 30 с; по истечении — `ERR_TOKEN_EXPIRED`, нужно начинать заново.
 * Одновременно активен только один nonce; новый запрос отменяет предыдущий.
 * При разрыве соединения nonce аннулируется.
@@ -291,9 +296,38 @@
 
 ---
 
-## 8. Перечисления
+## 8. Companion Snapshot (UUID `…000B`, Write w/ Response)
 
-### 8.1. `reset_reason`
+Размер: **15 байт**, `struct_version = 1`. Телефон передаёт время и краткую погоду;
+устройство держит soft RTC и отображает данные в шапке OLED.
+
+| Off | Тип | Поле | Описание |
+| --: | --- | --- | --- |
+| 0 | u8 | `struct_version` | `1` |
+| 1 | u32 | `unix_time` | UTC epoch seconds |
+| 5 | i16 | `tz_offset_min` | Смещение от UTC, минуты |
+| 7 | i16 | `temp_c_x10` | Температура ×10; `0x7FFF` = нет данных |
+| 9 | u8 | `pop_pct` | Вероятность осадков 0–100; `0xFF` = нет данных |
+| 10 | u8 | `flags` | См. ниже |
+| 11 | u32 | `valid_until` | UTC epoch; после — stale |
+
+`flags` (Companion):
+
+| Бит | Значение |
+| --- | --- |
+| 0 | `time_valid` |
+| 1 | `weather_valid` |
+| 2 | `rain_now` |
+| 3 | `rain_soon` |
+| 4 | `stale` |
+
+Добавление характеристики — инкремент **proto minor** до `1.1`.
+
+---
+
+## 9. Перечисления
+
+### 9.1. `reset_reason`
 
 | Код | Значение |
 | --: | --- |
@@ -306,7 +340,7 @@
 | 6 | `WAKE_FROM_SLEEP` |
 | 7 | `BROWNOUT` |
 
-### 8.2. `ride_state`
+### 9.2. `ride_state`
 
 | Код | Значение |
 | --: | --- |
@@ -314,7 +348,7 @@
 | 1 | `MOVING` |
 | 2 | `PAUSED` — автопауза |
 
-### 8.3. `sensor_state`
+### 9.3. `sensor_state`
 
 | Код | Значение |
 | --: | --- |
@@ -323,7 +357,7 @@
 | 2 | `STUCK` — постоянный активный уровень |
 | 3 | `NO_SIGNAL` — импульсов не было с момента старта |
 
-### 8.4. `power_state`
+### 9.4. `power_state`
 
 | Код | Значение |
 | --: | --- |
@@ -334,7 +368,7 @@
 | 4 | `BLE_CONFIG` |
 | 5 | `CHARGING` |
 
-### 8.5. `status` (Command Result)
+### 9.5. `status` (Command Result)
 
 | Код | Значение | Действие приложения |
 | --: | --- | --- |
@@ -352,14 +386,14 @@
 | 11 | `ERR_HARDWARE` | Показать в диагностике |
 | 12 | `ERR_NOT_SUPPORTED` | Функция отсутствует в этой прошивке |
 
-### 8.6. `field_id` (для `ERR_RANGE`)
+### 9.6. `field_id` (для `ERR_RANGE`)
 
 Совпадает со смещением поля в структуре Configuration. Приложение сопоставляет смещение
 с полем UI по таблице §4 и подсвечивает конкретный ввод.
 
 ---
 
-## 9. Зеркала структур в коде
+## 10. Зеркала структур в коде
 
 ### C++ (`firmware/include/ble_protocol.h`)
 
@@ -395,7 +429,7 @@ static_assert(sizeof(TelemetryPacket) == 36, "Telemetry layout mismatch");
 Кодеки пишутся вручную через `ByteData` с `Endian.little`; каждый кодек покрыт тестом
 на фикстуре из `protocol/fixtures/`.
 
-## 10. Фикстуры
+## 11. Фикстуры
 
 `protocol/fixtures/` содержит эталонные пакеты в hex с ожидаемой расшифровкой в JSON:
 
@@ -407,9 +441,12 @@ fixtures/
 ├── config_v1_defaults.hex / .json
 ├── config_v1_imperial.hex / .json
 ├── command_reset_trip.hex / .json
+├── command_reset_odo_request.hex / .json
 ├── command_reset_odo_with_token.hex / .json
 ├── result_ok.hex / .json
-└── result_err_range_wheel.hex / .json
+├── result_needs_confirm_reset_odo.hex / .json
+├── result_err_range_wheel.hex / .json
+└── companion_v1_nominal.hex / .json
 ```
 
 Обе стороны обязаны иметь тест: «декодировать `.hex` → сравнить с `.json`» и

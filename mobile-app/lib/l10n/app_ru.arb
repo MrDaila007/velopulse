@@ -1,0 +1,327 @@
+{
+  "@@locale": "ru",
+  "@batteryValue": {
+    "placeholders": {
+      "millivolts": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "@appVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "@brightnessValue": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "@connectionLost": {
+    "placeholders": {
+      "lastSeen": {
+        "type": "String"
+      }
+    }
+  },
+  "@connectionSemantics": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "@defaultBrightnessChange": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "defaults": {
+        "type": "int"
+      }
+    }
+  },
+  "@defaultCircumferenceChange": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "defaults": {
+        "type": "int"
+      }
+    }
+  },
+  "@deviceProtocol": {
+    "placeholders": {
+      "major": {
+        "type": "int"
+      },
+      "minor": {
+        "type": "int"
+      },
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "@deviceScanDetails": {
+    "placeholders": {
+      "bond": {
+        "type": "String"
+      },
+      "deviceId": {
+        "type": "String"
+      },
+      "rssi": {
+        "type": "int"
+      }
+    }
+  },
+  "@fixErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@millisecondsShort": {
+    "placeholders": {
+      "milliseconds": {
+        "type": "int"
+      }
+    }
+  },
+  "@reconnectAttempt": {
+    "placeholders": {
+      "attempt": {
+        "type": "int"
+      },
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "@secondsShort": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "@tirePresetValue": {
+    "placeholders": {
+      "millimeters": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "accessRequiredTitle": "Нужен доступ",
+  "ambientBrightnessHelper": "Фоторезистор автоматически снижает яркость; ползунок задаёт доступный максимум.",
+  "appTitle": "BikeComp",
+  "applyDraftAction": "Применить черновик",
+  "averageLabel": "Средняя",
+  "batteryLabel": "Батарея",
+  "batteryValue": "{percent}% · {millivolts} мВ",
+  "bluetoothOff": "Bluetooth выключен",
+  "bluetoothOffShort": "Bluetooth выкл.",
+  "bondUnknown": "сопряжение неизвестно",
+  "bonded": "сопряжено",
+  "brightnessValue": "Максимальная яркость: {percent}%",
+  "cancel": "Отмена",
+  "commandDeviceBody": "Команда будет выполнена на подключённом устройстве.",
+  "commandsRequireReady": "Для команд требуется готовое соединение с совместимым протоколом.",
+  "confirm": "Подтвердить",
+  "connectAction": "Подключить",
+  "connectToReadSettings": "Подключите BikeComp, чтобы прочитать настройки.",
+  "connectToSeeRide": "Подключите BikeComp, чтобы увидеть данные поездки.",
+  "connectedStatus": "Подключено",
+  "connectingStatus": "Подключение",
+  "connectionLost": "Соединение потеряно. Последнее обновление: {lastSeen}",
+  "connectionSemantics": "Состояние соединения: {status}",
+  "connectionTitle": "Подключение",
+  "customValue": "Пользовательский",
+  "dashboardTab": "Показатели",
+  "defaultBrightnessChange": "макс. яркость: {current} → {defaults}%",
+  "defaultCircumferenceChange": "окружность: {current} → {defaults} мм",
+  "defaultsAction": "Значения по умолчанию",
+  "defaultsShortAction": "По умолчанию",
+  "deviceConnectedTitle": "Устройство подключено",
+  "deviceProtocol": "{model} · протокол {major}.{minor}",
+  "deviceScanDetails": "{deviceId}\nRSSI {rssi} dBm · {bond}",
+  "discardAction": "Отбросить",
+  "disconnectedStatus": "Не подключено",
+  "displayOff": "Выключить OLED",
+  "displayOffShort": "OLED выкл.",
+  "displayOn": "Включить OLED",
+  "displayOnShort": "OLED вкл.",
+  "displayPatternCheckerboard": "Шахматная сетка",
+  "displayPatternFill": "Заливка",
+  "displayPatternText": "Текст",
+  "displayPatternTitle": "Выберите тестовый паттерн",
+  "displayStateSubtitle": "Временно изменить состояние экрана",
+  "displayStopSection": "Дисплей и остановка",
+  "displayTest": "Тест дисплея",
+  "displayTestSubtitle": "Выбрать заливку, сетку или текст",
+  "displayTimeoutChange": "таймаут дисплея",
+  "displayTimeoutLabel": "Выключить дисплей через, с",
+  "deepSleepTimeoutChange": "таймаут глубокого сна",
+  "deepSleepTimeoutLabel": "Глубокий сон после выкл. экрана, с",
+  "deepSleepEnabledLabel": "Глубокий сон (System OFF)",
+  "powerSaveModeLabel": "Агрессивное энергосбережение",
+  "powerSection": "Энергосбережение",
+  "companionSection": "Время и погода на экране",
+  "companionShowClockLabel": "Показывать время",
+  "companionShowWeatherLabel": "Показывать погоду",
+  "companionWeatherCityLabel": "Город для прогноза",
+  "appVersion": "Версия приложения {version}",
+  "@firmwareVersion": {
+    "placeholders": {
+      "version": { "type": "String" },
+      "stack": { "type": "String" }
+    }
+  },
+  "@firmwareVersionPending": {},
+  "@bleProtocolVersion": {
+    "placeholders": {
+      "major": { "type": "int" },
+      "minor": { "type": "int" }
+    }
+  },
+  "firmwareVersion": "Прошивка {version} ({stack})",
+  "firmwareVersionPending": "Прошивка: подключите устройство",
+  "bleProtocolVersion": "Протокол BLE {major}.{minor}",
+  "stackArduino": "Arduino",
+  "stackZephyr": "Zephyr",
+  "draftConflict": "Настройки устройства изменились после сохранения черновика.",
+  "draftDescription": "Изменения хранятся как черновик до подтверждённой записи.",
+  "enableBluetoothBody": "Включите Bluetooth, чтобы начать поиск.",
+  "errorStatus": "Ошибка",
+  "establishingConnection": "Устанавливаем соединение…",
+  "exportLog": "Сохранить лог",
+  "exportLogEmpty": "Телеметрия ещё не записана — в лог попадут только данные устройства",
+  "exportLogSubtitle": "Экспорт телеметрии, диагностики и журнала ошибок",
+  "exportLogSuccess": "Лог сохранён — выберите, куда отправить",
+  "fixErrors": "{count, plural, one{Исправьте {count} ошибку.} few{Исправьте {count} ошибки.} many{Исправьте {count} ошибок.} other{Исправьте {count} ошибки.}}",
+  "forceSave": "Сохранить во Flash",
+  "forceSaveSubtitle": "Принудительно сохранить текущее состояние",
+  "forgetAction": "Забыть",
+  "disconnectAction": "Отключиться",
+  "reconnectAction": "Подключить снова",
+  "lastDeviceTitle": "Последнее устройство",
+  "imperialUnits": "мили / mph",
+  "incompatibleProtocolTitle": "Несовместимый протокол",
+  "incompatibleStatus": "Несовместимо",
+  "incompatibleTelemetry": "Информация об устройстве доступна, но telemetry протокола несовместима.",
+  "linkAvailable": "есть",
+  "linkLabel": "Связь",
+  "linkUnavailable": "нет",
+  "loadAction": "Загрузить",
+  "loadDefaultsQuestion": "Загрузить значения по умолчанию?",
+  "localDraftOnly": "Будет изменён только локальный черновик:",
+  "locationOff": "Для поиска на Android 11 и ниже включите геолокацию",
+  "maintenanceConfirmedOnly": "Команда считается выполненной только после подтверждения устройства.",
+  "maintenanceTab": "Обслуживание",
+  "maximumLabel": "Максимальная",
+  "measurementUnitsChange": "единицы измерения",
+  "metricUnits": "км / км/ч",
+  "metricsLiveBody": "Показатели обновляются в реальном времени.",
+  "millisecondsShort": "{milliseconds} мс",
+  "movementLabel": "Движение",
+  "movingTimeLabel": "В движении",
+  "neverHelper": "0 — никогда",
+  "noDevices": "Велокомпьютеры не найдены. Прокрутите колесо, чтобы разбудить устройство.",
+  "noMetrics": "Нет показателей",
+  "noUnsavedChanges": "Нет несохранённых изменений.",
+  "notBonded": "не сопряжено",
+  "notConnected": "Нет подключения",
+  "odometerBondsUntouched": "Одометр и Bluetooth-сопряжения не затрагиваются.",
+  "odometerLabel": "Одометр",
+  "openSettingsAction": "Открыть настройки",
+  "pagePeriodChange": "период переключения страниц",
+  "pageSwitchLabel": "Переключать страницу каждые, с",
+  "permissionRequired": "Нужно разрешение на поиск устройств рядом",
+  "permissionsFirstScanBody": "Разрешения будут запрошены при первом поиске.",
+  "preparingConnection": "Подготовка подключения…",
+  "protocolIncompatible": "Версия протокола несовместима",
+  "pulseAgeLabel": "Возраст импульса",
+  "quickActions": "Быстрые действия",
+  "readOnlyStatus": "Только чтение",
+  "readOnlyTitle": "Режим только для чтения",
+  "readyToScanTitle": "Готово к поиску",
+  "reconnectAttempt": "Попытка {attempt} через {seconds} с",
+  "reconnectingStatus": "Переподключение",
+  "refreshAction": "Обновить",
+  "resetCurrentTripQuestion": "Сбросить текущую поездку?",
+  "resetTrip": "Сбросить поездку",
+  "resetTripQuestion": "Сбросить поездку?",
+  "resetTripSubtitle": "Обнулить trip, среднюю скорость и время поездки",
+  "rebootDevice": "Перезагрузить устройство",
+  "rebootDeviceSubtitle": "Сохранить одометр и перезапустить велокомпьютер",
+  "rebootDeviceQuestion": "Перезагрузить велокомпьютер?",
+  "rebootDeviceSuccess": "Устройство перезагружается. Подключитесь снова через несколько секунд.",
+  "retryAction": "Повторить",
+  "returnToScan": "Вернуться к поиску",
+  "revolutionsLabel": "Обороты",
+  "rideIdle": "остановка",
+  "rideMoving": "движение",
+  "ridePaused": "пауза",
+  "saveAction": "Сохранить",
+  "savingAction": "Сохраняем…",
+  "scanAction": "Искать",
+  "scanDescription": "BikeComp определяется по сервису или стандартному имени. Сохранённое устройство подключится автоматически.",
+  "scanTab": "Поиск",
+  "scanTitle": "Велокомпьютеры рядом",
+  "scanningStatus": "Поиск",
+  "secondsShort": "{seconds} с",
+  "sensorIdle": "ожидание",
+  "sensorLabel": "Датчик",
+  "sensorNoSignal": "нет сигнала",
+  "sensorOk": "норма",
+  "sensorStuck": "залипание",
+  "sensorTest": "Тест датчика",
+  "sensorTestActiveBody": "Вращайте колесо. Показатели обновляются с частотой 5 Гц.",
+  "sensorTestIdleBody": "Базовый тест длится 60 секунд и не изменяет настройки.",
+  "settingsTab": "Настройки",
+  "speedLabel": "СКОРОСТЬ",
+  "startSensorTest": "Начать тест",
+  "stateLabel": "Состояние",
+  "stopScanAction": "Остановить",
+  "stopSensorTest": "Остановить тест",
+  "stopTimeoutChange": "таймаут остановки",
+  "stopTimeoutLabel": "Пауза после остановки, с",
+  "syncDeviceInfo": "Чтение информации",
+  "syncDiscovery": "Поиск BLE-сервиса",
+  "syncMtu": "Согласование MTU",
+  "syncPairing": "Сопряжение и конфигурация",
+  "syncSubscriptions": "Подписка на данные",
+  "tirePresetValue": "{name} · {millimeters} мм",
+  "tireSizeLabel": "Размер покрышки",
+  "toScanAction": "К поиску",
+  "tripLabel": "Поездка",
+  "unableContinueTitle": "Не удалось продолжить",
+  "unknownValue": "неизвестно",
+  "visibleSameHiddenRestored": "видимые значения уже совпадают; скрытые поля будут восстановлены",
+  "waitForConfirmation": "Дождитесь подтверждения устройства.",
+  "wheelCircumferenceLabel": "Окружность колеса, мм",
+  "wheelUnitsSection": "Колесо и единицы",
+  "writeBlockedDescription": "Просмотр доступен, запись заблокирована состоянием соединения.",
+  "firmwareBackupTitle": "Резервная копия перед прошивкой",
+  "firmwareBackupSubtitle": "Сохранить конфиг и одометр локально (Arduino → Zephyr)",
+  "firmwareBackupSuccess": "Резервная копия сохранена на телефоне",
+  "firmwareRestoreTitle": "Восстановить после прошивки",
+  "firmwareRestoreSubtitle": "Записать сохранённые конфиг и одометр на устройство",
+  "firmwareRestoreConfirm": "Восстановить конфиг и одометр из резервной копии?",
+  "firmwareRestoreSuccess": "Данные восстановлены",
+  "firmwareBackupMissing": "Резервная копия не найдена — сначала сохраните данные",
+  "firmwareBackupSavedAt": "Сохранено: {timestamp}"
+}

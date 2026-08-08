@@ -15,6 +15,13 @@ bool DisplayPower::noteActivity(uint32_t now_ms) {
   return true;
 }
 
+bool DisplayPower::forceOff(uint32_t now_ms) {
+  last_activity_ms_ = now_ms - timeout_ms_;
+  if (state_ == DisplayPowerState::kOff) return false;
+  state_ = DisplayPowerState::kOff;
+  return true;
+}
+
 bool DisplayPower::update(uint32_t now_ms) {
   if (timeout_ms_ == 0) return false;
   const uint32_t elapsed = now_ms - last_activity_ms_;

@@ -1,0 +1,7 @@
+#include "u8g2_font_prefix.h"
+
+#include "@U8G2_FONTS_DIR@/u8g2_font_5x8_tf.c"
+#include "@U8G2_FONTS_DIR@/u8g2_font_6x10_tf.c"
+#include "@U8G2_FONTS_DIR@/u8g2_font_6x13_tf.c"
+#include "@U8G2_FONTS_DIR@/u8g2_font_logisoso20_tn.c"
+#include "@U8G2_FONTS_DIR@/u8g2_font_logisoso38_tn.c"

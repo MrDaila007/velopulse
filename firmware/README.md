@@ -1,4 +1,11 @@
-# BikeComp firmware 0.1.0
+# BikeComp firmware 0.2.0
+
+Версии прошивки, протокола BLE и мобильного приложения задаются в корневом
+[`version.toml`](../version.toml). После изменения запустите:
+
+```bash
+python3 ../tools/sync_versions.py
+```
 
 Первый инкремент прошивки Super-nRF52840 с bootloader XIAO: подсчёт импульсов, fixed-point скорость,
 дистанция, время движения, автостарт/автопауза и экран SSD1306 с пятью страницами.
@@ -9,16 +16,24 @@
 | --- | --- |
 | OLED VCC / GND | 3V3 / GND |
 | OLED SDA / SCL | D4 / D5 |
-| Кнопка | D0 и GND |
+| Геркон (reed) | D0 ↔ геркон ↔ D1 (D0 = drive LOW, D1 = sense) |
+| LDR ADC | D2/A2 через узел LDR / 22 кΩ / 100 нФ |
+| LDR power | D3, включается только на время измерения |
 
-D0 работает как `INPUT_PULLUP`; короткое нажатие имитирует один импульс open-drain
-датчика Холла. OLED должен иметь адрес `0x3C`.
+Геркон: прошивка держит **D0** в LOW и читает **D1** с внутренней подтяжкой
+(`BIKECOMP_HALL_TWO_WIRE=1`). Альтернатива — один контакт на D1, второй на GND
+(`BIKECOMP_HALL_TWO_WIRE=0`). OLED должен иметь адрес `0x3C`.
+
+Профиль выбирается при сборке: `xiao_ble_sense` — основной SSD1306 128×64,
+`xiao_ble_sense_128x32` — совместимый SSD1306 128×32. Оба используют I²C `0x3C`.
 
 ## Команды
 
 ```bash
 pio test -e native
 pio run -e xiao_ble_sense
+pio run -e xiao_ble_sense_deep_sleep   # +BIKECOMP_FEATURE_DEEP_SLEEP=1
+pio run -e xiao_ble_sense_128x32
 pio run -e xiao_ble_sense -t upload
 pio device monitor -b 115200
 ```
@@ -29,21 +44,55 @@ pio device monitor -b 115200
 
 ## Экран
 
-Скорость постоянно отображается крупно. В правом верхнем углу постоянно находится
-иконка батареи с процентом от внешнего делителя на P0.31; до первого достоверного
-измерения отображается `--%`. При заряде ≤20% нижняя строка периодически показывает `LOW BATT`. Раз в 4 секунды меняется только нижняя строка: поездка, средняя скорость,
-максимальная скорость, время движения и одометр.
+Основная сборка рассчитана на 128×64: скорость выводится шрифтом Logisoso 38,
+единицы и батарея находятся в верхней строке, а метрика карусели — в нижней зоне.
+Совместимая 128×32 сборка сохраняет прежний пиксельный интерфейс. При заряде ≤20%
+нижняя строка периодически показывает `LOW BATT`; пять страниц меняются раз в 4 секунды.
 
 По умолчанию через 30 секунд без корректных импульсов колеса экран снижает яркость,
-а через 60 секунд выключается командой SSD1306 power-save. Первый корректный импульс
-немедленно включает экран и возвращает полную яркость. Значение
+а через 60 секунд выключается командой SSD1306 power-save. Первый корректный
+импульс немедленно включает экран; после wake применяется эффективный контраст. Значение
 `display_timeout_s = 0` отключает оба перехода.
+Production-сборки используют LDR для пяти уровней автоматической яркости. Значение
+`brightness_pct` задаёт верхний предел; при `BIKECOMP_AMBIENT_LIGHT=0` оно снова
+задаёт фиксированную яркость. Схема и процедура калибровки неизвестного LDR описаны
+в `docs/05-hardware-design.md §3.1`.
+Перед основным чтением внутренний pull-down проверяет наличие делителя; отсутствующий
+LDR даёт `raw=0`, `valid=0` и возвращает пользовательский максимум. Контраст
+вычисляется как `8 + brightness_pct × 247 / 100`. Serial diagnostics выводит
+`raw`, `filtered`, auto/effective percent и признак `valid`. Для калибровки:
+`ambient-raw` (лог раз в секунду) и `ambient-stop`.
+
+## Serial console
+
+Команды (115200, CR/LF): `open-pairing`, `dump-config`, `reset-odo`, `selftest`,
+`ambient-raw`, `ambient-stop`, `display-state`, `wake-display`, `power-status`, `status`,
+`test-on` / `test-off` (USB regression protocol, см. `tools/usb_regression.py`). Скрипты в `tools/`.
+
+Протокол BLE **1.1**: характеристика `Companion Write` (`000B`) — время и погода с телефона
+(шапка OLED `14:32`, под батареей `+18C` и `R40%`). Без геолокации: город задаётся в приложении.
 
 Разметка и форматирование находятся в общих C++-модулях `display_layout.cpp` и
-`display_formatter.cpp`. Эти же файлы напрямую компилирует OLED-симулятор.
+`display_formatter.cpp`. Эти же файлы напрямую компилирует OLED-симулятор для
+обеих геометрий.
 
 ## Батарея Super-nRF52840
 
 Внешний делитель подключается: `BAT+ → 1 MΩ → P0.31 → 1 MΩ → GND`. P0.31 —
 задняя площадка платы. Калибровка пока номинальная:
 `scale=1000`, `offset=0`; диагностический Serial выводит raw, spread, mV, percent и VBUS.
+
+## Энергосбережение
+
+- `power_save_mode` (config flags bit 6) — немедленный low-power idle после выключения OLED.
+- `deep_sleep_timeout_s` — задержка до low-power idle (0 = выкл); при `deep_sleep_enabled`
+  телеметрия показывает `kDeepSleepPending`.
+- `BIKECOMP_FEATURE_DEEP_SLEEP=1` (профиль `xiao_ble_sense_deep_sleep`) — System OFF с
+  пробуждением от магнита на D1 или USB.
+
+USB regression (host sends fixture lines, firmware executes and answers OK/FAIL):
+
+```bash
+python3 tools/usb_regression.py --port /dev/ttyACM0
+python3 -m unittest tools/test_usb_regression.py
+```

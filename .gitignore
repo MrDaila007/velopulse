@@ -1,4 +1,5 @@
 .pio/
+.tooling/
 firmware/.pio/
 firmware/.vscode/
 simulator/.venv/
@@ -7,5 +8,11 @@ simulator/.build/
 simulator/fontcache/
 simulator/__pycache__/
 simulator/tests/__pycache__/
+tools/__pycache__/
 *.code-workspace
 .DS_Store
+/deps/
+/firmware-zephyr/build/
+/twister-out/
+/twister-out.*/
+/.worktrees/

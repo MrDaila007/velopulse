@@ -2,8 +2,8 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
-Компактный автономный велокомпьютер (скорость, дистанция, средняя/максимальная скорость,
-время движения, одометр) на OLED SSD1306 128×32 с настройкой через BLE из Android-приложения.
+Компактный автономный велокомпьютер на SSD1306 128×64 с совместимым профилем
+128×32: скорость, дистанция, средняя/максимальная скорость, время, одометр и BLE-настройка.
 
 Исходное техническое задание: [`bike-tz.md`](bike-tz.md).
 
@@ -24,7 +24,10 @@
 | Документ | Содержание |
 | --- | --- |
 | [docs/03-firmware-architecture.md](docs/03-firmware-architecture.md) | Слои и модули прошивки, кооперативный планировщик, ISR и фильтрация импульсов, целочисленная математика скорости и дистанции, два конечных автомата (поездка и питание), дисплей и карусель страниц, батарея, хранение A/B + CRC, BLE-менеджер, диагностика, бюджет ресурсов |
-| [docs/04-mobile-app-architecture.md](docs/04-mobile-app-architecture.md) | Стек Flutter/Riverpod, слои и каталоги, FSM подключения и переподключение, репозиторий устройства, черновик конфигурации и write-then-verify, 10 экранов, разрешения Android, таблица ошибок, тестирование через `FakeBleTransport` |
+| [docs/04-mobile-app-architecture.md](docs/04-mobile-app-architecture.md) | Исходный архитектурный план: стек Flutter/Riverpod, слои и каталоги, FSM подключения и переподключение, репозиторий устройства, черновик конфигурации и write-then-verify, 10 экранов, разрешения Android, таблица ошибок, тестирование через `FakeBleTransport` |
+| [docs/09-mobile-app-current-state.md](docs/09-mobile-app-current-state.md) | Фактическое состояние кода `mobile-app` на `dev`: расхождения с планом, companion sync, firmware-migration backup, экспорт лога, найденные проблемы код-ревью |
+| [docs/10-web-app.md](docs/10-web-app.md) | ПК веб-компаньон: Web Bluetooth, Web Serial, паритет с mobile MVP |
+| [docs/11-peripheral-features-from-opensource.md](docs/11-peripheral-features-from-opensource.md) | Обзор open-source велокомпьютеров: периферия, расчёты, приоритизированный backlog фич для BikeComp |
 | [docs/05-hardware-design.md](docs/05-hardware-design.md) | BOM, схема соединений, распиновка, измерение и калибровка батареи, зарядка, механика установки магнита и датчика, энергетический бюджет, аппаратные проверки и риски |
 
 ### Контракт прошивка ⇄ приложение
@@ -54,6 +57,7 @@
 ```bash
 cd firmware
 pio run -e xiao_ble_sense            # сборка
+pio run -e xiao_ble_sense_128x32     # совместимая сборка OLED 128×32
 pio run -e xiao_ble_sense -t upload  # прошивка (двойной сброс → режим bootloader)
 pio test -e native                   # тесты доменной логики на хосте
 pio device monitor                   # Serial-консоль (115200)
@@ -71,6 +75,24 @@ flutter build apk --release
 
 Приложение можно разрабатывать **без железа**: `FakeBleTransport` эмулирует устройство,
 включая телеметрию, валидацию и ошибки.
+
+### ПК веб-компаньон
+
+Chrome/Edge: Web Bluetooth (синхронизация) + Web Serial (USB-отладка). См.
+[`docs/10-web-app.md`](docs/10-web-app.md).
+
+```bash
+cd web-app
+npm install
+npm run dev
+```
+
+Из корня репозитория:
+
+```bash
+npm run web:dev
+npm run web:open
+```
 
 ---
 

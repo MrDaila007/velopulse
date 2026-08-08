@@ -24,6 +24,14 @@ void BatteryManager::begin(const DeviceConfig& config, uint32_t now_ms) {
   last_percent_ms_ = now_ms;
 }
 
+void BatteryManager::applyRuntimeConfig(const DeviceConfig& config,
+                                        uint32_t now_ms) {
+  config_ = &config;
+  model_.recalculate(usbPresent(), config.low_battery_pct);
+  last_percent_ms_ = now_ms;
+  (void)now_ms;
+}
+
 bool BatteryManager::update(uint32_t now_ms) {
   if (config_ == nullptr) return false;
   if (static_cast<uint32_t>(now_ms - last_sample_ms_) >= kSamplePeriodMs) {
@@ -36,6 +44,14 @@ bool BatteryManager::update(uint32_t now_ms) {
   model_.recalculate(usbPresent(), config_->low_battery_pct);
   last_percent_ms_ = now_ms;
   return true;
+}
+
+bool BatteryManager::runTest(uint32_t now_ms) {
+  if (config_ == nullptr || !sample()) return false;
+  model_.recalculate(usbPresent(), config_->low_battery_pct);
+  last_sample_ms_ = now_ms;
+  last_percent_ms_ = now_ms;
+  return model_.snapshot().valid;
 }
 
 bool BatteryManager::sample() {

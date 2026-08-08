@@ -11,7 +11,9 @@ namespace bike {
 class BatteryManager {
  public:
   void begin(const DeviceConfig& config, uint32_t now_ms);
+  void applyRuntimeConfig(const DeviceConfig& config, uint32_t now_ms);
   bool update(uint32_t now_ms);
+  bool runTest(uint32_t now_ms);
 
   const BatterySnapshot& snapshot() const { return model_.snapshot(); }
   uint16_t lastRawAverage() const { return last_raw_average_; }

@@ -11,11 +11,14 @@ uint16_t SpeedCalculator::onInterval(uint16_t circumference_mm,
   if (smoothing_window < 2) smoothing_window = 2;
   if (smoothing_window > kMaxWindow) smoothing_window = kMaxWindow;
 
-  intervals_[next_] = interval_us;
+  const uint32_t effective_us = interval_guard_.sanitize(interval_us);
+  if (effective_us == 0) return speed_x100_;
+
+  intervals_[next_] = effective_us;
   next_ = static_cast<uint8_t>((next_ + 1u) % smoothing_window);
   if (count_ < smoothing_window) ++count_;
 
-  uint64_t sum = interval_us;
+  uint64_t sum = effective_us;
   uint8_t samples = 1;
   if (smoothing_enabled) {
     sum = 0;
@@ -23,7 +26,8 @@ uint16_t SpeedCalculator::onInterval(uint16_t circumference_mm,
     for (uint8_t i = 0; i < count_; ++i) sum += intervals_[i];
   }
 
-  const uint64_t numerator = static_cast<uint64_t>(circumference_mm) * 360000u * samples;
+  const uint64_t numerator =
+      static_cast<uint64_t>(circumference_mm) * 360000u * samples;
   const uint64_t calculated = numerator / sum;
   speed_x100_ = calculated > UINT16_MAX ? UINT16_MAX : static_cast<uint16_t>(calculated);
   last_pulse_us_ = pulse_timestamp_us;
@@ -45,6 +49,7 @@ void SpeedCalculator::reset() {
   speed_x100_ = 0;
   last_pulse_us_ = 0;
   has_pulse_ = false;
+  interval_guard_.reset();
 }
 
 }  // namespace bike
