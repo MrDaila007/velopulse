@@ -25,6 +25,7 @@ abstract interface class BikeComputerRepository {
   Future<Result<void>> writeCompanionSnapshot(CompanionSnapshot snapshot);
   Future<Result<CommandResult>> sendCommand(DeviceCommand command);
   Future<Result<void>> setOdometerMeters(int odometerM);
+  Future<Result<void>> rebootDevice();
   Future<void> setTelemetrySubscribed(bool value);
   Future<void> disconnect();
 }
@@ -345,10 +346,22 @@ class BikeComputerRepositoryImpl implements BikeComputerRepository {
   @override
   Future<Result<void>> setOdometerMeters(int odometerM) => _enqueue(() async {
     final requestPayload = ByteData(4)..setUint32(0, odometerM, Endian.little);
-    final request = DeviceCommand(
-      id: DeviceCommandId.setOdometer,
-      payload: requestPayload.buffer.asUint8List().toList(),
+    return _sendDangerousCommand(
+      DeviceCommand(
+        id: DeviceCommandId.setOdometer,
+        payload: requestPayload.buffer.asUint8List().toList(),
+      ),
     );
+  });
+
+  @override
+  Future<Result<void>> rebootDevice() => _enqueue(
+    () => _sendDangerousCommand(
+      const DeviceCommand(id: DeviceCommandId.reboot),
+    ),
+  );
+
+  Future<Result<void>> _sendDangerousCommand(DeviceCommand request) async {
     final stepOne = await _sendCommandDirect(request);
     if (stepOne case Failure<CommandResult>(:final error)) {
       return Failure<void>(error);
@@ -361,11 +374,11 @@ class BikeComputerRepositoryImpl implements BikeComputerRepository {
     }
     final tokenBytes = ByteData(4)..setUint32(0, needs.token, Endian.little);
     final confirmPayload = <int>[
-      ...requestPayload.buffer.asUint8List(),
+      ...request.payload,
       ...tokenBytes.buffer.asUint8List(),
     ];
     final confirm = DeviceCommand(
-      id: DeviceCommandId.setOdometer,
+      id: request.id,
       hasToken: true,
       payload: confirmPayload,
     );
@@ -378,7 +391,7 @@ class BikeComputerRepositoryImpl implements BikeComputerRepository {
       return const Success<void>(null);
     }
     return Failure<void>(_resultError(result));
-  });
+  }
 
   @override
   Future<void> setTelemetrySubscribed(bool value) async {

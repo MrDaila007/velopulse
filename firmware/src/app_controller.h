@@ -8,6 +8,7 @@
 #include "diagnostics.h"
 #include "display_manager.h"
 #include "internal_fs_backend.h"
+#include "load_config.h"
 #include "odometer_save_policy.h"
 #include "power_manager.h"
 #include "pulse_filter.h"
@@ -59,7 +60,8 @@ class AppController {
   bool persistOdometer(OdometerSaveTrigger trigger);
   bool saveAndApplyOdometer(uint64_t odometer_mm,
                             uint64_t total_revolutions);
-  bool loadConfigFromWire(const uint8_t payload[kDeviceConfigPayloadSize]);
+  LoadConfigResult loadConfigFromWire(
+      const uint8_t payload[kDeviceConfigPayloadSize]);
   void printDiagnostics() const;
   void printAmbientLine() const;
   void printDisplayState() const;
@@ -140,6 +142,7 @@ class AppController {
   uint32_t hall_watch_last_ms_ = 0;
   uint32_t hall_watch_last_pulses_ = 0;
   bool hall_watch_last_pin_high_ = true;
+  uint32_t last_accepted_interval_us_ = 0;
   bool hall_analog_logging_ = false;
   uint32_t hall_analog_last_ms_ = 0;
   uint16_t hall_analog_last_raw_ = 0;

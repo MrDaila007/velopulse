@@ -14,7 +14,7 @@
 #include "ble_telemetry.h"
 #include "board_leds.h"
 #include "board_pins.h"
-#include "config_codec.h"
+#include "load_config.h"
 #include "serial_profile.h"
 #include "boot_counter.h"
 #include "zephyr_smoke.h"
@@ -366,7 +366,16 @@ void AppController::printHallStatus() const {
       break;
   }
   Serial.print(", revolutions=");
-  Serial.println(trip_computer_.revolutions());
+  Serial.print(trip_computer_.revolutions());
+  const TripSnapshot trip = trip_computer_.snapshot();
+  Serial.print(", speed_x100=");
+  Serial.print(trip.speed_x100);
+  Serial.print(", max_speed_x100=");
+  Serial.print(trip.max_speed_x100);
+  Serial.print(", gap_corr=");
+  Serial.print(speed_calculator_.speedIntervalCorrectedCount());
+  Serial.print(", last_interval_us=");
+  Serial.println(last_accepted_interval_us_);
 }
 
 void AppController::maybeLogHallWatch(uint32_t now_ms) {
@@ -535,6 +544,17 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         Serial.println(saveAndApplyOdometer(0, 0)
                            ? "OK reset-odo"
                            : "ERROR reset-odo storage");
+        break;
+
+      case SerialCommand::kReboot:
+        odometer_save_.requestRebootSave();
+        if (!persistOdometer(OdometerSaveTrigger::kReboot)) {
+          Serial.println("ERROR reboot storage");
+        } else {
+          reboot_pending_ = true;
+          reboot_requested_ms_ = now_ms;
+          Serial.println("OK reboot");
+        }
         break;
 
       case SerialCommand::kSelftest:
@@ -811,16 +831,19 @@ bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
   return true;
 }
 
-bool AppController::loadConfigFromWire(
+LoadConfigResult AppController::loadConfigFromWire(
     const uint8_t payload[kDeviceConfigPayloadSize]) {
   DeviceConfig parsed;
-  if (!decodeDeviceConfig(payload, kDeviceConfigPayloadSize, parsed)) {
-    return false;
+  const LoadConfigResult decoded = decodeConfigWire(payload, parsed);
+  if (decoded != LoadConfigResult::kOk) {
+    return decoded;
   }
   applyConfig(parsed);
-  if (!storage_.mounted() || !storage_.saveConfig(config_)) return false;
+  if (!storage_.mounted() || !storage_.saveConfig(config_)) {
+    return LoadConfigResult::kStorage;
+  }
   ble_.publishAppliedConfig(config_, /*config_valid=*/true);
-  return true;
+  return LoadConfigResult::kOk;
 }
 
 bool AppController::applyLoadConfigHex(const char* hex) {
@@ -829,8 +852,9 @@ bool AppController::applyLoadConfigHex(const char* hex) {
     Serial.println("ERROR load-config parse");
     return false;
   }
-  if (!loadConfigFromWire(payload)) {
-    Serial.println("ERROR load-config storage");
+  const LoadConfigResult result = loadConfigFromWire(payload);
+  if (result != LoadConfigResult::kOk) {
+    Serial.println(loadConfigResultMessage(result));
     return false;
   }
   Serial.println("OK load-config");
@@ -863,6 +887,7 @@ void AppController::processPulses(uint32_t now_ms) {
     }
     uint16_t speed = 0;
     if (decision.interval_us > 0) {
+      last_accepted_interval_us_ = decision.interval_us;
       speed = speed_calculator_.onInterval(config_.wheel_circumference_mm,
                                            decision.interval_us,
                                            event.timestamp_us,

@@ -22,7 +22,7 @@
 #include "ble_telemetry.h"
 #include "boot_counter.h"
 #include "companion_snapshot.h"
-#include "config_codec.h"
+#include "load_config.h"
 #include "config_validator.h"
 #include "crc32.h"
 #include "display_burn_in.h"
@@ -54,11 +54,12 @@ void tearDown() {}
 void test_serial_console_parses_supported_commands_and_crlf() {
   SerialCommandParser parser;
   const char* commands =
-      "open-pairing\r\ndump-config\nreset-odo\rselftest\n";
+      "open-pairing\r\ndump-config\nreset-odo\rreboot\nselftest\n";
   const SerialCommand expected[] = {
       SerialCommand::kOpenPairing,
       SerialCommand::kDumpConfig,
       SerialCommand::kResetOdometer,
+      SerialCommand::kReboot,
       SerialCommand::kSelftest,
   };
   size_t found = 0;
@@ -1002,6 +1003,50 @@ void test_speed_gap_reset_clears_guard() {
   TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
   speed.reset();
   TEST_ASSERT_EQUAL_UINT32(0u, speed.speedIntervalCorrectedCount());
+}
+
+void test_speed_gap_mid_ride_spike_corrected() {
+  SpeedCalculator speed;
+  TEST_ASSERT_EQUAL_UINT16(2520u, speed.onInterval(2100, 300000, 300000, false, 3));
+  TEST_ASSERT_EQUAL_UINT16(2520u, speed.onInterval(2100, 176470, 476470, false, 3));
+  TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
+}
+
+void test_speed_gap_exact_half_interval_corrected() {
+  SpeedCalculator speed;
+  TEST_ASSERT_EQUAL_UINT16(3000u, speed.onInterval(2055, 246600, 246600, false, 3));
+  TEST_ASSERT_EQUAL_UINT16(3000u, speed.onInterval(2055, 123300, 369900, false, 3));
+  TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
+}
+
+void test_load_config_decode_rejects_bad_wire_version() {
+  uint8_t payload[kDeviceConfigPayloadSize] = {};
+  payload[0] = 2;
+  DeviceConfig parsed;
+  TEST_ASSERT_EQUAL(static_cast<int>(LoadConfigResult::kWireDecode),
+                    static_cast<int>(decodeConfigWire(payload, parsed)));
+}
+
+void test_load_config_decode_rejects_invalid_validation() {
+  DeviceConfig invalid;
+  invalid.wheel_circumference_mm = 100;
+  uint8_t payload[kDeviceConfigPayloadSize];
+  encodeDeviceConfig(invalid, payload);
+  DeviceConfig parsed;
+  TEST_ASSERT_EQUAL(static_cast<int>(LoadConfigResult::kValidation),
+                    static_cast<int>(decodeConfigWire(payload, parsed)));
+}
+
+void test_load_config_decode_accepts_valid_backup_wire() {
+  const char* wire_hex =
+      "014f070864033c00b00432061f14f40103030000e803000000010203040042696b65436f6d702d"
+      "585858580000000000";
+  uint8_t payload[kDeviceConfigPayloadSize];
+  TEST_ASSERT_TRUE(parseWireV1Hex(wire_hex, payload));
+  DeviceConfig parsed;
+  TEST_ASSERT_EQUAL(static_cast<int>(LoadConfigResult::kOk),
+                    static_cast<int>(decodeConfigWire(payload, parsed)));
+  TEST_ASSERT_EQUAL_UINT16(2055u, parsed.wheel_circumference_mm);
 }
 
 void test_pulse_to_speed_pipeline_sets_max_speed() {
@@ -2756,6 +2801,11 @@ int main(int, char**) {
   RUN_TEST(test_speed_gap_pause_recovery_uses_new_cadence);
   RUN_TEST(test_speed_gap_revolutions_unaffected);
   RUN_TEST(test_speed_gap_reset_clears_guard);
+  RUN_TEST(test_speed_gap_mid_ride_spike_corrected);
+  RUN_TEST(test_speed_gap_exact_half_interval_corrected);
+  RUN_TEST(test_load_config_decode_rejects_bad_wire_version);
+  RUN_TEST(test_load_config_decode_rejects_invalid_validation);
+  RUN_TEST(test_load_config_decode_accepts_valid_backup_wire);
   RUN_TEST(test_pulse_to_speed_pipeline_sets_max_speed);
   RUN_TEST(test_pulse_filter_rejects_zero_interval);
   RUN_TEST(test_trip_accumulation_average_and_reset);

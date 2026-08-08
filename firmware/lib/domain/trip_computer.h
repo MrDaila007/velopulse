@@ -20,7 +20,7 @@ class TripComputer {
   void restoreSnapshot(const TripSnapshot& snapshot,
                        uint64_t total_revolutions);
 
-  const TripSnapshot& snapshot();
+  const TripSnapshot& snapshot() const;
   uint32_t revolutions() const { return snapshot_.revolutions; }
   uint64_t totalRevolutions() const { return total_revolutions_; }
 

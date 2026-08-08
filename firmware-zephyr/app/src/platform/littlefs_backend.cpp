@@ -89,12 +89,18 @@ bool writeMountedFile(const char* mounted_path,
   const int open_rc =
       fs_open(&file, mounted_path, FS_O_CREATE | FS_O_RDWR | FS_O_TRUNC);
   if (open_rc != 0) {
+    printk("Storage: open %s failed err=%d\n", mounted_path, open_rc);
     return false;
   }
   const ssize_t written = fs_write(&file, data, length);
   const int sync_rc = fs_sync(&file);
   fs_close(&file);
-  return written >= 0 && static_cast<size_t>(written) == length && sync_rc == 0;
+  if (written < 0 || static_cast<size_t>(written) != length || sync_rc != 0) {
+    printk("Storage: write %s failed written=%d sync=%d\n", mounted_path,
+           static_cast<int>(written), sync_rc);
+    return false;
+  }
+  return true;
 }
 
 bool layoutMarkerPresent() {

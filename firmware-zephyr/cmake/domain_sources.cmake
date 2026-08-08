@@ -16,6 +16,7 @@ set(BIKECOMP_DOMAIN_SOURCES
   ${BIKECOMP_DOMAIN_DIR}/companion_snapshot.cpp
   ${BIKECOMP_DOMAIN_DIR}/config_codec.cpp
   ${BIKECOMP_DOMAIN_DIR}/config_validator.cpp
+  ${BIKECOMP_DOMAIN_DIR}/load_config.cpp
   ${BIKECOMP_DOMAIN_DIR}/crc32.cpp
   ${BIKECOMP_DOMAIN_DIR}/diagnostics.cpp
   ${BIKECOMP_DOMAIN_DIR}/display_burn_in.cpp

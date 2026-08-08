@@ -13,6 +13,7 @@ enum class SerialCommand : uint8_t {
   kOpenPairing,
   kDumpConfig,
   kResetOdometer,
+  kReboot,
   kLoadConfig,
   kSetOdometerMm,
   kSelftest,

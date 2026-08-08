@@ -74,6 +74,24 @@ ZTEST(motion, test_speed_gap_reset_clears_guard) {
   zassert_equal(0u, speed.speedIntervalCorrectedCount(), "guard cleared");
 }
 
+ZTEST(motion, test_speed_gap_mid_ride_spike_corrected) {
+  SpeedCalculator speed;
+  zassert_equal(2520u, speed.onInterval(2100, 300000, 300000, false, 3),
+                "baseline speed");
+  zassert_equal(2520u, speed.onInterval(2100, 176470, 476470, false, 3),
+                "mid-ride spike corrected");
+  zassert_equal(1u, speed.speedIntervalCorrectedCount(), "correction count");
+}
+
+ZTEST(motion, test_speed_gap_exact_half_interval_corrected) {
+  SpeedCalculator speed;
+  zassert_equal(3000u, speed.onInterval(2055, 246600, 246600, false, 3),
+                "baseline speed");
+  zassert_equal(3000u, speed.onInterval(2055, 123300, 369900, false, 3),
+                "half-interval spike corrected");
+  zassert_equal(1u, speed.speedIntervalCorrectedCount(), "correction count");
+}
+
 ZTEST(motion, test_pulse_to_speed_pipeline_sets_max_speed) {
   PulseFilter filter;
   SpeedCalculator speed;

@@ -133,6 +133,44 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
     }
   }
 
+  Future<void> _rebootDevice() async {
+    final strings = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.rebootDeviceQuestion),
+        content: Text(strings.rebootDeviceSubtitle),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(strings.confirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final result = await ref
+        .read(connectionControllerProvider.notifier)
+        .rebootDevice();
+    if (!mounted) return;
+    switch (result) {
+      case Success<void>():
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(strings.rebootDeviceSuccess)));
+      case Failure<void>(:final error):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error is AppError ? error.message : error.toString()),
+          ),
+        );
+    }
+  }
+
   Future<void> _restoreFirmwareBackup() async {
     final strings = AppLocalizations.of(context);
     final notifier = ref.read(connectionControllerProvider.notifier);
@@ -275,6 +313,14 @@ class _MaintenanceScreenState extends ConsumerState<MaintenanceScreen> {
           subtitle: strings.firmwareRestoreSubtitle,
           enabled: enabled,
           onPressed: _restoreFirmwareBackup,
+        ),
+        const SizedBox(height: 8),
+        _ActionTile(
+          icon: Icons.power_settings_new,
+          title: strings.rebootDevice,
+          subtitle: strings.rebootDeviceSubtitle,
+          enabled: enabled,
+          onPressed: _rebootDevice,
         ),
         const SizedBox(height: 16),
         Card(
