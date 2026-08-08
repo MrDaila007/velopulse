@@ -79,7 +79,7 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
     std::snprintf(snapshot.companion_weather_temp,
                   sizeof(snapshot.companion_weather_temp), "+18.5C");
     std::snprintf(snapshot.companion_weather_rain,
-                  sizeof(snapshot.companion_weather_rain), "R40%");
+                  sizeof(snapshot.companion_weather_rain), "R40%%");
   } else if (name == "idle") {
     page = DisplayPage::kTrip;
     snapshot.trip.speed_x100 = 0;
