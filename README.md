@@ -13,16 +13,19 @@ The original product requirements are available in [`bike-tz.md`](bike-tz.md)
 
 ## Project status
 
-The current firmware provides wheel-pulse processing, fixed-point trip metrics,
-the OLED interface, battery monitoring, display power saving, and redundant
-InternalFS storage with A/B slots, CRC32, record versions, and corruption recovery.
+Active development is on the **`dev`** branch (`v0.2.0-beta.3`). The `main` branch
+is an older snapshot (firmware only, no BLE or mobile app).
 
-- Native domain tests: 30 passing.
-- nRF52840 production build: passing and verified on hardware.
-- OLED simulator and pixel-golden tests: passing.
-- Storage fallback and reboot recovery: verified on a XIAO-compatible board.
-- Next milestone: wear-aware odometer autosaving during a ride.
-- BLE firmware and the Flutter application are not implemented yet.
+On `dev`, the Arduino firmware includes wheel-pulse processing, dual OLED profiles
+(128×64 and 128×32), battery monitoring, ambient light auto-brightness, display
+power saving, burn-in protection, BLE GATT protocol 1.1, redundant A/B flash
+storage with odometer autosave, and a Flutter Android companion app (MVP).
+
+- Native domain tests: 83 passing (`dev`).
+- Flutter tests: 52 passing (`dev`).
+- Public beta releases: `v0.2.0-beta.1` through `beta.3`.
+- Basic Android ↔ XIAO BLE integration confirmed on hardware.
+- Open: full hardware acceptance gate, Hall/cadence bench, v1.0 release.
 
 See [`STATUS.md`](STATUS.md) for verified progress and [`TODO.md`](TODO.md) for the
 project roadmap.

@@ -2,19 +2,35 @@
 
 ## Э5. MVP-приложение
 
+> На 2026-07-31 код и fake-tested automatic gate готовы. Пункты 5.1–5.15
+> намеренно остаются незакрытыми до приёмки с firmware Э4.7–Э4.12 и двумя
+> поколениями Android; fake-проверка не считается аппаратным завершением этапа.
+> Первый end-to-end hardware smoke нового APK подтверждён пользователем:
+> discovery/connect и работа с реальным XIAO успешны. Серия 10/10 и остальные
+> пункты аппаратного gate ещё не выполнены.
+
 - [ ] 5.1 Создать freezed domain models и enums.
 - [ ] 5.2 Реализовать codecs и golden-тесты shared fixtures.
 - [ ] 5.3 Реализовать ConfigValidator и boundary tests.
 - [ ] 5.4 Реализовать FakeBleTransport, ride profiles и error injection.
 - [ ] 5.5 Реализовать scan/connect/MTU/discover/read/write/subscribe.
+  (Устранены `unawaited(stopScan/disconnect)` races; cancel link stream отменяет
+  platform connection; transport lifecycle покрыт mock-регрессиями.)
 - [ ] 5.6 Реализовать Android 12+/legacy permissions и adapter states.
 - [ ] 5.7 Реализовать ConnectionController FSM и reconnect policy.
+  (Device Info до protected access; Config Read инициирует/подтверждает pairing до
+  subscriptions; sync failures/dispose освобождают link и repository без утечек.)
 - [ ] 5.8 Создать scan screen, RSSI, UUID filter, remember/forget device.
+  (Android native service filter заменён unfiltered scan + локальной проверкой UUID
+  и fallback `BikeComp-*`; 5 unit-тестов; повторять hardware scan только после
+  disconnect в nRF Connect, который иначе держит единственный peripheral link.)
 - [ ] 5.9 Создать connecting/synchronizing screen.
 - [ ] 5.10 Создать dashboard: gauge, metrics, states и quick actions.
 - [ ] 5.11 Создать MVP settings и tire presets.
+  (Яркость подписана как пользовательский максимум автоматического LDR-регулятора.)
 - [ ] 5.12 Реализовать dirty draft, local persistence и write-then-verify.
 - [ ] 5.13 Создать maintenance: trip reset, OLED, sensor test, defaults.
+  (OLED test позволяет выбрать fill/checkerboard/text без изменения wire format.)
 - [ ] 5.14 Обработать incompatible protocol major.
 - [ ] 5.15 Реализовать typed errors и понятные сообщения.
 
@@ -31,11 +47,29 @@
 - [ ] 6.9 Трёхступенчатый dangerous reset odometer.
 - [ ] 6.10 Skeleton/empty/error states, dark theme и accessibility.
 
-## DoD приложения
+## DoD Э5 — автоматический gate
+
+- [x] Code generation повторяется без diff.
+- [x] `dart format --set-exit-if-changed`, `flutter analyze` и 52 теста проходят.
+- [x] Debug и release APK собираются с application ID `app.bikecomp.mobile`,
+  minSdk 24 и targetSdk 36.
+- [x] Config draft персистится асинхронно и namespaced по device ID.
+- [x] Некорректные поля блокируют BLE write; команды не показывают успех без
+  `CommandResult`.
+
+## DoD Э5 — аппаратный gate
+
+- [ ] Поиск ≤ 5 с и 10/10 подключений к firmware Э4.7–Э4.12.
+  (Один успешный discovery/connect нового APK подтверждён 2026-07-31; время поиска
+  и серия 10/10 ещё не измерены. Automatic gate: `tools/android_gate.sh` — 52/52,
+  analyze, release APK 2026-08-01.)
+- [ ] Bonding переживает reboot; reconnect работает после потери связи.
+- [ ] Пять обязательных настроек проходят write-then-verify на устройстве.
+- [ ] Все MVP-команды подтверждены реальным `CommandResult`.
+- [ ] Permission/adapter/location flows проверены на Android ≤11 и ≥12.
+
+## DoD Э6
 
 - [ ] Все 10 экранов из ТЗ реализованы.
-- [ ] Config draft не теряется при disconnect/process background.
-- [ ] Каждая команда показывает подтверждённый результат.
-- [ ] Некорректные поля блокируют BLE write.
 - [ ] Profile export/import и diagnostic export работают.
-- [ ] Flutter analyze/test проходят без предупреждений/ошибок.
+- [ ] Dangerous commands имеют полный многошаговый confirm flow.
