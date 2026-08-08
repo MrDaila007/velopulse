@@ -9,7 +9,7 @@
 - [ ] 0.5 Завершить каркас всех модулей. Частично: BLE/diagnostics отсутствуют.
 - [x] 0.6 Настроить native environment и host-тест CRC32.
 - [ ] 0.7 Инициализировать Flutter-проект — отслеживается в `tasks/mobile/`.
-- [ ] 0.8 Настроить CI для firmware и Flutter.
+- [x] 0.8 Настроить CI для firmware и Flutter.
 
 ## Э2. Базовая прошивка
 
@@ -26,6 +26,10 @@
 - [x] 2.10 Реализовать BatteryManager: ADC, EMA, SoC, monotonicity.
 - [x] 2.11 Реализовать splash и продолжение работы без OLED.
 - [ ] 2.12 Откалибровать скорость на стенде до погрешности ≤2%.
+- [x] 2.13 Добавить primary SSD1306 128×64 и совместимый 128×32 build/layout;
+  обе сборки и 18 simulator golden-кадров проходят.
+- [x] 2.14 Добавить защиту OLED от выгорания: default dim/off и четырёхфазный
+  pixel shift общей разметки раз в 60 с для обеих панелей.
 
 ## Остаток DoD Э2
 
@@ -40,5 +44,5 @@
 - [ ] Реализовать boot count и reset reason.
 - [ ] Добавить watchdog и контролируемую инъекцию зависания.
 - [ ] Добавить диагностический snapshot всех counters.
-- [ ] Добавить feature-flag deep sleep и wake от GPIO/USB.
+- [x] Добавить feature-flag deep sleep и wake от GPIO/USB (код; полевая верификация — Э7).
 - [ ] Исключить длительные блокировки из production loop и проверить ISR review.
