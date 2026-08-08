@@ -24,6 +24,7 @@ SerialCommand parseCommand(const char* value, size_t length) {
       {"open-pairing", 12, SerialCommand::kOpenPairing},
       {"dump-config", 11, SerialCommand::kDumpConfig},
       {"reset-odo", 9, SerialCommand::kResetOdometer},
+      {"reboot", 6, SerialCommand::kReboot},
       {"selftest", 8, SerialCommand::kSelftest},
       {"ambient-raw", 11, SerialCommand::kAmbientRaw},
       {"ambient-stop", 12, SerialCommand::kAmbientStop},

@@ -856,6 +856,30 @@ abstract class AppLocalizations {
   /// **'Обнулить trip, среднюю скорость и время поездки'**
   String get resetTripSubtitle;
 
+  /// No description provided for @rebootDevice.
+  ///
+  /// In ru, this message translates to:
+  /// **'Перезагрузить устройство'**
+  String get rebootDevice;
+
+  /// No description provided for @rebootDeviceSubtitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сохранить одометр и перезапустить велокомпьютер'**
+  String get rebootDeviceSubtitle;
+
+  /// No description provided for @rebootDeviceQuestion.
+  ///
+  /// In ru, this message translates to:
+  /// **'Перезагрузить велокомпьютер?'**
+  String get rebootDeviceQuestion;
+
+  /// No description provided for @rebootDeviceSuccess.
+  ///
+  /// In ru, this message translates to:
+  /// **'Устройство перезагружается. Подключитесь снова через несколько секунд.'**
+  String get rebootDeviceSuccess;
+
   /// No description provided for @retryAction.
   ///
   /// In ru, this message translates to:

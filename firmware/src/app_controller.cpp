@@ -380,6 +380,15 @@ void AppController::printHallStatus() const {
   }
   Serial.print(", revolutions=");
   Serial.print(trip_computer_.revolutions());
+  const TripSnapshot trip = trip_computer_.snapshot();
+  Serial.print(", speed_x100=");
+  Serial.print(trip.speed_x100);
+  Serial.print(", max_speed_x100=");
+  Serial.print(trip.max_speed_x100);
+  Serial.print(", gap_corr=");
+  Serial.print(speed_calculator_.speedIntervalCorrectedCount());
+  Serial.print(", last_interval_us=");
+  Serial.print(last_accepted_interval_us_);
 #if BIKECOMP_HALL_ANALOG
   Serial.print(", mode=analog, adc=");
   Serial.print(wheel_sensor_.lastAnalogRaw());
@@ -770,6 +779,7 @@ void AppController::applyAcceptedPulse(const PulseDecision& decision,
   }
   uint16_t speed = 0;
   if (decision.interval_us > 0) {
+    last_accepted_interval_us_ = decision.interval_us;
     const bool smooth =
         usb_test_mode_ ? usb_test_smoothing_enabled_ : config_.smoothing_enabled;
     speed = speed_calculator_.onInterval(
@@ -996,6 +1006,17 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         Serial.println(saveAndApplyOdometer(0, 0)
                            ? "OK reset-odo"
                            : "ERROR reset-odo storage");
+        break;
+
+      case SerialCommand::kReboot:
+        odometer_save_.requestRebootSave();
+        if (!persistOdometer(OdometerSaveTrigger::kReboot)) {
+          Serial.println("ERROR reboot storage");
+        } else {
+          reboot_pending_ = true;
+          reboot_requested_ms_ = now_ms;
+          Serial.println("OK reboot");
+        }
         break;
 
       case SerialCommand::kSelftest:

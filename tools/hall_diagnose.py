@@ -14,6 +14,8 @@ HALL_RE = re.compile(
     r"Hall: pin=D0\+D1.*level=(HIGH|LOW), .*edge=(\w+), raw_pulses=(\d+), "
     r"accepted=(\d+), debounce_rej=(\d+), overspeed_rej=(\d+), "
     r"isr_ovf=(\d+), ride=(\w+), revolutions=(\d+)"
+    r"(?:, speed_x100=(\d+), max_speed_x100=(\d+), gap_corr=(\d+), "
+    r"last_interval_us=(\d+))?"
 )
 
 
@@ -21,7 +23,7 @@ def parse_hall(text: str) -> dict[str, str | int] | None:
     match = HALL_RE.search(text)
     if not match:
         return None
-    return {
+    result = {
         "level": match.group(1),
         "edge": match.group(2),
         "raw_pulses": int(match.group(3)),
@@ -32,6 +34,12 @@ def parse_hall(text: str) -> dict[str, str | int] | None:
         "ride": match.group(8),
         "revolutions": int(match.group(9)),
     }
+    if match.group(10) is not None:
+        result["speed_x100"] = int(match.group(10))
+        result["max_speed_x100"] = int(match.group(11))
+        result["gap_corr"] = int(match.group(12))
+        result["last_interval_us"] = int(match.group(13))
+    return result
 
 
 def main() -> int:
@@ -60,6 +68,14 @@ def main() -> int:
         print(f"  counters: raw={status['raw_pulses']} accepted={status['accepted']} "
               f"debounce_rej={status['debounce_rej']} overspeed_rej={status['overspeed_rej']}")
         print(f"  ride={status['ride']} revolutions={status['revolutions']}")
+        if "speed_x100" in status:
+            print(
+                "  speed: current="
+                f"{status['speed_x100'] / 100:.1f} km/h max="
+                f"{status['max_speed_x100'] / 100:.1f} km/h "
+                f"gap_corr={status['gap_corr']} "
+                f"last_interval_us={status['last_interval_us']}"
+            )
         print()
         print(f"Watching {args.watch_seconds:.0f}s — move magnet near/away reed (D0<->D1)...")
         port.reset_input_buffer()

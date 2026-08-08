@@ -663,6 +663,33 @@ class ConnectionController extends _$ConnectionController {
     return const Success<void>(null);
   }
 
+  Future<Result<void>> rebootDevice() async {
+    if (state.connection is! ConnectionReady || _repository == null) {
+      return const Failure<void>(
+        AppFailure(
+          kind: AppErrorKind.connectionLost,
+          message: 'Перезагрузка доступна только при готовом подключении',
+        ),
+      );
+    }
+    state = state.copyWith(commandInFlight: true, lastError: null);
+    final result = await _repository!.rebootDevice();
+    switch (result) {
+      case Success<void>():
+        state = state.copyWith(
+          commandInFlight: false,
+          lastMessage: 'Устройство перезагружается',
+        );
+        return const Success<void>(null);
+      case Failure<void>(:final error):
+        state = state.copyWith(
+          commandInFlight: false,
+          lastError: error is AppError ? error : AppErrors.unknown(error),
+        );
+        return Failure<void>(error);
+    }
+  }
+
   Future<FirmwareMigrationBackup?> readFirmwareBackup() =>
       _migrationStore.readBackup();
 

@@ -36,10 +36,7 @@ void TripComputer::updateAverage() {
       value > UINT16_MAX ? UINT16_MAX : static_cast<uint16_t>(value);
 }
 
-const TripSnapshot& TripComputer::snapshot() {
-  updateAverage();
-  return snapshot_;
-}
+const TripSnapshot& TripComputer::snapshot() const { return snapshot_; }
 
 void TripComputer::resetTrip() {
   const uint64_t odometer = snapshot_.odometer_mm;

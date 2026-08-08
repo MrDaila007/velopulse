@@ -53,11 +53,12 @@ void tearDown() {}
 void test_serial_console_parses_supported_commands_and_crlf() {
   SerialCommandParser parser;
   const char* commands =
-      "open-pairing\r\ndump-config\nreset-odo\rselftest\n";
+      "open-pairing\r\ndump-config\nreset-odo\rreboot\nselftest\n";
   const SerialCommand expected[] = {
       SerialCommand::kOpenPairing,
       SerialCommand::kDumpConfig,
       SerialCommand::kResetOdometer,
+      SerialCommand::kReboot,
       SerialCommand::kSelftest,
   };
   size_t found = 0;
@@ -961,6 +962,20 @@ void test_speed_gap_reset_clears_guard() {
   TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
   speed.reset();
   TEST_ASSERT_EQUAL_UINT32(0u, speed.speedIntervalCorrectedCount());
+}
+
+void test_speed_gap_mid_ride_spike_corrected() {
+  SpeedCalculator speed;
+  TEST_ASSERT_EQUAL_UINT16(2520u, speed.onInterval(2100, 300000, 300000, false, 3));
+  TEST_ASSERT_EQUAL_UINT16(2520u, speed.onInterval(2100, 176470, 476470, false, 3));
+  TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
+}
+
+void test_speed_gap_exact_half_interval_corrected() {
+  SpeedCalculator speed;
+  TEST_ASSERT_EQUAL_UINT16(3000u, speed.onInterval(2055, 246600, 246600, false, 3));
+  TEST_ASSERT_EQUAL_UINT16(3000u, speed.onInterval(2055, 123300, 369900, false, 3));
+  TEST_ASSERT_EQUAL_UINT32(1u, speed.speedIntervalCorrectedCount());
 }
 
 void test_pulse_to_speed_pipeline_sets_max_speed() {
@@ -2740,6 +2755,8 @@ int main(int, char**) {
   RUN_TEST(test_speed_gap_pause_recovery_uses_new_cadence);
   RUN_TEST(test_speed_gap_revolutions_unaffected);
   RUN_TEST(test_speed_gap_reset_clears_guard);
+  RUN_TEST(test_speed_gap_mid_ride_spike_corrected);
+  RUN_TEST(test_speed_gap_exact_half_interval_corrected);
   RUN_TEST(test_pulse_to_speed_pipeline_sets_max_speed);
   RUN_TEST(test_pulse_filter_rejects_zero_interval);
   RUN_TEST(test_trip_accumulation_average_and_reset);

@@ -1,6 +1,7 @@
 // ignore_for_file: prefer_initializing_formals
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import '../../domain/entities/models.dart';
 import '../../domain/validators/config_validator.dart';
@@ -34,6 +35,7 @@ class FakeBleTransport implements BleTransport {
   bool _connected = false;
   bool _sensorTest = false;
   int _busyResponses = 0;
+  int _pendingDangerousToken = 0;
   Timer? _telemetryTimer;
   StreamController<BleLinkState>? _linkController;
   final List<String> operationLog = [];
@@ -228,6 +230,9 @@ class FakeBleTransport implements BleTransport {
 
   Future<void> _writeCommand(List<int> bytes) async {
     final command = ProtocolCodecs.decodeCommand(bytes);
+    if (_handleDangerousCommand(command)) {
+      return;
+    }
     switch (command.id) {
       case DeviceCommandId.resetTrip:
         _telemetry = _telemetry.copyWith(
@@ -263,6 +268,43 @@ class FakeBleTransport implements BleTransport {
       BleUuids.telemetry,
       ProtocolCodecs.encodeTelemetry(_profiledTelemetry()),
     );
+  }
+
+  bool _handleDangerousCommand(DeviceCommand command) {
+    if (command.id != DeviceCommandId.reboot) {
+      return false;
+    }
+    if (!command.hasToken) {
+      _pendingDangerousToken = 0xA1B2C3D4;
+      _emit(
+        BleUuids.commandResult,
+        ProtocolCodecs.encodeCommandResult(
+          CommandResult(
+            structVersion: 1,
+            commandId: DeviceCommandId.reboot,
+            status: CommandStatus.needsConfirm,
+            detail: 0,
+            token: _pendingDangerousToken,
+            payload: const <int>[],
+          ),
+        ),
+      );
+      return true;
+    }
+    final token = command.payload.length >= 4
+        ? ByteData.sublistView(
+            Uint8List.fromList(command.payload),
+          ).getUint32(0, Endian.little)
+        : 0;
+    if (token != _pendingDangerousToken) {
+      _emitResult(DeviceCommandId.reboot, CommandStatus.tokenInvalid);
+      return true;
+    }
+    _pendingDangerousToken = 0;
+    _connected = false;
+    _linkController?.add(BleLinkState.disconnected);
+    _emitResult(DeviceCommandId.reboot, CommandStatus.ok);
+    return true;
   }
 
   void _emitResult(

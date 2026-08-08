@@ -6,8 +6,8 @@ namespace {
 
 constexpr uint32_t kLongGapNumerator = 3u;
 constexpr uint32_t kLongGapDenominator = 2u;
-constexpr uint32_t kShortGapNumerator = 1u;
-constexpr uint32_t kShortGapDenominator = 2u;
+constexpr uint32_t kShortGapNumerator = 3u;
+constexpr uint32_t kShortGapDenominator = 4u;
 
 }  // namespace
 
@@ -29,9 +29,9 @@ uint32_t SpeedIntervalGuard::sanitize(uint32_t interval_us) {
     }
   } else if (interval_us < (last_good_us_ * kShortGapNumerator) /
                                 kShortGapDenominator) {
-    // Only collapse obvious half-revolution bounce spikes (roughly 25-50% of
-    // the last good interval). Much shorter intervals are usually cadence
-    // recovery after a pause, not a duplicate pulse.
+    // Collapse bounce spikes up to ~1.33x previous speed. Intervals shorter
+    // than one quarter of the last rhythm are usually post-pause cadence
+    // recovery, not duplicate pulses.
     const uint32_t quarter = last_good_us_ / 4u;
     if (interval_us >= quarter) {
       effective = last_good_us_;

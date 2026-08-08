@@ -442,6 +442,20 @@ class AppLocalizationsRu extends AppLocalizations {
       'Обнулить trip, среднюю скорость и время поездки';
 
   @override
+  String get rebootDevice => 'Перезагрузить устройство';
+
+  @override
+  String get rebootDeviceSubtitle =>
+      'Сохранить одометр и перезапустить велокомпьютер';
+
+  @override
+  String get rebootDeviceQuestion => 'Перезагрузить велокомпьютер?';
+
+  @override
+  String get rebootDeviceSuccess =>
+      'Устройство перезагружается. Подключитесь снова через несколько секунд.';
+
+  @override
   String get retryAction => 'Повторить';
 
   @override
