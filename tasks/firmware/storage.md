@@ -11,6 +11,11 @@
 - [x] 3.7 Counters записей, пропусков, ошибок, recovery и migrations.
 - [x] Embedded corruption/fallback тест на XIAO.
 - [x] Два startup без лишней записи: config/odo sequence остаётся 1.
+- [x] Ambient light auto-calibration: A/B-слоты `/alc_a`/`/alc_b`
+  (`storage_manager.h:94-95`), record version 1, payload 5 байт
+  (`storage_manager.h:13,16`). Загрузка+seed при boot, персист по независимым
+  триггерам (`AmbientCalibrationSavePolicy`: time-throttled change, deep sleep,
+  reboot, USB disconnect) — влито в `dev` коммитом `7b1d52d`.
 
 ## Текущий инкремент 3.5. Автосохранение
 
@@ -37,7 +42,8 @@
 - [x] Ненулевой odometer/revolutions переживает два reboot на XIAO
   (seed 424242 mm / 77 rev → production load source=A sequence=3).
 - [ ] 10 power-loss попыток не уничтожают обе копии
-  (нужно физическое снятие питания; не автоматизировано).
+  (нужно физическое снятие питания; не автоматизировано). Тот же долг теперь
+  применим к `/alc_a|b` (ambient auto-calibration) — не проверялся.
 - [x] Native и nRF build зелёные (UI/simulator не затрагивались).
 - [x] После embedded-теста возвращена production firmware.
 

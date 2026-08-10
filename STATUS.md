@@ -1,6 +1,21 @@
 # Статус проекта
 
-Обновлено: 2026-08-01
+Обновлено: 2026-08-10
+
+## Снимок веток
+
+| Ветка | Состояние | Комментарий |
+| --- | --- | --- |
+| `dev` | **Активная разработка** | BLE Э4, Flutter MVP, ПК веб-компаньон, ambient auto-calibration |
+| `main` | Устарела | Отстаёт от `dev`; актуальный код только на `dev` |
+| `feat/speed-gap-reboot-load-config` | Влита в `dev` (`4dd8437`) | Исходная ветка на 3 коммита впереди своей копии в `dev` |
+| `cursor/weather-carousel-5d1a` | Влита в `dev` | Weather-страницы карусели |
+| `cursor/peripheral-features-research-c36d` | Не влита | Research/backlog доки по периферии, вне текущей области |
+| `cursor/update-project-status-9eb0` | Не влита, устарела | Черновой docs-sync от 2026-08-08; заменён этим обновлением |
+
+Версии продукта — [`version.toml`](version.toml): BLE protocol `1.1`, firmware
+Arduino `0.2.0`, firmware Zephyr `0.2.0-zephyr`, mobile `1.1.0+5`. Публичные релизы:
+`v0.2.0-beta.1/2/3`.
 
 ## Текущий этап
 
@@ -11,15 +26,24 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Готово
 
+### Прошивка (Arduino, PlatformIO)
+
 - PlatformIO-проект для XIAO nRF52840 Sense и native-окружения.
 - Фильтрация импульсов, fixed-point скорость, дистанция, средняя/максимальная скорость.
 - Автостарт и автопауза, неблокирующий scheduler, ISR с кольцевым буфером.
+- `SpeedIntervalGuard`: отбрасывает и считает аномально короткие интервалы между
+  импульсами (дребезг/наводка) до расчёта скорости, не давая ложным всплескам
+  попасть в `SpeedCalculator`.
 - Минимальный OLED-интерфейс, проверенный на устройстве с кнопкой вместо датчика Холла.
 - GUI/headless-симулятор OLED и pixel-golden тесты состояний IDLE/MOV/PAUSE.
 - `PageCarousel` с настройкой порядка, маски, периода и фиксированной страницы.
-- Общий C++-форматтер пяти нижних страниц и индикатора батареи.
+  Расширена до 7 страниц: добавлены `kWeatherClock`/`kWeatherRain` (BLE Companion
+  Sync), `kValidEnabledPagesMask = 0x7F`; новые страницы opt-in
+  (`kDefaultEnabledPagesMask` не изменена), появляются через второй проход
+  `configure()`, не занимая слоты `page_order`.
+- Общий C++-форматтер пяти нижних страниц, погодных страниц и индикатора батареи.
 - Общая C++-разметка: прошивка и симулятор исполняют один и тот же код отрисовки.
-- Pixel-golden кадры пяти страниц, IDLE/PAUSE, неизвестного и низкого заряда.
+- Pixel-golden кадры всех страниц, IDLE/PAUSE, неизвестного и низкого заряда.
 - Два compile-time OLED-профиля из общего renderer: primary SSD1306 128×64 с
   Logisoso 38 и совместимый 128×32 с неизменными пикселями; BLE/config не менялись.
 - `BatteryModel`: пересчёт ADC, калибровка, EMA, SoC LUT, монотонность и гистерезис.
@@ -38,18 +62,33 @@ encryption и 5-минутное pairing window синхронизированы
   гистерезис 5%, выдержка 2 с и invalid fallback. `AmbientLightManager` раз в
   секунду коммутирует D3, на следующем tick усредняет 16 ADC-выборок с min/max
   rejection; `brightness_pct` остаётся пользовательским максимумом.
+- **Ambient light auto-calibration** (влито в `dev`, коммит `7b1d52d`):
+  `AmbientLightCalibrator` подстраивает raw dark/bright границы по наблюдаемым
+  выборкам во время работы, с оценкой качества (`kNarrow`/`kOk`) по ширине диапазона
+  и допустимым dark/bright порогам; `AmbientCalibrationSavePolicy` — независимый от
+  `OdometerSavePolicy` набор триггеров: time-throttled изменения плюс
+  one-shot deep sleep/reboot/USB disconnect. Хранится в новых A/B-слотах
+  `/alc_a`/`/alc_b` (`StoragePaths`), record version 1, payload 5 байт. При старте
+  калибровка загружается и используется как seed вместо статических
+  `BIKECOMP_AMBIENT_RAW_DARK/BRIGHT`; переживает deep sleep, reboot и USB disconnect.
 - Канонический little-endian codec 48-байтовой `DeviceConfig` без зависимости от
   C++ padding; валидируются все диапазоны, маска/порядок страниц и имя устройства.
-- `StorageManager`: `/cfg_a/b` и `/odo_a/b`, заголовок `BKCP`, version, sequence,
-  CRC32, выбор свежего слота, чередование записей и пропуск неизменённых данных.
+- `StorageManager`: `/cfg_a/b`, `/odo_a/b` и `/alc_a/b`, заголовок `BKCP`, version,
+  sequence, CRC32, выбор свежего слота, чередование записей и пропуск неизменённых
+  данных.
 - При повреждении одного слота используется второй; при повреждении обоих defaults
-  записываются в слот A. Одометр и общее число оборотов восстанавливаются при старте.
+  записываются в слот A. Одометр, общее число оборотов и ambient-калибровка
+  восстанавливаются при старте.
 - Serial при старте показывает mount status, source, sequence, version, recovery/
   defaults, migration и восстановленное значение одометра.
 - `OdometerSavePolicy`: независимые триггеры дистанции (`odometer_save_interval_m`),
   settle 30 с после `MOVING→PAUSED`, OLED off, deep sleep, `FORCE_SAVE`, critical
   battery ≤5% (однократно), USB disconnect и reboot; ошибка Flash не останавливает
   поездку. `AppController` пишет одометр и логирует trigger/result/sequence/counters.
+- **Device reboot**: команда `reboot` в Serial-консоли и BLE `CommandId::kReboot` —
+  сначала пытаются сохранить одометр (`OdometerSaveTrigger::kReboot`), затем ставят
+  отложенный флаг и выполняют системный reset через 250 мс
+  (`AppController::loop`, `reboot_pending_`/`reboot_requested_ms_`).
 - `storage_migration`: `migrateConfigV1ToV2` / `migrateOdometerV1ToV2` (identity stub
   при неизменном payload); `RecordHeader.version` = 2. При load запись v1
   мигрируется, перезаписывается как v2 (force write); будущая version отвергается.
@@ -58,15 +97,16 @@ encryption и 5-минутное pairing window синхронизированы
   `isr_overflow`, `flash_write_count` ← `StorageCounters::writes`,
   `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
   возвращается через `GET_DIAGNOSTIC`. Serial dump при старте;
-  `AppController::diagnosticSnapshot()`.
+  `AppController::diagnosticSnapshot()`. `StorageCounters` — RAM-only (см.
+  «Ограничения»).
 - BLE Э4.1–4.14: `BleManager` GATT + live Device Info на Read (uptime, flags,
   bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
   `boot_count` в `/boot_cnt`; live Telemetry notify (seq + adaptive 1 Гц /
   0.2 Гц Read refresh; sensor-test 5 Гц); Config Write pending queue +
   validation/apply + Config Read notify. Safe Command `0x01–0x0B`: strict parser,
   single-slot queue и выполнение в main loop (`RESET_TRIP/MAX`, `FORCE_SAVE`, OLED,
-  display/sensor/battery tests, diagnostics); корректные `Command Result` status,
-  `detail` и 16-byte payload; sensor-test завершается по timeout/disconnect.
+  display/sensor/battery tests, diagnostics, reboot); корректные `Command Result`
+  status, `detail` и 16-byte payload; sensor-test завершается по timeout/disconnect.
   ADV Flags + Service UUID, Scan Response name + Tx Power; fast 30 мс первые 30 с,
   slow 1000 мс, постоянная реклама по умолчанию либо stop через 5 минут; рестарт
   после disconnect/движения, runtime-применение имени и policy. Имя `BikeComp-XXXX` →
@@ -86,9 +126,15 @@ encryption и 5-минутное pairing window синхронизированы
   регистрируются I²C/Flash/config reject/pairing reject/ISR overflow/sensor stuck/
   watchdog/critical battery. Sensor-test использует нормативные Telemetry fields и
   принудительный интервал 200 мс; timeout, stop и disconnect завершают режим.
+  BLE Companion Sync: время и погода на OLED (protocol 1.1, характеристика `000B`) —
+  питает страницы `kWeatherClock`/`kWeatherRain`.
 - Неблокирующая USB Serial-консоль: `open-pairing`, `dump-config`, `reset-odo`,
-  `selftest`; CR/LF, ограничение длины и восстановление после переполнения проверены
-  native-тестами. `dump-config` возвращает читаемые поля и точный 48-byte wire payload.
+  `reboot`, `selftest`; CR/LF, ограничение длины и восстановление после переполнения
+  проверены native-тестами. `dump-config` возвращает читаемые поля и точный 48-byte
+  wire payload. Регрессионный протокол и host-runner: `tools/usb_regression.py`.
+
+### Мобильное приложение (Flutter)
+
 - `mobile-app`: Flutter 3.44.7, application ID `app.bikecomp.mobile`, minSdk 24,
   compileSdk/targetSdk 36; четыре Material 3 раздела и connecting overlay-route.
   Реализованы protocol v1 Freezed-модели/codecs, полный ConfigValidator,
@@ -108,14 +154,26 @@ encryption и 5-минутное pairing window синхронизированы
   Воспроизводимый Flutter/JDK/Android SDK/NDK/CMake toolchain лежит в игнорируемой
   `.tooling/` и разворачивается `tool/bootstrap-mobile.sh`.
 
+### ПК веб-компаньон
+
+- `web-app/` (см. [`docs/10-web-app.md`](docs/10-web-app.md)): локальное веб-приложение
+  для Chrome/Edge на ПК. Повторяет BLE-функции Flutter-компаньона (Web Bluetooth) и
+  добавляет USB CDC Serial-консоль для отладки (Web Serial) — не поддерживается в
+  Safari/Firefox/на мобильных браузерах, требует secure context (`https://` или
+  `http://localhost`).
+
 ## Проверки
 
-- `pio test -e native`: 83/83 тестов проходят, включая автояркость, Serial ambient/
-  display commands, advertising, safe/dangerous framing, shared fixtures, Config Write,
+- `pio test -e native`: **116/116** тестов проходят (прогнано 2026-08-10), включая
+  ambient auto-calibration, автояркость, weather-страницы, Serial ambient/display
+  commands, advertising, safe/dangerous framing, shared fixtures, Config Write,
   diagnostics и Serial parser.
-- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 448 Б, Flash 171 288 Б.
-- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 16 936 Б,
-  Flash 171 224 Б.
+- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 872 Б,
+  Flash 190 164 Б (прогнано 2026-08-10).
+- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 17 360 Б,
+  Flash 190 084 Б (прогнано 2026-08-10).
+- `./simulator/test.sh`: 6 групп проверок, **22 golden-кадра** (11 сценариев ×
+  128×32/128×64, включая `weather_clock`/`weather_rain`) — подтверждено 2026-08-10.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
   стабильно после SoftDevice init.
@@ -155,7 +213,6 @@ encryption и 5-минутное pairing window синхронизированы
   и немедленное пробуждение по импульсу кнопки D0.
 - На реальном OLED 128×32 подтверждены постоянная скорость, батарея справа сверху и
   автоматическая смена пяти нижних значений.
-- `./simulator/test.sh`: 6 групп проверок и 18 golden-кадров для 128×32/128×64.
 - Hardware smoke SSD1306 128×64 от 2026-07-31: primary firmware загружена на XIAO;
   Serial вернул `i2c_err=0`, `isr_ovf=0`, `selftest=0x3F`, `heap/16=12630`;
   крупная разметка и работа экрана подтверждены пользователем.
@@ -163,9 +220,10 @@ encryption и 5-минутное pairing window синхронизированы
   Без подключённого LDR три последовательных selftest дали `raw=0`, `valid=0`,
   `auto_pct=100`, `effective_pct=40`, `i2c_err=0`, `isr_ovf=0`,
   `selftest=0x3F`: аппаратный disconnected-sensor fallback подтверждён.
-- Serial gate tools 2026-08-01: `pio test -e native` 83/83; `tools/oled_gate_serial.py`
-  на XIAO подтвердил dim (30 с), off (60 с), wake; `tools/ldr_calibrate.py` — LDR
-  не обнаружен; `tools/android_gate.sh` — format/analyze/52 tests/release APK.
+- Serial gate tools 2026-08-01: `pio test -e native` (83/83 на тот момент);
+  `tools/oled_gate_serial.py` на XIAO подтвердил dim (30 с), off (60 с), wake;
+  `tools/ldr_calibrate.py` — LDR не обнаружен; `tools/android_gate.sh` —
+  format/analyze/52 tests/release APK.
 
 ## Ограничения
 
@@ -174,18 +232,34 @@ encryption и 5-минутное pairing window синхронизированы
   `LOW BATT`, test patterns, полный dim/off цикл и четыре фазы burn-in pixel shift.
 - LDR-делитель ещё не собран: raw dark/room/outdoor, итоговый резистор,
   плавность переходов, максимумы 10/60/100% и средний ток ≤20 мкА ждут
-  аппаратной проверки.
+  аппаратной проверки. Auto-calibration подстраивает пороги в рантайме и переживает
+  reboot, но не заменяет физическую сборку делителя и замер тока.
 - Штатные NPR-позиции делителя не используются; внешний делитель P0.31 подтверждён.
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
-  (чтобы не уничтожить обе копии `/odo_a|b`).
+  (чтобы не уничтожить обе копии `/odo_a|b`). Тот же долг применим к новым
+  `/alc_a|b` — power-loss там ещё не проверялся.
 - BLE: pairing enforcement и persistence собраны, но reboot/closed-window сценарии
   ещё не приняты на телефоне; лимит 4 bonds с LRU пока не реализован. Prototype
   override `BIKECOMP_OPEN_PAIRING=1` остаётся opt-in. Error Log Read/Notify и sensor
   test 5 Гц ждут BLE hardware DoD. Стандартные DIS/BAS (`0x180A`/`0x180F`) отложены;
-  приложение их не использует. `flash_write_count` RAM-only до персиста counters.
+  приложение их не использует. `flash_write_count` и остальные `StorageCounters`
+  RAM-only — сбрасываются при каждом reboot, серимализации/загрузки нет.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
-  `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — Watchdog ещё не init.
+  `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — watchdog нигде не
+  инициализируется и не кормится в прошивке (нет `NRF_WDT`/`nrf_wdt_*`); декодирование
+  `ResetReason::kWatchdog` и `ErrorLogCode::kWatchdogReset` уже реализованы и ждут WDT.
+- `Scheduler` не измеряет длительность выполнения задач: `ScheduledTask` хранит
+  только `run_count`, которое даже не выведено наружу (Serial/diagnostics/BLE).
+  Нет overrun-детекции и бюджета на задачу.
+- Нет BLE-индикатора на экране (Э2.7): `DisplaySnapshot`/`DisplayFrame` не содержат
+  поля состояния BLE, `display_layout.cpp` не рисует такой элемент, хотя
+  `BleManager::bleConnected()` уже доступен для чтения.
+- В production loop есть блокирующие участки: `delay()` до ~1000 мс в
+  low-power idle между задачами планировщика; синхронные flash-записи
+  (`InternalFsBackend::write` — remove+write+flush+close) выполняются прямо на
+  scheduler-пути при сохранении одометра/ambient-калибровки; несколько `delay(2)`
+  в диагностической `printGpioProbe()`, доступной из Serial-консоли.
 - Mobile hardware gate не завершён. Исправленный release APK установлен, и базовые
   discovery/connect подтверждены на реальном телефоне и XIAO. Нужны измерение поиска
   ≤5 с, 10/10 connect, bonding после reboot, write-then-verify пяти настроек, все
@@ -195,11 +269,19 @@ encryption и 5-минутное pairing window синхронизированы
   36; до будущего обновления Flutter нужно отслеживать Built-in Kotlin миграцию.
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
+- Zephyr-порт (`firmware-zephyr/`) не синхронизирован с этими изменениями: weather-
+  страницы, speed-gap guard/reboot, web-компаньон и ambient auto-calibration
+  реализованы только в Arduino-прошивке.
 
 ## Следующий шаг
 
-Собрать LDR-делитель, измерить raw dark/room/outdoor, выбрать резистор и загрузить
-production 128×64. Затем завершить OLED gate (`LOW BATT`, три test patterns,
-dim/off/wake, четыре фазы pixel shift, импульсы) и Android gate (поиск ≤5 с,
-10/10 подключений, bond/reconnect, пять write-then-verify и MVP-команды).
-Отдельный долг — 10× power-loss для Э3.5.
+Софтовые долги, готовые к реализации без стенда: watchdog (nRF52840 WDT, feed из
+главного цикла, выставление `kSelftestWatchdogOk`) вместе с инструментацией
+длительности задач `Scheduler` (Э2.1); BLE-индикатор на экране (Э2.7); персист
+`StorageCounters` между reboot; устранение блокирующих участков production loop.
+
+Параллельно — аппаратные долги: собрать LDR-делитель, измерить raw dark/room/outdoor,
+выбрать резистор и загрузить production 128×64; завершить OLED gate (`LOW BATT`, три
+test patterns, dim/off/wake, четыре фазы pixel shift, импульсы) и Android gate
+(поиск ≤5 с, 10/10 подключений, bond/reconnect, пять write-then-verify и
+MVP-команды); 10× power-loss для Э3.5 и для новых `/alc_a|b`.

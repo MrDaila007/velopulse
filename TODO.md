@@ -1,6 +1,6 @@
 # BikeComp — задачи
 
-Обновлено: 2026-08-01
+Обновлено: 2026-08-10
 
 ## Состояние этапов
 
@@ -19,14 +19,15 @@
 
 Э3.5 hardware DoD частично закрыт на XIAO (`/dev/ttyACM0`): odo A/B embedded,
 ненулевой odometer после 2 reboot, production восстановлена. Остаётся 10×
-power-loss вручную → M3. BLE Э4.1–4.14 программно выполнен: advertising, команды,
-nonce/TTL/binding, encryption и 5-минутное pairing window; 81/81 native, XIAO build
-и 52/52 Flutter tests проходят. Э4.13 Error Log/sensor-test
-и Э4.14 Serial-консоль выполнены; Serial проверен на XIAO (`dump-config`, `selftest`,
-`open-pairing`). Последняя аппаратно проверенная production загружена на XIAO.
-Подтверждённая lifecycle race
-старого scan transport устранена; Android UUID scan filter заменён локальным,
-Device Info/pairing/subscriptions упорядочены, link cleanup проверен тестами. Новый
+power-loss вручную → M3; тот же долг теперь применим и к новым A/B-слотам
+ambient-калибровки (`/alc_a|b`). BLE Э4.1–4.14 программно выполнен: advertising,
+команды, nonce/TTL/binding, encryption и 5-минутное pairing window; **116/116**
+native тестов, оба XIAO-профиля собираются, 52/52 Flutter tests проходят. Э4.13
+Error Log/sensor-test и Э4.14 Serial-консоль выполнены; Serial проверен на XIAO
+(`dump-config`, `selftest`, `open-pairing`). Последняя аппаратно проверенная
+production загружена на XIAO. Подтверждённая lifecycle race старого scan
+transport устранена; Android UUID scan filter заменён локальным, Device
+Info/pairing/subscriptions упорядочены, link cleanup проверен тестами. Новый
 release APK установлен: пользователь подтвердил discovery/connect и работу с реальным
 XIAO. Базовая интеграция с приложением достигнута. Дальше полный Android hardware
 gate. Э5 проходит fake/automatic gate, но остаётся незакрытым до полной аппаратной
@@ -36,24 +37,35 @@ gate. Э5 проходит fake/automatic gate, но остаётся незак
 подтверждена базовым hardware smoke (`selftest=0x3F`, `i2c_err=0`, пользовательская
 проверка интерфейса). Совместимый 128×32 сохраняет прежние пиксели. Добавлена защита
 от выгорания: default auto-off + четырёхфазный сдвиг всей разметки на один пиксель
-раз в минуту; native и simulator gate пройдены для обеих панелей.
-Автояркость завершила software gate: LDR manager, EMA/уровни/гистерезис, manual cap,
-invalid fallback, Serial diagnostics и Android UI/patterns реализованы. Production
-128×64 загружена; отсутствие LDR корректно даёт `raw=0`, `valid=0` и manual cap.
-Сборка делителя, калибровка и повторная загрузка constants остаются открыты.
+раз в минуту; native и simulator gate пройдены для обеих панелей. Карусель расширена
+weather-страницами (clock/rain, opt-in) поверх BLE Companion Sync.
+Автояркость завершила software и **добавила auto-calibration**: `AmbientLightCalibrator`
+подстраивает raw dark/bright границы по наблюдаемым выборкам в рантайме и
+персистит их (A/B-слоты, переживает deep sleep/reboot/USB disconnect) — ручное
+обновление constants в прошивке для этого больше не обязательно. Сборка LDR-делителя
+и физический замер тока остаются открытыми аппаратными пунктами.
+Дополнительно: `SpeedIntervalGuard` фильтрует аномально короткие импульсы до расчёта
+скорости; появилась команда device reboot (Serial + BLE); добавлен ПК веб-компаньон
+(`web-app/`, Web Bluetooth + Web Serial) как альтернатива Flutter-приложению для отладки с ПК.
 
 ## Порядок и зависимости
 
-1. Собрать LDR D2/D3, выбрать 10/22/47 кΩ по raw dark/room/outdoor, измерить ток,
-   обновить calibration constants и повторно загрузить production 128×64.
+1. Собрать LDR D2/D3, выбрать 10/22/47 кΩ по raw dark/room/outdoor, измерить
+   средний ток. Auto-calibration закрывает runtime-подбор порогов; резистор и ток
+   всё ещё требуют аппаратной проверки.
 2. Завершить расширенный OLED 128×64 gate: LOW BATT, три patterns, dim/off/wake,
    четыре фазы burn-in shift и pulse smoke.
-3. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss) и долги Hall/стенда.
+3. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss для `/odo_a|b` и `/alc_a|b`)
+   и долги Hall/стенда.
 4. BLE Э4.1–4.14 выполнены; завершить оставшийся hardware DoD Э4.
 5. Discovery/connect нового APK подтверждены; провести полный Android hardware gate.
 6. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
 7. После hardware gate Э5 начать Э6.
 8. Выполнить soak, power и field tests Э7, затем собрать v1.0.
+9. Софтовые firmware-долги без стенда (см. [Firmware](tasks/firmware/README.md)):
+   watchdog + инструментация таймингов `Scheduler` (Э2.1), BLE-индикатор на
+   экране (Э2.7), персист `StorageCounters` между reboot, устранение блокирующих
+   участков production loop.
 
 ## Папки задач
 

@@ -17,9 +17,9 @@ The firmware provides wheel-pulse processing, trip metrics, redundant storage,
 complete BLE protocol v1, and compile-time OLED profiles for SSD1306 128×64 and
 128×32. The Flutter Android MVP scans, pairs, synchronizes, and displays live data.
 
-- Native domain tests: 78 passing.
+- Native domain tests: 116 passing.
 - Both nRF52840 OLED profiles build successfully; 128×32 is hardware-verified.
-- The simulator verifies 18 pixel-golden frames across both display geometries.
+- The simulator verifies 22 pixel-golden frames across both display geometries.
 - Storage fallback and reboot recovery are verified on a XIAO-compatible board.
 - Android discovery/connect is verified with real firmware; the full hardware gate remains.
 
