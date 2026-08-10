@@ -14,6 +14,13 @@ SELFTEST_RE = re.compile(r"selftest=0x([0-9A-Fa-f]+)")
 DISPLAY_STATE_RE = re.compile(r"Display: power=(bright|dim|off)")
 DISPLAY_TIMEOUT_RE = re.compile(r"display_timeout_s=(\d+)")
 
+# firmware/lib/domain/diagnostics.h bits this gate cares about: display,
+# hall pin, ADC, filesystem, config, BLE (0x01|0x02|0x04|0x08|0x10|0x20).
+# kSelftestWatchdogOk (bit 6) is intentionally excluded: a healthy device
+# built with BIKECOMP_FEATURE_WATCHDOG=0 never sets it, so requiring it here
+# would fail gate runs against that build without indicating a real fault.
+SELFTEST_REQUIRED_MASK = 0x3F
+
 
 def read_display_state(port) -> str | None:
     output = send_command(port, "display-state", wait_s=0.8)
@@ -43,8 +50,11 @@ def main() -> int:
             failures.append("selftest mask missing from Serial output")
         else:
             mask = int(selftest_match.group(1), 16)
-            if mask != 0x3F:
-                failures.append(f"selftest mask 0x{mask:02X} != 0x3F")
+            if mask & SELFTEST_REQUIRED_MASK != SELFTEST_REQUIRED_MASK:
+                failures.append(
+                    f"selftest mask 0x{mask:02X} missing required bits "
+                    f"(need 0x{SELFTEST_REQUIRED_MASK:02X})"
+                )
         if "i2c_err=0" not in selftest_out:
             failures.append("i2c_err != 0")
         if "isr_ovf=0" not in selftest_out:
