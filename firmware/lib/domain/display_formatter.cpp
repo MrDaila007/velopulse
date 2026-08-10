@@ -55,6 +55,7 @@ DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot,
                                       DisplayPage page,
                                       bool low_battery_warning) {
   DisplayFrame frame;
+  frame.ble_connected = snapshot.ble_connected;
   const TripSnapshot& trip = snapshot.trip;
   snprintf(frame.speed, sizeof(frame.speed), "%u.%u", trip.speed_x100 / 100u,
            (trip.speed_x100 % 100u) / 10u);

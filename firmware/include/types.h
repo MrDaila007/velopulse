@@ -56,6 +56,7 @@ struct DisplaySnapshot {
   char companion_weather_rain[8] = {};
   bool companion_weather_valid = false;
   bool companion_weather_stale = false;
+  bool ble_connected = false;
 };
 
 struct DisplayFrame {
@@ -69,6 +70,7 @@ struct DisplayFrame {
   char battery_percent[5] = {};
   uint8_t battery_fill_width = 0;
   bool low_battery_warning = false;
+  bool ble_connected = false;
 };
 
 }  // namespace bike
