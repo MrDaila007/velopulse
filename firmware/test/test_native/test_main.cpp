@@ -1151,6 +1151,113 @@ void test_scheduler_period_and_wrap() {
   TEST_ASSERT_EQUAL_UINT32(2u, callback_count);
 }
 
+void test_scheduler_next_due_ms_wrap_safe_picks_soonest_task() {
+  // "soon" is due in 5ms, "far" is due in ~2^31 ms (the theoretical max
+  // distance isDue() treats as "not due yet"). The old implementation
+  // compared raw next_due_ms values and would return "far" here because
+  // 0x7FFFFFF0 < 0xFFFFFFF5, understating urgency by roughly 2^31 ms.
+  ScheduledTask tasks[] = {
+      {"soon", 1000, 0xFFFFFFF5u, countTask, nullptr, 0},
+      {"far", 1000, 0x7FFFFFF0u, countTask, nullptr, 0},
+  };
+  Scheduler scheduler(tasks, 2);
+  TEST_ASSERT_EQUAL_UINT32(0xFFFFFFF5u, scheduler.nextDueMs(0xFFFFFFF0u));
+}
+
+namespace {
+void busyTask(void*, uint32_t) {}
+}  // namespace
+
+namespace {
+uint32_t stepping_micros_value = 0;
+uint32_t stepping_micros_step = 0;
+uint32_t steppingMicros() {
+  const uint32_t value = stepping_micros_value;
+  stepping_micros_value += stepping_micros_step;
+  return value;
+}
+}  // namespace
+
+void test_scheduler_max_duration_holds_peak_across_runs() {
+  ScheduledTask task{"work", 10, 0, busyTask, nullptr, 0};
+  Scheduler scheduler(&task, 1, steppingMicros);
+
+  stepping_micros_value = 0;
+  stepping_micros_step = 200;  // each run() call measures 200us
+  scheduler.run(0);
+  TEST_ASSERT_EQUAL_UINT32(200u, task.last_duration_us);
+  TEST_ASSERT_EQUAL_UINT32(200u, task.max_duration_us);
+
+  stepping_micros_step = 50;  // a faster run should not lower the peak
+  scheduler.run(10);
+  TEST_ASSERT_EQUAL_UINT32(50u, task.last_duration_us);
+  TEST_ASSERT_EQUAL_UINT32(200u, task.max_duration_us);
+
+  stepping_micros_step = 900;  // a new peak should replace the old one
+  scheduler.run(20);
+  TEST_ASSERT_EQUAL_UINT32(900u, task.last_duration_us);
+  TEST_ASSERT_EQUAL_UINT32(900u, task.max_duration_us);
+}
+
+void test_scheduler_overrun_only_when_budget_exceeded() {
+  ScheduledTask task{"work", 10, 0, busyTask, nullptr, 0};
+  task.budget_us = 500;
+  Scheduler scheduler(&task, 1, steppingMicros);
+
+  stepping_micros_value = 0;
+  stepping_micros_step = 400;  // under budget
+  scheduler.run(0);
+  TEST_ASSERT_EQUAL_UINT32(0u, task.overrun_count);
+
+  stepping_micros_step = 500;  // exactly at budget: not an overrun
+  scheduler.run(10);
+  TEST_ASSERT_EQUAL_UINT32(0u, task.overrun_count);
+
+  stepping_micros_step = 501;  // over budget
+  scheduler.run(20);
+  TEST_ASSERT_EQUAL_UINT32(1u, task.overrun_count);
+
+  stepping_micros_step = 900;  // over budget again
+  scheduler.run(30);
+  TEST_ASSERT_EQUAL_UINT32(2u, task.overrun_count);
+}
+
+void test_scheduler_budget_zero_never_overruns() {
+  ScheduledTask task{"work", 10, 0, busyTask, nullptr, 0};
+  task.budget_us = 0;  // no budget enforced
+  Scheduler scheduler(&task, 1, steppingMicros);
+
+  stepping_micros_value = 0;
+  stepping_micros_step = 1000000;  // absurdly slow, but no budget to exceed
+  scheduler.run(0);
+  TEST_ASSERT_EQUAL_UINT32(0u, task.overrun_count);
+}
+
+void test_scheduler_no_micros_fn_leaves_duration_fields_zero() {
+  ScheduledTask task{"work", 10, 0, busyTask, nullptr, 0};
+  task.budget_us = 1;  // would overrun immediately if duration were measured
+  Scheduler scheduler(&task, 1);  // no MicrosFn supplied
+
+  scheduler.run(0);
+  TEST_ASSERT_EQUAL_UINT32(1u, task.run_count);
+  TEST_ASSERT_EQUAL_UINT32(0u, task.last_duration_us);
+  TEST_ASSERT_EQUAL_UINT32(0u, task.max_duration_us);
+  TEST_ASSERT_EQUAL_UINT32(0u, task.overrun_count);
+}
+
+void test_scheduler_duration_wraps_safely_across_micros_rollover() {
+  ScheduledTask task{"work", 10, 0, busyTask, nullptr, 0};
+  Scheduler scheduler(&task, 1, steppingMicros);
+
+  // Start just before a uint32 micros() rollover; the callback "takes" 100us
+  // and the clock wraps from 0xFFFFFFF0 past 0 to 0x00000054.
+  stepping_micros_value = 0xFFFFFFF0u;
+  stepping_micros_step = 100;
+  scheduler.run(0);
+  TEST_ASSERT_EQUAL_UINT32(100u, task.last_duration_us);
+  TEST_ASSERT_EQUAL_UINT32(100u, task.max_duration_us);
+}
+
 
 void test_page_carousel_default_period_and_wrap() {
   DeviceConfig config;
@@ -2968,6 +3075,12 @@ int main(int, char**) {
   RUN_TEST(test_trip_restore_snapshot_reverts_session);
   RUN_TEST(test_ride_state_transitions_and_paused_time);
   RUN_TEST(test_scheduler_period_and_wrap);
+  RUN_TEST(test_scheduler_next_due_ms_wrap_safe_picks_soonest_task);
+  RUN_TEST(test_scheduler_max_duration_holds_peak_across_runs);
+  RUN_TEST(test_scheduler_overrun_only_when_budget_exceeded);
+  RUN_TEST(test_scheduler_budget_zero_never_overruns);
+  RUN_TEST(test_scheduler_no_micros_fn_leaves_duration_fields_zero);
+  RUN_TEST(test_scheduler_duration_wraps_safely_across_micros_rollover);
   RUN_TEST(test_serial_console_parses_supported_commands_and_crlf);
   RUN_TEST(test_serial_console_trims_rejects_and_recovers_after_overflow);
   RUN_TEST(test_serial_console_parses_status_command);
