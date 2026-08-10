@@ -3,5 +3,8 @@
 /build-test-domain/
 /twister-out/
 /.west/
+/.venv/
+/.env
+/.cache/
 __pycache__/
 *.pyc

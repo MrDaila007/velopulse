@@ -2,9 +2,12 @@
 # Flash BikeComp Zephyr firmware via Adafruit nRF52 serial DFU (PIO upload_protocol=nrfutil).
 set -euo pipefail
 
-export PATH="${HOME}/.local/bin:/data/zephyrproject-v4.4/.venv/bin:${PATH}"
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck source=env.sh
+source "${ROOT}/scripts/env.sh"
+bikecomp_load_env
+
 BUILD_DIR="${BUILD_DIR:-${ROOT}/build}"
 HEX="${BUILD_DIR}/zephyr/zephyr.hex"
 

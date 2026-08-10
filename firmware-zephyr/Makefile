@@ -9,7 +9,7 @@
 #   make bootstrap    # west init/update in repo (optional)
 
 SHELL := /bin/bash
-.PHONY: all build clean rebuild bootstrap uf2 hex upload flash monitor test help native-test
+.PHONY: all build clean rebuild bootstrap env env-show uf2 hex upload flash monitor test help native-test
 
 ROOT        := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 REPO_ROOT   := $(abspath $(ROOT)/..)
@@ -18,18 +18,11 @@ BUILD_DIR   ?= $(ROOT)/build
 BOARD       ?= xiao_ble/nrf52840
 OVERLAY     ?= $(ROOT)/app/boards/super_nrf52840.overlay
 
-# Toolchain / Zephyr (override on command line or in environment).
-ZEPHYR_SDK_INSTALL_DIR ?= /data/zephyr-sdk-1.0.0
-ZEPHYR_BASE            ?= /data/zephyrproject-v4.4/zephyr
-U8G2_ROOT              ?= /data/zephyrproject-v4.4/modules/u8g2
-WEST_TOP               ?= /data/zephyrproject-v4.4
-
 UF2  := $(BUILD_DIR)/zephyr/zephyr.uf2
 HEX  := $(BUILD_DIR)/zephyr/zephyr.hex
 ELF  := $(BUILD_DIR)/zephyr/zephyr.elf
 
-export PATH := /data/zephyrproject-v4.4/.venv/bin:$(HOME)/.local/bin:$(PATH)
-export ZEPHYR_SDK_INSTALL_DIR ZEPHYR_BASE U8G2_ROOT WEST_TOP BOARD BUILD_DIR OVERLAY
+export BOARD BUILD_DIR OVERLAY
 
 all: build
 
@@ -44,6 +37,12 @@ rebuild: clean build
 
 bootstrap:
 	@$(SCRIPTS)/bootstrap.sh
+
+env:
+	@$(SCRIPTS)/configure-env.sh
+
+env-show:
+	@$(SCRIPTS)/configure-env.sh --check
 
 uf2: build
 	@test -f "$(UF2)" || (echo "Missing $(UF2)" >&2; exit 1)
@@ -84,15 +83,14 @@ help:
 	@echo "  make flash       Alias for upload"
 	@echo "  make monitor     Open serial console (115200)"
 	@echo "  make test        Run ztest domain suite (host unittest)"
+	@echo "  make env         Discover paths and write ignored .env"
+	@echo "  make env-show    Validate and print the resolved environment"
 	@echo "  make bootstrap   Run west bootstrap in repo"
 	@echo "  make native-test Run shared domain tests (pio -e native)"
 	@echo ""
-	@echo "Variables (override: make build BOARD=...):"
+	@echo "Variables (override in .env, shell, or make build VAR=...):"
 	@echo "  BOARD=$(BOARD)"
 	@echo "  BUILD_DIR=$(BUILD_DIR)"
-	@echo "  ZEPHYR_SDK_INSTALL_DIR=$(ZEPHYR_SDK_INSTALL_DIR)"
-	@echo "  ZEPHYR_BASE=$(ZEPHYR_BASE)"
-	@echo "  U8G2_ROOT=$(U8G2_ROOT)"
-	@echo "  WEST_TOP=$(WEST_TOP)"
+	@echo "  ZEPHYR_BASE / ZEPHYR_SDK_INSTALL_DIR / WEST_TOP / U8G2_ROOT"
 	@echo ""
 	@echo "Artifacts: $(UF2)"

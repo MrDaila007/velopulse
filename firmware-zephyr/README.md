@@ -25,10 +25,13 @@ Super-nRF52840. Цель — довести функциональность д�
 
 ## Быстрый старт
 
-Требования: Python 3.10+, CMake, Ninja, Zephyr SDK (`ZEPHYR_SDK_INSTALL_DIR`).
+Требования: Python 3.12+, CMake, Ninja и Zephyr SDK. Zephyr 4.4 и остальные
+локальные пути можно обнаружить автоматически:
 
 ```bash
 cd firmware-zephyr
+make env              # найти установки и записать игнорируемый .env
+make env-show         # проверить, какие пути будут использованы
 make                  # или ./scripts/build.sh
 make upload           # прошивка по USB serial (как pio run -t upload)
 make monitor          # serial console 115200
@@ -51,15 +54,23 @@ UPLOAD_PORT=/dev/ttyACM0 make upload-nobuild   # без пересборки
 ```bash
 BOARD=xiao_ble/nrf52840/sense ./scripts/build.sh
 BUILD_DIR=/tmp/bikecomp-zephyr-build ./scripts/build.sh
+BIKECOMP_SEARCH_ROOTS=/mnt/dev:/opt make env
 ```
+
+`.env` содержит абсолютные пути только текущей машины и не попадает в Git;
+структура файла приведена в [`.env.example`](.env.example). Значения из shell или
+командной строки имеют приоритет. Без `.env` скрипты сначала проверяют стандартные
+места, затем ищут маркеры Zephyr, SDK и U8g2 внутри `HOME`, `/opt` и `/data`
+(глубина ограничена). Корни поиска задаются colon-separated переменной
+`BIKECOMP_SEARCH_ROOTS`; поиск можно отключить через `BIKECOMP_AUTO_DISCOVER=0`.
 
 ## Тесты
 
 Доменная логика проверяется двумя путями:
 
 ```bash
-cd firmware && pio test -e native          # Unity, 90 тестов (полное покрытие domain)
-cd firmware-zephyr && make test            # ztest unittest, 17 сценариев (Twister)
+cd firmware && pio test -e native          # Unity, 127 тестов (полное покрытие domain)
+cd firmware-zephyr && make test            # ztest unittest, 29 сценариев (Twister)
 ```
 
 `make test` запускает `west twister` на `tests/domain/` (host `unit_testing`, без SDK).
@@ -73,6 +84,8 @@ firmware-zephyr/
 ├── west.yml
 ├── scripts/
 │   ├── bootstrap.sh
+│   ├── configure-env.sh
+│   ├── env.sh
 │   ├── build.sh
 │   ├── upload.sh
 │   ├── serial_upload.py
