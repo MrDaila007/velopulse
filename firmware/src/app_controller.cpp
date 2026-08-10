@@ -1243,6 +1243,24 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         Serial.println("OK sched");
         break;
 
+      case SerialCommand::kWdtHang:
+        if (!kWatchdogEnabled) {
+          Serial.println("ERROR wdt-hang watchdog-disabled");
+          break;
+        }
+        // Deliberately wedges loop() to verify the watchdog actually
+        // resets a hung device. Nothing after this line runs again until
+        // the WDT timeout fires; the SoftDevice/BLE task keeps running
+        // independently, so this specifically exercises the loop()-task
+        // starvation case the feed-from-loop() placement is meant to catch.
+        Serial.print("WARN wdt-hang: spinning, expect reset in ~");
+        Serial.print(BIKECOMP_WDT_TIMEOUT_MS);
+        Serial.println("ms");
+        Serial.flush();
+        while (true) {
+        }
+        break;
+
       case SerialCommand::kTestOn:
         enterUsbTestMode(now_ms);
         Serial.println("OK test-on");
