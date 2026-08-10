@@ -55,13 +55,14 @@ void tearDown() {}
 void test_serial_console_parses_supported_commands_and_crlf() {
   SerialCommandParser parser;
   const char* commands =
-      "open-pairing\r\ndump-config\nreset-odo\rreboot\nselftest\n";
+      "open-pairing\r\ndump-config\nreset-odo\rreboot\nselftest\nsched\n";
   const SerialCommand expected[] = {
       SerialCommand::kOpenPairing,
       SerialCommand::kDumpConfig,
       SerialCommand::kResetOdometer,
       SerialCommand::kReboot,
       SerialCommand::kSelftest,
+      SerialCommand::kSchedStats,
   };
   size_t found = 0;
   for (size_t i = 0; commands[i] != '\0'; ++i) {

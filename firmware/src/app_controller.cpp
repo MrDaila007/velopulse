@@ -56,6 +56,24 @@ constexpr size_t kTaskBattery = 3;
 constexpr size_t kTaskDisplay = 4;
 constexpr size_t kTaskBle = 5;
 
+// Scheduler::run() overrun budgets, in microseconds. These are diagnostic
+// thresholds surfaced via the "sched" Serial command, not enforced limits —
+// the watchdog is what actually protects against a wedged loop. A typical
+// internal-flash page erase is ~85ms (InternalFsBackend::write), and
+// updateState/updateAmbient/updateDisplay/updateBattery can each trigger one
+// via maybePersistOdometer/maybePersistAmbientCalibration, so their budgets
+// carry generous headroom above a single erase rather than the sub-ms cost of
+// their non-flash work. updateBle additionally covers a dangerous-command
+// factory reset, which can chain up to three flash writes back to back.
+constexpr uint32_t kSchedPulsesBudgetUs = 2000u;      // ISR ring drain only.
+constexpr uint32_t kSchedStateBudgetUs = 150000u;     // trip calc + 1 flash write.
+constexpr uint32_t kSchedAmbientBudgetUs = 150000u;   // ADC avg + 1 flash write.
+constexpr uint32_t kSchedBatteryBudgetUs = 150000u;   // ADC read + 1 flash write.
+constexpr uint32_t kSchedDisplayBudgetUs = 150000u;   // I2C sendBuffer + 1 flash write.
+constexpr uint32_t kSchedBleBudgetUs = 300000u;       // up to 3 chained flash writes.
+
+uint32_t schedulerMicros() { return static_cast<uint32_t>(micros()); }
+
 int interruptMode(uint8_t active_edge) {
   if (active_edge == 1) return RISING;
   if (active_edge == 2) return CHANGE;
@@ -110,13 +128,13 @@ AppController::AppController()
                                       config_.debounce_ms,
                                       500}),
       ride_state_(static_cast<uint32_t>(config_.stop_timeout_s) * 1000u),
-      tasks_{{"pulses", 0, 0, pulseTask, this, 0},
-             {"state", 100, 0, stateTask, this, 0},
-             {"ambient", 10, 0, ambientTask, this, 0},
-             {"battery", 1000, 0, batteryTask, this, 0},
-             {"display", 50, 0, displayTask, this, 0},
-             {"ble", 100, 0, bleTask, this, 0}},
-      scheduler_(tasks_, 6) {}
+      tasks_{{"pulses", 0, 0, pulseTask, this, 0, kSchedPulsesBudgetUs},
+             {"state", 100, 0, stateTask, this, 0, kSchedStateBudgetUs},
+             {"ambient", 10, 0, ambientTask, this, 0, kSchedAmbientBudgetUs},
+             {"battery", 1000, 0, batteryTask, this, 0, kSchedBatteryBudgetUs},
+             {"display", 50, 0, displayTask, this, 0, kSchedDisplayBudgetUs},
+             {"ble", 100, 0, bleTask, this, 0, kSchedBleBudgetUs}},
+      scheduler_(tasks_, 6, schedulerMicros) {}
 
 void AppController::begin() {
   Serial.begin(115200);
@@ -693,6 +711,23 @@ void AppController::printPowerStatus() const {
   Serial.println(power_manager_.lowPowerIdleEntryCount());
 }
 
+void AppController::printSchedulerStats() const {
+  for (const ScheduledTask& task : tasks_) {
+    Serial.print("Sched: name=");
+    Serial.print(task.name);
+    Serial.print(" runs=");
+    Serial.print(task.run_count);
+    Serial.print(" last_us=");
+    Serial.print(task.last_duration_us);
+    Serial.print(" max_us=");
+    Serial.print(task.max_duration_us);
+    Serial.print(" budget_us=");
+    Serial.print(task.budget_us);
+    Serial.print(" overruns=");
+    Serial.println(task.overrun_count);
+  }
+}
+
 void AppController::printStatus() {
   const TripSnapshot trip = trip_computer_.snapshot();
   const BatterySnapshot battery = battery_.snapshot();
@@ -1169,6 +1204,11 @@ void AppController::processSerialConsole(uint32_t now_ms) {
       case SerialCommand::kStatus:
         printStatus();
         Serial.println("OK status");
+        break;
+
+      case SerialCommand::kSchedStats:
+        printSchedulerStats();
+        Serial.println("OK sched");
         break;
 
       case SerialCommand::kTestOn:

@@ -31,6 +31,7 @@ enum class SerialCommand : uint8_t {
   kGpioStop,
   kPowerStatus,
   kStatus,
+  kSchedStats,
   kTestOn,
   kTestOff,
   kUnknown,

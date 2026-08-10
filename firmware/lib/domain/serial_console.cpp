@@ -43,6 +43,7 @@ SerialCommand parseCommand(const char* value, size_t length) {
       {"gpio-stop", 9, SerialCommand::kGpioStop},
       {"power-status", 12, SerialCommand::kPowerStatus},
       {"status", 6, SerialCommand::kStatus},
+      {"sched", 5, SerialCommand::kSchedStats},
       {"test-on", 7, SerialCommand::kTestOn},
       {"test-off", 8, SerialCommand::kTestOff},
   };

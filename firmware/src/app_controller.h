@@ -80,6 +80,7 @@ class AppController {
                                 uint32_t now_ms);
   void tryEnterDeepSleep(uint32_t now_ms);
   void printPowerStatus() const;
+  void printSchedulerStats() const;
   void printStatus();
   void processUsbTestLine(const char* line, uint32_t now_ms);
   void resetUsbTestSession(uint32_t now_ms);
