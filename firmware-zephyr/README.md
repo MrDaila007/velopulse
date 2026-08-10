@@ -11,14 +11,14 @@ Super-nRF52840. Цель — довести функциональность д�
 | Domain (`firmware/lib/domain`) | ✓ | ✓ | Общий код, 29 модулей |
 | Scheduler / AppController | ✓ | ✓ | Портирован |
 | Wheel sensor (GPIO ISR) | ✓ | ✓ | Two-wire D0 drive + D1 sense |
-| Storage A/B + CRC | ✓ | ✓ | LittleFS на выделенной партиции |
+| Storage A/B + CRC | ✓ | ✓ | LittleFS 24 KiB; BLE settings NVS 8 KiB |
 | Battery ADC | ✓ | ✓ | SAADC P0.31 |
 | Ambient LDR | ✓ | ✓ | D3/P0.29 power + A2/P0.28 ADC |
 | USB Serial console | ✓ | ✓ | CDC RX + hall/gpio commands |
 | Board LEDs | ✓ | ✓ | RGB/charge suppress, status LED hook |
 | VBUS detect | ✓ | ✓ | `usbPresent()` via USBREG |
 | OLED SSD1306 | ✓ | ✓ | u8g2 + shared `display_layout` |
-| BLE GATT (Э4) | ✓ | заглушка | `CONFIG_BT` выключен; см. `docs/08-zephyr-migration.md` |
+| BLE GATT (Э4) | ✓ | код готов | pairing/config restore требуют hardware gate |
 
 Подробный план, матрица паритета и порядок портирования — в
 [`docs/08-zephyr-migration.md`](../docs/08-zephyr-migration.md).
@@ -43,6 +43,10 @@ make monitor          # serial console 115200
 - **Serial (рекомендуется):** `make upload` — adafruit-nrfutil по USB, без drag-and-drop UF2.
   Нужен пакет PIO `tool-adafruit-nrfutil` или переменная `ADAFRUIT_NRFUTIL`.
 - **UF2 вручную:** `build/zephyr/zephyr.uf2` (двойной Reset → копирование на диск `XIAO BLE`).
+
+После обновления со старой Zephyr-разметки первый запуск переформатирует бывший
+общий storage в отдельные NVS и LittleFS. Старые Zephyr bonds/config будут удалены;
+после нового pairing конфигурацию следует восстановить из мобильного бэкапа.
 
 ```bash
 UPLOAD_PORT=/dev/ttyACM0 make upload-nobuild   # без пересборки

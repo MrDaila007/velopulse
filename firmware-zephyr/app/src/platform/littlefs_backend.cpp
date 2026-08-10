@@ -16,7 +16,7 @@ static struct fs_mount_t bikecomp_mount = {
     .type = FS_LITTLEFS,
     .mnt_point = "/bikecomp",
     .fs_data = &bikecomp_storage,
-    .storage_dev = (void*)FIXED_PARTITION_ID(storage_partition),
+    .storage_dev = (void*)FIXED_PARTITION_ID(bikecomp_partition),
 };
 
 constexpr char kMountPoint[] = "/bikecomp";

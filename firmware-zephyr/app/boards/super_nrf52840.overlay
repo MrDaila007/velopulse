@@ -8,6 +8,10 @@
 #include <zephyr/dt-bindings/i2c/i2c.h>
 
 / {
+	chosen {
+		zephyr,settings-partition = &storage_partition;
+	};
+
 	aliases {
 		hall-sensor = &hall_gpio;
 		hall-drive = &hall_drive_gpio;
@@ -48,13 +52,28 @@
 		bikecomp_lfs: bikecomp-lfs {
 			compatible = "zephyr,fstab,littlefs";
 			mount-point = "/bikecomp";
-			partition = <&storage_partition>;
+			partition = <&bikecomp_partition>;
 			automount;
 			read-size = <16>;
 			prog-size = <16>;
 			cache-size = <64>;
 			lookahead-size = <32>;
 			block-cycles = <512>;
+		};
+	};
+};
+
+/* Reserve two 4 KiB sectors for Bluetooth/settings NVS. */
+&storage_partition {
+	label = "Settings";
+	reg = <0x000ec000 0x00002000>;
+};
+
+&flash0 {
+	partitions {
+		bikecomp_partition: partition@ee000 {
+			label = "bikecomp_lfs";
+			reg = <0x000ee000 0x00006000>;
 		};
 	};
 };

@@ -171,7 +171,8 @@ bool connectionBonded(struct bt_conn* conn) {
   if (bt_conn_get_info(conn, &info) != 0) {
     return false;
   }
-  return info.security.level > BT_SECURITY_L1;
+  return info.type == BT_CONN_TYPE_LE && info.le.dst != nullptr &&
+         bt_le_bond_exists(info.id, info.le.dst);
 }
 
 bool connectionTrusted(struct bt_conn* conn) {
@@ -182,7 +183,7 @@ bool connectionTrusted(struct bt_conn* conn) {
   if (bt_conn_get_info(conn, &info) != 0) {
     return false;
   }
-  return info.security.level >= BT_SECURITY_L2;
+  return connectionBonded(conn) && info.security.level >= BT_SECURITY_L2;
 }
 
 uint32_t generateHardwareNonce() {
@@ -564,9 +565,7 @@ void disconnected(struct bt_conn* conn, uint8_t reason) {
   safeCommandQueueFinish(g_pending_safe_command);
   dangerousCommandQueueFinish(g_pending_dangerous_command);
   invalidateDangerousCommandSession(g_dangerous_command_session);
-  if (g_pairing_allowed_conn_binding == connHandle(conn)) {
-    g_pairing_allowed_conn_binding = kInvalidConnBinding;
-  }
+  g_pairing_allowed_conn_binding = kInvalidConnBinding;
   g_advertising_restart_pending = true;
 }
 
@@ -574,6 +573,23 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
     .connected = connected,
     .disconnected = disconnected,
 };
+
+enum bt_security_err authPairingAccept(
+    struct bt_conn* conn,
+    const struct bt_conn_pairing_feat* const feat) {
+  (void)feat;
+  const uint16_t binding = connHandle(conn);
+  if (shouldRejectPairingRequest(g_pairing_window_started_ms, millis(),
+                                 g_pairing_window_ms, g_open_pairing_always,
+                                 connectionBonded(conn))) {
+    g_pairing_allowed_conn_binding = kInvalidConnBinding;
+    stageErrorLog(ErrorLogCode::kPairingRejected, ErrorLogSeverity::kWarn,
+                  binding, millis());
+    return BT_SECURITY_ERR_PAIR_NOT_ALLOWED;
+  }
+  g_pairing_allowed_conn_binding = binding;
+  return BT_SECURITY_ERR_SUCCESS;
+}
 
 void authPairingConfirm(struct bt_conn* conn) {
   const uint16_t binding = connHandle(conn);
@@ -607,6 +623,7 @@ void pairingComplete(struct bt_conn* conn, bool bonded) {
 }
 
 static struct bt_conn_auth_cb auth_cb = {
+    .pairing_accept = authPairingAccept,
     .cancel = authCancel,
     .pairing_confirm = authPairingConfirm,
 };

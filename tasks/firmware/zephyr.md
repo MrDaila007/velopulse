@@ -55,7 +55,9 @@ BLE-контракта (`protocol/`) и паритета с `STATUS.md` (Э4, 20
 - [x] Z3.3 Device Info live Read, Telemetry notify 1 Гц / 0.2 Гц.
 - [x] Z3.4 Config Write queue + validation + apply.
 - [x] Z3.5 Safe commands 0x01–0x0B, Dangerous 0x20–0x40 + nonce/TTL.
-- [x] Z3.6 LESC pairing, bonding (`bt_settings`), 5-min window.
+- [x] Z3.6 LESC pairing, bonding (`bt_settings`), 5-min window. Исправлено
+  синхронное `pairing_accept` для `SC_PAIR_ONLY`; новый разрешённый bond больше
+  не удаляется в `pairing_complete`.
 - [x] Z3.7 Error Log ring, sensor-test 5 Гц.
 - [x] Z3.8 Protocol fixture parity (`protocol/fixtures/*`) — ztest `test_commands.cpp`.
 - [ ] Z3.9 Android hardware gate (reuse Э5 checklist) — **ручной** после прошивки XIAO.
@@ -66,7 +68,7 @@ BLE-контракта (`protocol/`) и паритета с `STATUS.md` (Э4, 20
 ### Z4 — Приёмка
 
 - [x] Z4.1 `pio test -e native` без регрессий (domain общий).
-- [x] Z4.1b ztest domain suite (`firmware-zephyr/tests/domain`, `make test`) — 20 кейсов.
+- [x] Z4.1b ztest domain suite (`firmware-zephyr/tests/domain`, `make test`) — 29 кейсов.
 - [x] Z4.2 Zephyr CI job (`west build` + artifact `zephyr.hex`).
 - [x] Z4.3 Parity checklist vs Arduino production build (таблица ниже).
 - [x] Z4.4 Документация `docs/03-firmware-architecture.md` — секция Zephyr.
@@ -85,7 +87,7 @@ BLE-контракта (`protocol/`) и паритета с `STATUS.md` (Э4, 20
 | Bond store + `clear bonds` | ✓ | ✓ (`bt_settings`) |
 | Error log notify | ✓ | ✓ |
 | Sensor test 5 Hz | ✓ | ✓ |
-| Mobile backup/restore (миграция) | n/a | ✓ (app maintenance) |
+| Mobile backup/restore (миграция) | n/a | code fixed; **pending bench** |
 | Android HW gate Э5 | ✓ | **pending bench** |
 
 ## DoD миграции
@@ -145,6 +147,20 @@ Z4.3 выше устарел. Zephyr сейчас на уровне «после
 экспонирует то же число характеристик, что Arduino; `west build` + `twister`
 проходят с новыми модулями; таблицы паритета в разделе 4 и `docs/08-zephyr-migration.md`
 отражают фактическое состояние кода, а не состояние на момент Z4.
+
+### Z6 — P0 pairing/storage remediation (2026-08-10)
+
+- [x] Z6.1 Включить `CONFIG_BT_SMP_APP_PAIRING_ACCEPT` и принимать SMP только
+  для открытого pairing window или уже bonded peer.
+- [x] Z6.2 Проверять настоящий bond через `bt_le_bond_exists`, а не считать
+  любой encrypted link bonded.
+- [x] Z6.3 Разделить прежний `storage_partition`: settings NVS 8 KiB
+  (`0xEC000..0xEDFFF`) и BikeComp LittleFS 24 KiB (`0xEE000..0xF3FFF`).
+- [x] Z6.4 Ограничить NVS двумя секторами и разрешить безопасную инициализацию
+  старой/невалидной области после обновления разметки.
+- [x] Z6.5 Clean `west build`, Twister 29/29 и native Unity 127/127.
+- [ ] Z6.6 Hardware gate: clean/upgrade flash → pairing → restore backup config
+  и odometer → reboot → reconnect → verify Config Read/odometer.
 
 ## Ссылки
 
