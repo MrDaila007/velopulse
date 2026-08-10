@@ -46,6 +46,7 @@
 #include "storage_manager.h"
 #include "storage_migration.h"
 #include "trip_computer.h"
+#include "watchdog_config.h"
 
 using namespace bike;
 
@@ -1257,6 +1258,30 @@ void test_scheduler_duration_wraps_safely_across_micros_rollover() {
   scheduler.run(0);
   TEST_ASSERT_EQUAL_UINT32(100u, task.last_duration_us);
   TEST_ASSERT_EQUAL_UINT32(100u, task.max_duration_us);
+}
+
+void test_watchdog_timeout_ms_to_crv_matches_lfclk_formula() {
+  // 8000ms default: 8000 * 32768 / 1000 - 1 = 262143.
+  TEST_ASSERT_EQUAL_UINT32(262143u, watchdogTimeoutMsToCrv(8000u));
+  TEST_ASSERT_EQUAL_UINT32(262143u,
+                           watchdogTimeoutMsToCrv(BIKECOMP_WDT_TIMEOUT_MS));
+}
+
+void test_watchdog_timeout_ms_to_crv_clamps_below_minimum() {
+  // 0ms has zero ticks, which clamps up to the register's documented floor.
+  TEST_ASSERT_EQUAL_UINT32(kWatchdogMinCrv, watchdogTimeoutMsToCrv(0u));
+}
+
+void test_watchdog_timeout_ms_to_crv_clamps_above_maximum() {
+  TEST_ASSERT_EQUAL_UINT32(kWatchdogMaxCrv,
+                           watchdogTimeoutMsToCrv(UINT32_MAX));
+}
+
+void test_watchdog_timeout_ms_to_crv_does_not_overflow_in_32_bits() {
+  // 200000ms * 32768 overflows a uint32 intermediate (wraps to a much
+  // smaller value); the 64-bit intermediate must still produce the exact
+  // result: 200000 * 32768 / 1000 - 1 = 6553599.
+  TEST_ASSERT_EQUAL_UINT32(6553599u, watchdogTimeoutMsToCrv(200000u));
 }
 
 
@@ -3082,6 +3107,10 @@ int main(int, char**) {
   RUN_TEST(test_scheduler_budget_zero_never_overruns);
   RUN_TEST(test_scheduler_no_micros_fn_leaves_duration_fields_zero);
   RUN_TEST(test_scheduler_duration_wraps_safely_across_micros_rollover);
+  RUN_TEST(test_watchdog_timeout_ms_to_crv_matches_lfclk_formula);
+  RUN_TEST(test_watchdog_timeout_ms_to_crv_clamps_below_minimum);
+  RUN_TEST(test_watchdog_timeout_ms_to_crv_clamps_above_maximum);
+  RUN_TEST(test_watchdog_timeout_ms_to_crv_does_not_overflow_in_32_bits);
   RUN_TEST(test_serial_console_parses_supported_commands_and_crlf);
   RUN_TEST(test_serial_console_trims_rejects_and_recovers_after_overflow);
   RUN_TEST(test_serial_console_parses_status_command);
