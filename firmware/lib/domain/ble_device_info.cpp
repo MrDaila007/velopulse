@@ -16,6 +16,12 @@ ResetReason mapNrfResetReason(uint32_t resetreas) {
   return ResetReason::kUnknown;
 }
 
+DeepSleepWakeSource classifyDeepSleepWakeSource(uint32_t resetreas) {
+  if ((resetreas & kNrfResetReasonOff) != 0u) return DeepSleepWakeSource::kHall;
+  if ((resetreas & kNrfResetReasonVbus) != 0u) return DeepSleepWakeSource::kUsb;
+  return DeepSleepWakeSource::kNone;
+}
+
 bool isPairingWindowOpen(uint32_t boot_ms,
                          uint32_t now_ms,
                          uint32_t window_ms,

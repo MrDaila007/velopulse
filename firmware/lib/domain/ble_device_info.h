@@ -24,6 +24,13 @@ constexpr uint32_t kDefaultPairingWindowMs = 5u * 60u * 1000u;
 // bits are set: watchdog > lockup > soft > pin > wake-from-off > power-on.
 ResetReason mapNrfResetReason(uint32_t resetreas);
 
+// Which System OFF wake source (if any) a deep-sleep exit was, decoded from
+// RESETREAS. Callers must pass the value read *before* clearing
+// NRF_POWER->RESETREAS (it is write-1-to-clear) — a second live read after
+// that clear always observes 0.
+enum class DeepSleepWakeSource : uint8_t { kNone = 0, kHall, kUsb };
+DeepSleepWakeSource classifyDeepSleepWakeSource(uint32_t resetreas);
+
 // True while the post-boot pairing window is open, or when open_pairing_always
 // is set (prototype FEATURE_OPEN_PAIRING).
 bool isPairingWindowOpen(uint32_t boot_ms,

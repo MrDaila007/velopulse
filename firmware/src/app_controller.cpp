@@ -36,7 +36,9 @@
 #include "board_pins.h"
 #include "boot_counter.h"
 #include "platform/deep_sleep.h"
+#include "platform/watchdog.h"
 #include "serial_usb_test.h"
+#include "watchdog_config.h"
 
 #ifndef BIKECOMP_HOTPATH_SERIAL
 #define BIKECOMP_HOTPATH_SERIAL 0
@@ -44,6 +46,13 @@
 
 #ifndef BIKECOMP_OPEN_PAIRING
 #define BIKECOMP_OPEN_PAIRING 0
+#endif
+
+// Enabled by default: a wedged main loop otherwise means a dead device until
+// manual power-cycle. Set to 0 to disable for debugging a suspected hang
+// without the reset masking it.
+#ifndef BIKECOMP_FEATURE_WATCHDOG
+#define BIKECOMP_FEATURE_WATCHDOG 1
 #endif
 
 namespace bike {
@@ -73,6 +82,8 @@ constexpr uint32_t kSchedDisplayBudgetUs = 150000u;   // I2C sendBuffer + 1 flas
 constexpr uint32_t kSchedBleBudgetUs = 300000u;       // up to 3 chained flash writes.
 
 uint32_t schedulerMicros() { return static_cast<uint32_t>(micros()); }
+
+constexpr bool kWatchdogEnabled = (BIKECOMP_FEATURE_WATCHDOG != 0);
 
 int interruptMode(uint8_t active_edge) {
   if (active_edge == 1) return RISING;
@@ -137,6 +148,12 @@ AppController::AppController()
       scheduler_(tasks_, 6, schedulerMicros) {}
 
 void AppController::begin() {
+  // CONFIG/RREN/CRV are write-locked once the WDT is running, so configure
+  // it before anything else — but do not start it yet: the boot sequence
+  // below has multi-hundred-ms blocking steps (Serial wait, flash mount,
+  // SoftDevice enable) that a running watchdog would trip on.
+  if (kWatchdogEnabled) watchdogConfigure(BIKECOMP_WDT_TIMEOUT_MS);
+
   Serial.begin(115200);
   const uint32_t serial_started = millis();
   while (!Serial && static_cast<uint32_t>(millis() - serial_started) < 1500u) yield();
@@ -234,7 +251,7 @@ void AppController::begin() {
   odometer_save_.noteDisplayPower(display_.powerState());
   configurePowerManager();
   applySchedulerPeriods(millis());
-  if (deepSleepWakeFromSleep()) {
+  if (deepSleepWakeFromSleep(resetreas)) {
     Serial.print("wake_source=");
     Serial.println(deepSleepWakeSourceName());
   }
@@ -280,7 +297,13 @@ void AppController::begin() {
   if (fs_ok) selftest_mask_ |= kSelftestFsOk;
   if (ble_seed.config_from_flash) selftest_mask_ |= kSelftestConfigValid;
   if (ble_ok) selftest_mask_ |= kSelftestBleOk;
-  // kSelftestWatchdogOk stays unset until Watchdog is initialized (docs §12.2).
+  // Start last: every blocking step above (Serial wait, flash mount, boot
+  // counter write, SoftDevice enable) has now run, so the WDT timeout only
+  // has to cover steady-state loop() work from here on.
+  if (kWatchdogEnabled) {
+    watchdogStart();
+    if (watchdogStarted()) selftest_mask_ |= kSelftestWatchdogOk;
+  }
   printDiagnostics();
 }
 
@@ -584,6 +607,10 @@ void AppController::printDisplayState() const {
 }
 
 void AppController::loop() {
+  // Feed unconditionally and first: this is what actually protects against a
+  // wedged loop() task, whether the wedge is here or in a scheduler task
+  // called below. watchdogFeed() itself no-ops if the WDT was never started.
+  if (kWatchdogEnabled) watchdogFeed();
   wheel_sensor_.pollPin();
   const uint32_t now_ms = millis();
   processSerialConsole(now_ms);
@@ -682,6 +709,11 @@ void AppController::tryEnterDeepSleep(uint32_t now_ms) {
   }
 
   const bool sense_low = config_.active_edge != 1u;
+  // A true System OFF resets the WDT along with the rest of the core, so
+  // this feed only matters if the SoC is emulating System OFF (e.g. a
+  // debugger attached) instead of actually entering it — in that case the
+  // WDT keeps counting and this buys time before a spurious watchdog reset.
+  if (kWatchdogEnabled) watchdogFeed();
   deepSleepPrepareAndEnter(kHallSenseNrfGpio, sense_low);
 #else
   (void)now_ms;

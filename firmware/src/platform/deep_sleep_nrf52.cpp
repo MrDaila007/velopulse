@@ -2,9 +2,9 @@
 
 #include <Arduino.h>
 #include <nrf_gpio.h>
-#include <nrf_power.h>
 #include <nrf_soc.h>
 
+#include "ble_device_info.h"
 #include "board_pins.h"
 
 namespace bike {
@@ -21,15 +21,16 @@ void setWakeSource(const char* value) {
 
 }  // namespace
 
-bool deepSleepWakeFromSleep() {
-  const uint32_t reason = NRF_POWER->RESETREAS;
-  if ((reason & POWER_RESETREAS_OFF_Msk) != 0u) {
-    setWakeSource("hall");
-    return true;
-  }
-  if ((reason & POWER_RESETREAS_VBUS_Msk) != 0u) {
-    setWakeSource("usb");
-    return true;
+bool deepSleepWakeFromSleep(uint32_t resetreas) {
+  switch (classifyDeepSleepWakeSource(resetreas)) {
+    case DeepSleepWakeSource::kHall:
+      setWakeSource("hall");
+      return true;
+    case DeepSleepWakeSource::kUsb:
+      setWakeSource("usb");
+      return true;
+    case DeepSleepWakeSource::kNone:
+      return false;
   }
   return false;
 }

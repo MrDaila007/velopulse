@@ -1962,6 +1962,21 @@ void test_map_nrf_reset_reason_priority() {
   TEST_ASSERT_EQUAL(ResetReason::kUnknown, mapNrfResetReason(1u << 31));
 }
 
+void test_classify_deep_sleep_wake_source() {
+  TEST_ASSERT_EQUAL(DeepSleepWakeSource::kHall,
+                    classifyDeepSleepWakeSource(kNrfResetReasonOff));
+  TEST_ASSERT_EQUAL(DeepSleepWakeSource::kUsb,
+                    classifyDeepSleepWakeSource(kNrfResetReasonVbus));
+  // OFF takes priority when both are latched (matches the old direct-register
+  // check's OFF-then-VBUS order).
+  TEST_ASSERT_EQUAL(
+      DeepSleepWakeSource::kHall,
+      classifyDeepSleepWakeSource(kNrfResetReasonOff | kNrfResetReasonVbus));
+  TEST_ASSERT_EQUAL(DeepSleepWakeSource::kNone,
+                    classifyDeepSleepWakeSource(kNrfResetReasonPin));
+  TEST_ASSERT_EQUAL(DeepSleepWakeSource::kNone, classifyDeepSleepWakeSource(0u));
+}
+
 void test_pairing_window_and_device_info_flags() {
   TEST_ASSERT_TRUE(isPairingWindowOpen(0, 1000, kDefaultPairingWindowMs, false));
   TEST_ASSERT_FALSE(
@@ -3152,6 +3167,7 @@ int main(int, char**) {
   RUN_TEST(test_ambient_calibration_save_usb_absent_baseline_first_call);
   RUN_TEST(test_ble_identity_resolves_placeholder_name);
   RUN_TEST(test_map_nrf_reset_reason_priority);
+  RUN_TEST(test_classify_deep_sleep_wake_source);
   RUN_TEST(test_pairing_window_and_device_info_flags);
   RUN_TEST(test_boot_count_increments_and_persists);
   RUN_TEST(test_telemetry_publish_mode_and_intervals);
