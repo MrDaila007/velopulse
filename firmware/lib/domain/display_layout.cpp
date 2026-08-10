@@ -9,6 +9,8 @@ constexpr int16_t kRightColumnX = 91;
 constexpr int16_t kBatteryIconFrameX = 107;
 constexpr int16_t kBatteryIconFillX = 109;
 constexpr int16_t kBatteryIconTipX = 119;
+constexpr int16_t kBleIndicatorX = 56;
+constexpr int16_t kBleIndicatorY = 7;
 
 struct RightColumnLayout {
   int16_t battery_percent_y;
@@ -45,6 +47,11 @@ void drawBatteryLabels(DisplayCanvas& canvas, const DisplayFrame& frame,
   }
 }
 
+void drawBleIndicator(DisplayCanvas& canvas, const DisplayFrame& frame) {
+  if (!frame.ble_connected) return;
+  canvas.drawText(kBleIndicatorX, kBleIndicatorY, "BLE");
+}
+
 class OffsetCanvas final : public DisplayCanvas {
  public:
   OffsetCanvas(DisplayCanvas& canvas, int8_t x_offset, int8_t y_offset)
@@ -75,6 +82,7 @@ void draw128x32(DisplayCanvas& canvas, const DisplayFrame& frame) {
   canvas.drawText(0, 21, frame.speed);
 
   canvas.setFont(DisplayFont::kSmall);
+  drawBleIndicator(canvas, frame);
   drawBatteryLabels(canvas, frame, kRightColumn128x32);
   drawBatteryIcon(canvas, frame.battery_fill_width);
   canvas.drawText(88, 20, frame.units);
@@ -96,6 +104,7 @@ void drawBattery128x64(DisplayCanvas& canvas, const DisplayFrame& frame) {
 void draw128x64(DisplayCanvas& canvas, const DisplayFrame& frame) {
   canvas.setFont(DisplayFont::kSmall);
   canvas.drawText(0, 7, frame.units);
+  drawBleIndicator(canvas, frame);
   drawBattery128x64(canvas, frame);
 
   canvas.setFont(DisplayFont::kSpeedLarge);
