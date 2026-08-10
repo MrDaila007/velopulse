@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include "ambient_calibration_save_policy.h"
+#include "ambient_light_calibrator.h"
 #include "ambient_light_model.h"
 #include "battery_model.h"
 #include "ble_advertising.h"
@@ -766,6 +768,59 @@ void test_odometer_alternates_and_recovers_older_slot() {
   TEST_ASSERT_TRUE(info.recovered);
 }
 
+void test_ambient_calibration_encode_decode_round_trip() {
+  AmbientCalibrationData original{123u, 3800u, 1u};
+  uint8_t payload[kAmbientCalibrationPayloadSize];
+  encodeAmbientCalibration(original, payload);
+
+  AmbientCalibrationData decoded;
+  TEST_ASSERT_TRUE(decodeAmbientCalibration(payload, sizeof(payload), decoded));
+  TEST_ASSERT_EQUAL_UINT16(original.raw_dark, decoded.raw_dark);
+  TEST_ASSERT_EQUAL_UINT16(original.raw_bright, decoded.raw_bright);
+  TEST_ASSERT_EQUAL_UINT8(original.quality, decoded.quality);
+
+  TEST_ASSERT_FALSE(decodeAmbientCalibration(payload, sizeof(payload) - 1, decoded));
+}
+
+void test_ambient_calibration_defaults_without_flash_write_then_alternates_slots() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  AmbientCalibrationData loaded;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadAmbientCalibration(loaded, info));
+  TEST_ASSERT_EQUAL(StorageSource::kDefaults, info.source);
+  TEST_ASSERT_EQUAL_UINT16(0u, loaded.raw_dark);
+  // Unlike config/odometer, an absent calibration record must NOT be
+  // eagerly written -- the caller decides the real bootstrap values.
+  TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/alc_a"));
+  TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/alc_b"));
+  TEST_ASSERT_EQUAL_UINT32(0u, storage.counters().writes);
+
+  AmbientCalibrationData saved{266u, 1126u,
+                               static_cast<uint8_t>(AmbientCalibrationQuality::kOk)};
+  TEST_ASSERT_TRUE(storage.saveAmbientCalibration(saved));
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/alc_a"));
+
+  StorageManager reloaded(backend);
+  TEST_ASSERT_TRUE(reloaded.begin());
+  AmbientCalibrationData from_flash;
+  TEST_ASSERT_TRUE(reloaded.loadAmbientCalibration(from_flash, info));
+  TEST_ASSERT_EQUAL(StorageSource::kSlotA, info.source);
+  TEST_ASSERT_EQUAL_UINT16(266u, from_flash.raw_dark);
+  TEST_ASSERT_EQUAL_UINT16(1126u, from_flash.raw_bright);
+
+  from_flash.raw_dark = 200u;
+  TEST_ASSERT_TRUE(reloaded.saveAmbientCalibration(from_flash));
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/alc_b"));
+
+  // Saving the same value again is a no-op (dedup by content).
+  const uint32_t writes_before = reloaded.counters().writes;
+  TEST_ASSERT_TRUE(reloaded.saveAmbientCalibration(from_flash));
+  TEST_ASSERT_EQUAL_UINT32(writes_before, reloaded.counters().writes);
+}
+
 void test_migrate_config_v1_to_v2_preserves_fields() {
   DeviceConfig original;
   original.brightness_pct = 55;
@@ -1297,6 +1352,73 @@ void test_ambient_light_model_ema_hysteresis_dwell_and_invalid_fallback() {
   TEST_ASSERT_EQUAL_UINT8(42u, model.cappedBrightness(42u));
 }
 
+void test_ambient_light_calibrator_expands_bounds_and_tracks_changed() {
+  AmbientLightCalibrator calibrator;
+  calibrator.configure(266, 1126);
+  TEST_ASSERT_EQUAL_UINT16(266u, calibrator.rawDark());
+  TEST_ASSERT_EQUAL_UINT16(1126u, calibrator.rawBright());
+  TEST_ASSERT_FALSE(calibrator.changed());
+
+  calibrator.addSample(500);  // inside current bounds, no change
+  TEST_ASSERT_EQUAL_UINT16(266u, calibrator.rawDark());
+  TEST_ASSERT_EQUAL_UINT16(1126u, calibrator.rawBright());
+  TEST_ASSERT_FALSE(calibrator.changed());
+
+  calibrator.addSample(150);  // new low
+  TEST_ASSERT_EQUAL_UINT16(150u, calibrator.rawDark());
+  TEST_ASSERT_TRUE(calibrator.changed());
+
+  calibrator.addSample(2000);  // new high
+  TEST_ASSERT_EQUAL_UINT16(2000u, calibrator.rawBright());
+
+  calibrator.markPersisted();
+  TEST_ASSERT_FALSE(calibrator.changed());
+
+  calibrator.addSample(100);  // lower again after persisting
+  TEST_ASSERT_EQUAL_UINT16(100u, calibrator.rawDark());
+  TEST_ASSERT_TRUE(calibrator.changed());
+}
+
+void test_ambient_light_calibrator_rejects_rail_samples() {
+  AmbientLightCalibrator calibrator;
+  calibrator.configure(266, 1126);
+
+  calibrator.addSample(0);      // presence-check-failure-style sentinel
+  calibrator.addSample(4);      // at the rail margin, still rejected
+  calibrator.addSample(4095);   // pinned bright rail
+  calibrator.addSample(4091);   // at the rail margin, still rejected
+  TEST_ASSERT_EQUAL_UINT16(266u, calibrator.rawDark());
+  TEST_ASSERT_EQUAL_UINT16(1126u, calibrator.rawBright());
+  TEST_ASSERT_FALSE(calibrator.changed());
+
+  calibrator.addSample(5);      // just past the margin, admitted
+  calibrator.addSample(4090);   // just past the margin, admitted
+  TEST_ASSERT_EQUAL_UINT16(5u, calibrator.rawDark());
+  TEST_ASSERT_EQUAL_UINT16(4090u, calibrator.rawBright());
+}
+
+void test_ambient_light_calibrator_quality_checks_width_and_absolute_bounds() {
+  AmbientLightCalibrator calibrator;
+
+  calibrator.configure(266, 1126);  // real factory default must read as kOk
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kOk, calibrator.quality());
+
+  calibrator.configure(1700, 2400);  // width 700 ok, but dark too high
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kNarrow, calibrator.quality());
+
+  calibrator.configure(200, 700);  // dark ok, but bright too low
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kNarrow, calibrator.quality());
+
+  calibrator.configure(500, 700);  // width 200, below minimum
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kNarrow, calibrator.quality());
+
+  calibrator.configure(200, 1200);  // width 1000, dark 200, bright 1200: all pass
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kOk, calibrator.quality());
+
+  calibrator.configure(700, 700);  // degenerate zero-width range
+  TEST_ASSERT_EQUAL(AmbientCalibrationQuality::kNarrow, calibrator.quality());
+}
+
 void test_battery_raw_conversion_and_calibration() {
   TEST_ASSERT_EQUAL_UINT16(0u, BatteryModel::rawToMillivolts(0, 1000, 0));
   TEST_ASSERT_EQUAL_UINT16(4001u, BatteryModel::rawToMillivolts(3413, 1000, 0));
@@ -1593,6 +1715,85 @@ void test_odometer_save_flash_error_keeps_oneshot_pending() {
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kCriticalBattery, policy.evaluate(0, 0));
   policy.acknowledge(OdometerSaveTrigger::kCriticalBattery);
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 0));
+}
+
+void test_ambient_calibration_save_throttles_changes_and_prioritizes_one_shots() {
+  AmbientCalibrationSavePolicy policy;
+
+  // No change yet: nothing to save.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+
+  // First observed change saves immediately (no prior save to throttle against).
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kThrottledChange,
+                    policy.evaluate(true, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kThrottledChange, 1000);
+
+  // Too soon after the last save: throttled even though it changed again.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone,
+                    policy.evaluate(true, 1000 + 299999u));
+  // Exactly at the interval: allowed.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kThrottledChange,
+                    policy.evaluate(true, 1000 + 300000u));
+
+  // No change at all: never saves regardless of elapsed time.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone,
+                    policy.evaluate(false, 1000 + 999999u));
+}
+
+void test_ambient_calibration_save_one_shot_triggers_and_usb_disconnect() {
+  AmbientCalibrationSavePolicy policy;
+
+  policy.requestDeepSleepSave();
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kDeepSleep,
+                    policy.evaluate(false, 0));
+  policy.requestRebootSave();
+  // Reboot outranks a still-pending deep sleep request.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kReboot, policy.evaluate(false, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kReboot, 0);
+  // Deep sleep request is still pending after acknowledging reboot only.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kDeepSleep,
+                    policy.evaluate(false, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kDeepSleep, 0);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+
+  // First noteUsbPresent call only establishes the baseline, no trigger.
+  policy.noteUsbPresent(true);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+  policy.noteUsbPresent(false);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
+                    policy.evaluate(false, 0));
+
+  // Deep sleep outranks a still-pending usb disconnect request.
+  policy.requestDeepSleepSave();
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kDeepSleep,
+                    policy.evaluate(false, 0));
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kDeepSleep, 0);
+  // Usb disconnect request is still pending after acknowledging deep sleep only.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
+                    policy.evaluate(false, 0));
+
+  // Usb disconnect outranks a throttled change, even when calibration_changed
+  // is true.
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
+                    policy.evaluate(true, 0));
+
+  policy.acknowledge(AmbientCalibrationSaveTrigger::kUsbDisconnect, 0);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+}
+
+void test_ambient_calibration_save_usb_absent_baseline_first_call() {
+  AmbientCalibrationSavePolicy policy;
+
+  // First-ever noteUsbPresent call establishes "absent" as the baseline;
+  // it must not be treated as a disconnect transition.
+  policy.noteUsbPresent(false);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kNone, policy.evaluate(false, 0));
+
+  // A genuine later disconnect still triggers normally.
+  policy.noteUsbPresent(true);
+  policy.noteUsbPresent(false);
+  TEST_ASSERT_EQUAL(AmbientCalibrationSaveTrigger::kUsbDisconnect,
+                    policy.evaluate(false, 0));
 }
 
 void test_ble_identity_resolves_placeholder_name() {
@@ -2741,6 +2942,8 @@ int main(int, char**) {
   RUN_TEST(test_storage_falls_back_from_corrupt_or_invalid_newest_slot);
   RUN_TEST(test_storage_restores_defaults_when_both_slots_are_corrupt);
   RUN_TEST(test_odometer_alternates_and_recovers_older_slot);
+  RUN_TEST(test_ambient_calibration_encode_decode_round_trip);
+  RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_migrate_config_v1_to_v2_preserves_fields);
   RUN_TEST(test_migrate_odometer_v1_to_v2_preserves_totals);
   RUN_TEST(test_storage_migrates_config_v1_fixture_and_rewrites_v2);
@@ -2785,6 +2988,9 @@ int main(int, char**) {
   RUN_TEST(test_battery_raw_conversion_and_calibration);
   RUN_TEST(test_ambient_light_model_normalizes_levels_caps_and_contrast);
   RUN_TEST(test_ambient_light_model_ema_hysteresis_dwell_and_invalid_fallback);
+  RUN_TEST(test_ambient_light_calibrator_expands_bounds_and_tracks_changed);
+  RUN_TEST(test_ambient_light_calibrator_rejects_rail_samples);
+  RUN_TEST(test_ambient_light_calibrator_quality_checks_width_and_absolute_bounds);
   RUN_TEST(test_battery_soc_table_and_interpolation);
   RUN_TEST(test_battery_ema_monotonicity_and_usb_growth);
   RUN_TEST(test_battery_low_threshold_hysteresis);
@@ -2798,6 +3004,9 @@ int main(int, char**) {
   RUN_TEST(test_odometer_save_unchanged_skips_sequence_growth);
   RUN_TEST(test_odometer_save_flash_error_keeps_distance_retry);
   RUN_TEST(test_odometer_save_flash_error_keeps_oneshot_pending);
+  RUN_TEST(test_ambient_calibration_save_throttles_changes_and_prioritizes_one_shots);
+  RUN_TEST(test_ambient_calibration_save_one_shot_triggers_and_usb_disconnect);
+  RUN_TEST(test_ambient_calibration_save_usb_absent_baseline_first_call);
   RUN_TEST(test_ble_identity_resolves_placeholder_name);
   RUN_TEST(test_map_nrf_reset_reason_priority);
   RUN_TEST(test_pairing_window_and_device_info_flags);

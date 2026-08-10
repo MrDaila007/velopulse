@@ -13,9 +13,10 @@ constexpr uint16_t kPresenceMinimumRaw = 4u;
 
 }  // namespace
 
-void AmbientLightManager::begin(uint32_t now_ms) {
-  model_.configure(BIKECOMP_AMBIENT_RAW_DARK,
-                   BIKECOMP_AMBIENT_RAW_BRIGHT, now_ms);
+void AmbientLightManager::begin(uint32_t now_ms, uint16_t raw_dark,
+                                uint16_t raw_bright) {
+  model_.configure(raw_dark, raw_bright, now_ms);
+  calibrator_.configure(raw_dark, raw_bright);
 #if BIKECOMP_AMBIENT_LIGHT
   pinMode(kAmbientLightPowerPin, OUTPUT);
   digitalWrite(kAmbientLightPowerPin, LOW);
@@ -85,6 +86,7 @@ bool AmbientLightManager::update(uint32_t now_ms) {
   last_sample_ms_ = now_ms;
   const uint16_t average =
       static_cast<uint16_t>((sum - minimum - maximum + 7u) / 14u);
+  calibrator_.addSample(average);
   return model_.addSample(average, now_ms);
 #endif
 }

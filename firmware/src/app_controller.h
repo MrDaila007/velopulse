@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ambient_calibration_save_policy.h"
 #include "ambient_light_manager.h"
 #include "battery_manager.h"
 #include "ble_manager.h"
@@ -55,6 +56,9 @@ class AppController {
   void applyRideUpdate(const RideUpdate& update, uint32_t now_ms);
   void maybePersistOdometer(uint32_t now_ms);
   bool persistOdometer(OdometerSaveTrigger trigger);
+  void maybePersistAmbientCalibration(uint32_t now_ms);
+  bool persistAmbientCalibration(AmbientCalibrationSaveTrigger trigger,
+                                 uint32_t now_ms);
   bool saveAndApplyOdometer(uint64_t odometer_mm,
                             uint64_t total_revolutions);
   void printDiagnostics() const;
@@ -110,6 +114,7 @@ class AppController {
   InternalFsBackend storage_backend_;
   StorageManager storage_;
   OdometerSavePolicy odometer_save_;
+  AmbientCalibrationSavePolicy ambient_calibration_save_;
   WheelSensor wheel_sensor_;
   PulseFilter pulse_filter_;
   SpeedCalculator speed_calculator_;

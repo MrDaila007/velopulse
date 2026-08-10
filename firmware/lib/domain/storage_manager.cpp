@@ -118,6 +118,23 @@ bool decodeOdometer(const uint8_t* input,
   return true;
 }
 
+void encodeAmbientCalibration(const AmbientCalibrationData& calibration,
+                              uint8_t output[kAmbientCalibrationPayloadSize]) {
+  writeU16(output, calibration.raw_dark);
+  writeU16(output + 2, calibration.raw_bright);
+  output[4] = calibration.quality;
+}
+
+bool decodeAmbientCalibration(const uint8_t* input,
+                              size_t length,
+                              AmbientCalibrationData& calibration) {
+  if (input == nullptr || length != kAmbientCalibrationPayloadSize) return false;
+  calibration.raw_dark = readU16(input);
+  calibration.raw_bright = readU16(input + 2);
+  calibration.quality = input[4];
+  return true;
+}
+
 struct StorageManager::Slot {
   bool present = false;
   bool valid = false;
@@ -217,6 +234,39 @@ void StorageManager::readOdometerSlot(const char* path, Slot& slot) {
   slot.valid = true;
 }
 
+void StorageManager::readAmbientCalibrationSlot(const char* path, Slot& slot) {
+  slot = Slot{};
+  uint8_t record[kMaximumRecordSize];
+  size_t record_length = 0;
+  const StorageIoResult result =
+      backend_.read(path, record, sizeof(record), record_length);
+  if (result == StorageIoResult::kNotFound) return;
+  slot.present = true;
+  if (result != StorageIoResult::kOk) {
+    ++counters_.read_errors;
+    return;
+  }
+
+  DecodedRecord decoded;
+  if (!decodeRecord(record, record_length, kAmbientCalibrationRecordVersion,
+                    kAmbientCalibrationPayloadSize, decoded)) {
+    ++counters_.read_errors;
+    return;
+  }
+
+  AmbientCalibrationData calibration;
+  if (!decodeAmbientCalibration(decoded.payload, decoded.header.payload_len,
+                                calibration)) {
+    ++counters_.read_errors;
+    return;
+  }
+  encodeAmbientCalibration(calibration, slot.payload);
+  slot.sequence = decoded.header.sequence;
+  slot.version = decoded.header.version;
+  slot.needs_migration = false;
+  slot.valid = true;
+}
+
 bool StorageManager::writeSlot(const char* path,
                                const uint8_t* payload,
                                size_t payload_length,
@@ -238,17 +288,24 @@ bool StorageManager::savePayload(const char* path_a,
                                  const uint8_t* payload,
                                  size_t payload_length,
                                  uint16_t version,
-                                 bool config_payload,
+                                 PayloadKind kind,
                                  bool force_write) {
   if (!mounted_) return false;
   Slot a;
   Slot b;
-  if (config_payload) {
-    readConfigSlot(path_a, a);
-    readConfigSlot(path_b, b);
-  } else {
-    readOdometerSlot(path_a, a);
-    readOdometerSlot(path_b, b);
+  switch (kind) {
+    case PayloadKind::kConfig:
+      readConfigSlot(path_a, a);
+      readConfigSlot(path_b, b);
+      break;
+    case PayloadKind::kOdometer:
+      readOdometerSlot(path_a, a);
+      readOdometerSlot(path_b, b);
+      break;
+    case PayloadKind::kAmbientCalibration:
+      readAmbientCalibrationSlot(path_a, a);
+      readAmbientCalibrationSlot(path_b, b);
+      break;
   }
 
   const Slot* newest = nullptr;
@@ -310,8 +367,8 @@ bool StorageManager::loadConfig(DeviceConfig& config, StorageLoadInfo& info) {
       info.migrated = true;
       info.migration_written =
           savePayload(paths_.config_a, paths_.config_b, selected->payload,
-                      kDeviceConfigPayloadSize, kConfigRecordVersion, true,
-                      true);
+                      kDeviceConfigPayloadSize, kConfigRecordVersion,
+                      PayloadKind::kConfig, true);
       if (info.migration_written) {
         info.sequence = selected->sequence + 1u;
         info.from_version = selected->version;
@@ -340,7 +397,8 @@ bool StorageManager::saveConfig(const DeviceConfig& config) {
   uint8_t payload[kDeviceConfigPayloadSize];
   encodeDeviceConfig(config, payload);
   return savePayload(paths_.config_a, paths_.config_b, payload,
-                     sizeof(payload), kConfigRecordVersion, true, false);
+                     sizeof(payload), kConfigRecordVersion,
+                     PayloadKind::kConfig, false);
 }
 
 bool StorageManager::loadOdometer(OdometerData& odometer,
@@ -375,8 +433,8 @@ bool StorageManager::loadOdometer(OdometerData& odometer,
       info.migrated = true;
       info.migration_written =
           savePayload(paths_.odometer_a, paths_.odometer_b, selected->payload,
-                      kOdometerPayloadSize, kOdometerRecordVersion, false,
-                      true);
+                      kOdometerPayloadSize, kOdometerRecordVersion,
+                      PayloadKind::kOdometer, true);
       if (info.migration_written) {
         info.sequence = selected->sequence + 1u;
         last_odometer_sequence_ = info.sequence;
@@ -405,8 +463,8 @@ bool StorageManager::saveOdometer(const OdometerData& odometer) {
   uint8_t payload[kOdometerPayloadSize];
   encodeOdometer(odometer, payload);
   const bool ok = savePayload(paths_.odometer_a, paths_.odometer_b, payload,
-                              sizeof(payload), kOdometerRecordVersion, false,
-                              false);
+                              sizeof(payload), kOdometerRecordVersion,
+                              PayloadKind::kOdometer, false);
   if (!ok) return false;
   if (counters_.writes > writes_before) {
     last_odometer_sequence_ += 1u;
@@ -415,6 +473,56 @@ bool StorageManager::saveOdometer(const OdometerData& odometer) {
     // No skip and no write should not happen on success, but keep sequence.
   }
   return true;
+}
+
+bool StorageManager::loadAmbientCalibration(AmbientCalibrationData& calibration,
+                                            StorageLoadInfo& info) {
+  info = StorageLoadInfo{};
+  if (!mounted_) return false;
+  Slot a;
+  Slot b;
+  readAmbientCalibrationSlot(paths_.ambient_calibration_a, a);
+  readAmbientCalibrationSlot(paths_.ambient_calibration_b, b);
+  const Slot* selected = nullptr;
+  if (a.valid && b.valid) {
+    selected = isNewer(b.sequence, a.sequence) ? &b : &a;
+  } else if (a.valid) {
+    selected = &a;
+  } else if (b.valid) {
+    selected = &b;
+  }
+  if (selected != nullptr) {
+    if (!decodeAmbientCalibration(selected->payload,
+                                  kAmbientCalibrationPayloadSize, calibration)) {
+      return false;
+    }
+    info.source = selected == &a ? StorageSource::kSlotA : StorageSource::kSlotB;
+    info.sequence = selected->sequence;
+    info.from_version = selected->version;
+    info.recovered = selected == &a ? (b.present && !b.valid)
+                                    : (a.present && !a.valid);
+    if (info.recovered) ++counters_.ambient_calibration_slot_recoveries;
+    return true;
+  }
+
+  // Unlike config/odometer, do not eagerly write a default record here --
+  // the caller (AppController) decides the real bootstrap raw_dark/raw_bright
+  // and persists explicitly once the save policy decides to.
+  calibration = AmbientCalibrationData{};
+  info.source = StorageSource::kDefaults;
+  info.recovered = a.present || b.present;
+  ++counters_.ambient_calibration_defaults_restored;
+  info.sequence = 0;
+  info.from_version = kAmbientCalibrationRecordVersion;
+  return true;
+}
+
+bool StorageManager::saveAmbientCalibration(const AmbientCalibrationData& calibration) {
+  uint8_t payload[kAmbientCalibrationPayloadSize];
+  encodeAmbientCalibration(calibration, payload);
+  return savePayload(paths_.ambient_calibration_a, paths_.ambient_calibration_b,
+                     payload, sizeof(payload), kAmbientCalibrationRecordVersion,
+                     PayloadKind::kAmbientCalibration, false);
 }
 
 const char* storageSourceName(StorageSource source) {

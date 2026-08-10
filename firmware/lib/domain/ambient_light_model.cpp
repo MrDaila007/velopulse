@@ -3,7 +3,6 @@
 namespace bike {
 namespace {
 
-constexpr uint16_t kInvalidRailMargin = 4u;
 constexpr uint16_t kLevelThresholds[] = {150u, 350u, 600u, 800u};
 constexpr uint8_t kBrightnessLevels[] = {5u, 15u, 35u, 65u, 100u};
 constexpr uint16_t kHysteresisPermille = 50u;
@@ -66,8 +65,8 @@ bool AmbientLightModel::addSample(uint16_t raw, uint32_t now_ms) {
   const uint8_t previous_brightness = snapshot_.brightness_pct;
   snapshot_.raw = raw;
 
-  if (raw <= kInvalidRailMargin ||
-      raw >= kAmbientAdcMaximum - kInvalidRailMargin ||
+  if (raw <= kAmbientInvalidRailMargin ||
+      raw >= kAmbientAdcMaximum - kAmbientInvalidRailMargin ||
       raw_bright_ <= raw_dark_) {
     snapshot_.valid = false;
     snapshot_.brightness_pct = 100u;
