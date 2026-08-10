@@ -99,6 +99,28 @@ encryption и 5-минутное pairing window синхронизированы
   возвращается через `GET_DIAGNOSTIC`. Serial dump при старте;
   `AppController::diagnosticSnapshot()`. `StorageCounters` — RAM-only (см.
   «Ограничения»).
+- **Watchdog (Э2.1-долг закрыт)**: nRF52 WDT через `src/platform/watchdog_nrf52.cpp`
+  (`nrf_wdt.h` HAL напрямую — `nrfx_wdt` driver source не собран в этом core,
+  `nrfx_wdt_*` не слинковался бы). `watchdogConfigure()` вызывается первой строкой
+  `begin()` (CONFIG/RREN/CRV блокируются после старта), `watchdogStart()` —
+  последним шагом `begin()`, после Serial-ожидания, монтирования FS, boot-counter
+  и SoftDevice init. `watchdogFeed()` безусловно первой строкой `loop()` и перед
+  входом в deep sleep. Таймаут 8 с (`BIKECOMP_WDT_TIMEOUT_MS`,
+  `watchdog_config.h::watchdogTimeoutMsToCrv`), RUN_SLEEP behaviour (считает во
+  сне, пауза под отладчиком). Выключается сборочным флагом
+  `BIKECOMP_FEATURE_WATCHDOG=0`. `kSelftestWatchdogOk` выставляется при успешном
+  старте. Serial-команда `wdt-hang` вешает `loop()` для проверки реального сброса.
+  Попутно исправлен смежный баг: `deepSleepWakeFromSleep()` перечитывал уже
+  очищенный `NRF_POWER->RESETREAS` и никогда не репортил `wake_source=hall/usb` —
+  теперь кэшированное значение передаётся параметром.
+- **Scheduler task timing (Э2.1)**: `ScheduledTask` хранит `last_duration_us`/
+  `max_duration_us`/`overrun_count` против per-task `budget_us`, замеряется через
+  инжектируемый `Scheduler::MicrosFn` (домен остаётся Arduino-независимым).
+  `AppController` подключает `micros()` и именованные бюджеты с headroom под
+  flash-запись (state/ambient/display/battery — один write, ble — до трёх при
+  factory reset). Serial-команда `sched`. Попутно исправлен смежный баг:
+  `Scheduler::nextDueMs` сравнивал сырые `next_due_ms` вместо wrap-safe дельты и
+  мог занизить срочность задачи почти на 2^31 мс вокруг переполнения `millis()`.
 - BLE Э4.1–4.14: `BleManager` GATT + live Device Info на Read (uptime, flags,
   bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
   `boot_count` в `/boot_cnt`; live Telemetry notify (seq + adaptive 1 Гц /
@@ -164,14 +186,20 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Проверки
 
-- `pio test -e native`: **116/116** тестов проходят (прогнано 2026-08-10), включая
+- `pio test -e native`: **127/127** тестов проходят (прогнано 2026-08-10), включая
   ambient auto-calibration, автояркость, weather-страницы, Serial ambient/display
   commands, advertising, safe/dangerous framing, shared fixtures, Config Write,
-  diagnostics и Serial parser.
-- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 872 Б,
-  Flash 190 164 Б (прогнано 2026-08-10).
-- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 17 360 Б,
-  Flash 190 084 Б (прогнано 2026-08-10).
+  diagnostics, Serial parser, watchdog CRV, Scheduler timing/wrap и
+  wake-source classification.
+- `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 968 Б,
+  Flash 191 028 Б (прогнано 2026-08-10, после watchdog+scheduler timing;
+  +96 Б RAM — 4 новых `uint32_t` на 6 задач `ScheduledTask`).
+- `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 17 456 Б,
+  Flash 190 948 Б (прогнано 2026-08-10).
+- `pio run -e xiao_ble_sense_deep_sleep`: собирается, RAM 17 968 Б,
+  Flash 191 412 Б (прогнано 2026-08-10).
+- Сборка с `-DBIKECOMP_FEATURE_WATCHDOG=0`: собирается, WDT не стартует
+  (`kSelftestWatchdogOk` не выставляется) — прогнано 2026-08-10.
 - `./simulator/test.sh`: 6 групп проверок, **22 golden-кадра** (11 сценариев ×
   128×32/128×64, включая `weather_clock`/`weather_rain`) — подтверждено 2026-08-10.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
@@ -246,12 +274,19 @@ encryption и 5-минутное pairing window синхронизированы
   приложение их не использует. `flash_write_count` и остальные `StorageCounters`
   RAM-only — сбрасываются при каждом reboot, серимализации/загрузки нет.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
-  `Advertising.stop()`. `kSelftestWatchdogOk` не ставится — watchdog нигде не
-  инициализируется и не кормится в прошивке (нет `NRF_WDT`/`nrf_wdt_*`); декодирование
-  `ResetReason::kWatchdog` и `ErrorLogCode::kWatchdogReset` уже реализованы и ждут WDT.
-- `Scheduler` не измеряет длительность выполнения задач: `ScheduledTask` хранит
-  только `run_count`, которое даже не выведено наружу (Serial/diagnostics/BLE).
-  Нет overrun-детекции и бюджета на задачу.
+  `Advertising.stop()`.
+- Watchdog реализован программно (native-тесты на CRV/wrap-safe scheduler, три
+  build-окружения зелёные), но **аппаратно не подтверждён**: `wdt-hang` ещё не
+  запускался на реальном XIAO, реальный сброс через ~8 с и последующие
+  `reset_reason=watchdog`/`ErrorLogCode::kWatchdogReset` не проверены на железе.
+  Эмулированный System OFF (подключённый отладчик) оставляет WDT считающим —
+  в этом случае `tryEnterDeepSleep` кормит его перед входом в сон, но
+  многочасовая debug-сессия под отладчиком с активным WDT всё равно может
+  словить спонтанный сброс; для debug-сессий стоит собирать с
+  `BIKECOMP_FEATURE_WATCHDOG=0`.
+- Per-task бюджеты `Scheduler` (`kSched*BudgetUs` в `app_controller.cpp`) —
+  оценки с запасом под flash-запись, не измерения с реального железа; после
+  первого прогона `sched` на XIAO их стоит сверить с фактическими `max_us`.
 - Нет BLE-индикатора на экране (Э2.7): `DisplaySnapshot`/`DisplayFrame` не содержат
   поля состояния BLE, `display_layout.cpp` не рисует такой элемент, хотя
   `BleManager::bleConnected()` уже доступен для чтения.
@@ -259,7 +294,9 @@ encryption и 5-минутное pairing window синхронизированы
   low-power idle между задачами планировщика; синхронные flash-записи
   (`InternalFsBackend::write` — remove+write+flush+close) выполняются прямо на
   scheduler-пути при сохранении одометра/ambient-калибровки; несколько `delay(2)`
-  в диагностической `printGpioProbe()`, доступной из Serial-консоли.
+  в диагностической `printGpioProbe()`, доступной из Serial-консоли. Сами
+  блокировки не убраны — но теперь под watchdog-таймаутом 8 с (см. выше), и
+  `sched` даёт `max_us`/`overruns` на задачу для их измерения.
 - Mobile hardware gate не завершён. Исправленный release APK установлен, и базовые
   discovery/connect подтверждены на реальном телефоне и XIAO. Нужны измерение поиска
   ≤5 с, 10/10 connect, bonding после reboot, write-then-verify пяти настроек, все
@@ -275,10 +312,12 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Следующий шаг
 
-Софтовые долги, готовые к реализации без стенда: watchdog (nRF52840 WDT, feed из
-главного цикла, выставление `kSelftestWatchdogOk`) вместе с инструментацией
-длительности задач `Scheduler` (Э2.1); BLE-индикатор на экране (Э2.7); персист
-`StorageCounters` между reboot; устранение блокирующих участков production loop.
+Watchdog и Scheduler-тайминги (Э2.1) реализованы и прошли software gate;
+**аппаратная проверка `wdt-hang` на XIAO ещё не выполнена** — это первый шаг
+перед тем, как считать watchdog полностью закрытым. Оставшиеся софтовые долги,
+готовые к реализации без стенда: BLE-индикатор на экране (Э2.7); персист
+`StorageCounters` между reboot; устранение самих блокирующих участков
+production loop (теперь измеримых через `sched`).
 
 Параллельно — аппаратные долги: собрать LDR-делитель, измерить raw dark/room/outdoor,
 выбрать резистор и загрузить production 128×64; завершить OLED gate (`LOW BATT`, три

@@ -15,11 +15,15 @@
 
 ## Э2. Базовая прошивка
 
-- [ ] 2.1 Добавить измерение времени задач в `Scheduler`.
-  Кооперативный scheduler и wrap-safe интервалы уже реализованы; `ScheduledTask`
-  (`scheduler.h:10-17`) хранит только `run_count`, `run()` (`scheduler.cpp:8-22`)
-  не замеряет длительность, а `run_count` наружу вообще не отдаётся
-  (Serial/diagnostics/BLE). Нужны per-task duration/overrun.
+- [x] 2.1 Добавить измерение времени задач в `Scheduler`. `ScheduledTask`
+  (`scheduler.h`) хранит `last_duration_us`/`max_duration_us`/`overrun_count`
+  против per-task `budget_us`, замеряется через инжектируемый `MicrosFn`
+  (домен остаётся Arduino-независимым); `AppController` подключает `micros()`
+  и именованные бюджеты с headroom под flash-запись. Serial-команда `sched`
+  печатает статистику каждой задачи. Заодно исправлен смежный баг:
+  `Scheduler::nextDueMs` сравнивал сырые `next_due_ms` вместо wrap-safe
+  дельты и мог занизить срочность задачи почти на 2^31 мс вокруг переполнения
+  `millis()`.
 - [x] 2.2 Реализовать WheelSensor: ISR, ring buffer, configurable edge.
 - [x] 2.3 Реализовать PulseFilter: debounce, overspeed, stuck, counters.
 - [x] 2.4 Реализовать fixed-point SpeedCalculator, smoothing и timeout.
@@ -53,12 +57,15 @@
 
 - [x] Реализовать boot count и reset reason: `lib/domain/boot_counter.*` (`/boot_cnt`),
   чтение и очистка `NRF_POWER->RESETREAS` в `src/app_controller.cpp:132-135`.
-- [ ] Добавить watchdog и контролируемую инъекцию зависания. WDT нигде не
-  инициализируется и не кормится (нет `NRF_WDT`/`nrf_wdt_*` в дереве); бит
-  `kSelftestWatchdogOk` (`diagnostics.h:20`) объявлен, но никогда не
-  выставляется (`src/app_controller.cpp:265`). Декодирование
-  `ResetReason::kWatchdog` и `ErrorLogCode::kWatchdogReset` уже реализованы и
-  ждут инициализации WDT.
+- [x] Добавить watchdog и контролируемую инъекцию зависания. nRF52 WDT через
+  `src/platform/watchdog_nrf52.cpp` (HAL напрямую — `nrfx_wdt` драйвер не
+  собран в этом core); конфигурация до, старт после всех блокирующих шагов
+  `begin()`; кормление безусловно первой строкой `loop()` и перед входом в
+  deep sleep. `kSelftestWatchdogOk` выставляется при успешном старте.
+  Serial-команда `wdt-hang` вешает `loop()` для проверки реального сброса на
+  железе (аппаратно ещё не подтверждено — см. `STATUS.md`). Таймаут по
+  умолчанию 8 с (`BIKECOMP_WDT_TIMEOUT_MS`), отключается сборочным флагом
+  `BIKECOMP_FEATURE_WATCHDOG=0`.
 - [x] Добавить диагностический snapshot всех counters: `diagnostics.{h,cpp}`,
   `GET_DIAGNOSTIC`, Serial dump при старте. Персист `StorageCounters`
   (`storage_manager.h:170`) между reboot — отдельный открытый пункт ниже.
@@ -72,3 +79,6 @@
   в `InternalFsBackend::write`) прямо на scheduler-пути при автосохранении
   одометра/ambient-калибровки (`app_controller.cpp:1411,1419,1426`); несколько
   `delay(2)` в `printGpioProbe()`, вызываемой из Serial-консоли (`:478,495,500`).
+  Сама блокировка ещё не убрана — но `sched` (см. 2.1) и watchdog-таймаут
+  8 с теперь дают инструмент измерить и сеть безопасности на случай, если
+  какая-то из них всё же зависнет на реальном железе.
