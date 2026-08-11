@@ -178,6 +178,11 @@ struct StorageManager::Slot {
   uint8_t payload[kDeviceConfigPayloadSize] = {};
 };
 
+static_assert(kStorageCountersPayloadSize <= kDeviceConfigPayloadSize,
+             "StorageCounters payload must fit the shared Slot buffer");
+static_assert(kRecordHeaderSize + kStorageCountersPayloadSize <= kMaximumRecordSize,
+             "StorageCounters record must fit within kMaximumRecordSize");
+
 StorageManager::StorageManager(StorageBackend& backend,
                                const StoragePaths& paths)
     : backend_(backend), paths_(paths) {}

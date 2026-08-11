@@ -77,8 +77,12 @@ encryption и 5-минутное pairing window синхронизированы
   version, sequence, CRC32, выбор свежего слота, чередование записей и пропуск
   неизменённых данных.
 - При повреждении одного слота используется второй; при повреждении обоих defaults
-  записываются в слот A. Одометр, общее число оборотов и ambient-калибровка
-  восстанавливаются при старте.
+  записываются в слот A (кроме `StorageCounters` — см. ниже). Одометр, общее число
+  оборотов, ambient-калибровка и `StorageCounters` восстанавливаются при старте.
+  Для `StorageCounters` это правило про defaults не действует: если оба
+  `/cnt_a`/`/cnt_b` отсутствуют или повреждены, `loadStorageCounters()` не пишет
+  ничего в Flash — `counters_` просто остаётся в нулевом RAM-состоянии до
+  следующего `saveStorageCounters()` на контрольной точке.
 - Serial при старте показывает mount status, source, sequence, version, recovery/
   defaults, migration и восстановленное значение одометра.
 - `OdometerSavePolicy`: независимые триггеры дистанции (`odometer_save_interval_m`),
@@ -271,7 +275,7 @@ encryption и 5-минутное pairing window синхронизированы
 - Автосохранение одометра: native + на XIAO подтверждены odo A/B embedded и
   ненулевой odometer после двух reboot. Остаётся ручная проверка 10× power-loss
   (чтобы не уничтожить обе копии `/odo_a|b`). Тот же долг применим к новым
-  `/alc_a|b` — power-loss там ещё не проверялся.
+  `/alc_a|b` и `/cnt_a|b` — power-loss там ещё не проверялся.
 - BLE: pairing enforcement и persistence собраны, но reboot/closed-window сценарии
   ещё не приняты на телефоне; лимит 4 bonds с LRU пока не реализован. Prototype
   override `BIKECOMP_OPEN_PAIRING=1` остаётся opt-in. Error Log Read/Notify и sensor
@@ -281,7 +285,14 @@ encryption и 5-минутное pairing window синхронизированы
   (Serial `reboot`, BLE `CommandId::kReboot`) через
   `AppController::persistStorageCounters()`, не на каждой записи; значение после
   power-loss без чистого reboot отражает последний checkpoint, а не точный момент
-  потери питания.
+  потери питания. Так как `StorageCounters::writes` теперь накапливается через
+  весь срок службы устройства (а не сбрасывается каждую загрузку), поле
+  `flash_write_count` в `GET_DIAGNOSTIC` — насыщающийся u16 (`saturateU16` в
+  `diagnostics.cpp`, туда же попадает и `selftest`-снимок на Serial) — со
+  временем реально достигает потолка 65535; это осознанное и уже протестированное
+  поведение, не баг. Сам `StorageCounters::writes` при этом остаётся полным u32
+  без потолка и виден без ограничения на Serial в строке `Odo save: ...
+  writes=...` (`AppController::persistOdometer`), а не только по BLE.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
   `Advertising.stop()`.
 - Watchdog реализован программно (native-тесты на CRV/wrap-safe scheduler, три
@@ -328,4 +339,4 @@ production loop (теперь измеримых через `sched`).
 выбрать резистор и загрузить production 128×64; завершить OLED gate (`LOW BATT`, три
 test patterns, dim/off/wake, четыре фазы pixel shift, импульсы) и Android gate
 (поиск ≤5 с, 10/10 подключений, bond/reconnect, пять write-then-verify и
-MVP-команды); 10× power-loss для Э3.5 и для новых `/alc_a|b`.
+MVP-команды); 10× power-loss для Э3.5 и для новых `/alc_a|b` и `/cnt_a|b`.

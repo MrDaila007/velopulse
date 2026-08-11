@@ -55,8 +55,8 @@ weather-страницами (clock/rain, opt-in) поверх BLE Companion Syn
    всё ещё требуют аппаратной проверки.
 2. Завершить расширенный OLED 128×64 gate: LOW BATT, три patterns, dim/off/wake,
    четыре фазы burn-in shift и pulse smoke.
-3. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss для `/odo_a|b` и `/alc_a|b`)
-   и долги Hall/стенда.
+3. Закрыть Storage Э3 (остаток DoD 3.5: 10× power-loss для `/odo_a|b`, `/alc_a|b`
+   и `/cnt_a|b`) и долги Hall/стенда.
 4. BLE Э4.1–4.14 выполнены; завершить оставшийся hardware DoD Э4.
 5. Discovery/connect нового APK подтверждены; провести полный Android hardware gate.
 6. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
@@ -64,8 +64,7 @@ weather-страницами (clock/rain, opt-in) поверх BLE Companion Syn
 8. Выполнить soak, power и field tests Э7, затем собрать v1.0.
 9. Софтовые firmware-долги без стенда (см. [Firmware](tasks/firmware/README.md)):
    watchdog + инструментация таймингов `Scheduler` (Э2.1), BLE-индикатор на
-   экране (Э2.7), персист `StorageCounters` между reboot, устранение блокирующих
-   участков production loop.
+   экране (Э2.7), устранение блокирующих участков production loop.
 
 ## Папки задач
 

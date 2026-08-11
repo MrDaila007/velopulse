@@ -68,7 +68,7 @@
   `BIKECOMP_FEATURE_WATCHDOG=0`.
 - [x] Добавить диагностический snapshot всех counters: `diagnostics.{h,cpp}`,
   `GET_DIAGNOSTIC`, Serial dump при старте. Персист `StorageCounters`
-  (`storage_manager.h:170`) между reboot — см. пункт ниже.
+  (`storage_manager.h:118`) между reboot — см. пункт ниже.
 - [x] Персистировать `StorageCounters` между reboot: новый A/B слот `/cnt_a|b`
   (`storage_manager.{h,cpp}`), payload version 1, 48 байт. `StorageManager::begin()`
   восстанавливает `counters_` из свежего слота; `AppController::persistStorageCounters()`

@@ -710,6 +710,11 @@ void AppController::tryEnterDeepSleep(uint32_t now_ms) {
   }
 
   const bool sense_low = config_.active_edge != 1u;
+  // Re-flush counters here: the persistOdometer/maybePersistAmbientCalibration
+  // calls above (and the earlier snapshot in handlePowerManagerResult) can
+  // still bump counters_.writes/skipped_writes/write_errors, and this is the
+  // last chance to capture that before power-off.
+  persistStorageCounters();
   // A true System OFF resets the WDT along with the rest of the core, so
   // this feed only matters if the SoC is emulating System OFF (e.g. a
   // debugger attached) instead of actually entering it — in that case the
@@ -1093,17 +1098,23 @@ void AppController::processSerialConsole(uint32_t now_ms) {
                            : "ERROR reset-odo storage");
         break;
 
-      case SerialCommand::kReboot:
+      case SerialCommand::kReboot: {
         odometer_save_.requestRebootSave();
-        if (!persistOdometer(OdometerSaveTrigger::kReboot)) {
+        const bool odometer_saved =
+            persistOdometer(OdometerSaveTrigger::kReboot);
+        // Flush unconditionally: a failed odometer save still bumps
+        // counters_.write_errors, and a reboot is exactly the moment we
+        // most want that captured, not skipped.
+        persistStorageCounters();
+        if (!odometer_saved) {
           Serial.println("ERROR reboot storage");
         } else {
-          persistStorageCounters();
           reboot_pending_ = true;
           reboot_requested_ms_ = now_ms;
           Serial.println("OK reboot");
         }
         break;
+      }
 
       case SerialCommand::kSelftest:
         printDiagnostics();
@@ -1746,18 +1757,24 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
       break;
     }
 
-    case CommandId::kReboot:
+    case CommandId::kReboot: {
       odometer_save_.requestRebootSave();
-      if (!persistOdometer(OdometerSaveTrigger::kReboot)) {
+      const bool odometer_saved =
+          persistOdometer(OdometerSaveTrigger::kReboot);
+      // Flush unconditionally: a failed odometer save still bumps
+      // counters_.write_errors, and a reboot is exactly the moment we
+      // most want that captured, not skipped.
+      persistStorageCounters();
+      if (!odometer_saved) {
         result.status = CommandStatus::kErrStorage;
       } else {
         ambient_calibration_save_.requestRebootSave();
         maybePersistAmbientCalibration(now_ms);
-        persistStorageCounters();
         reboot_pending_ = true;
         reboot_requested_ms_ = now_ms;
       }
       break;
+    }
 
     case CommandId::kSetBatteryCal: {
       DeviceConfig candidate = config_;
