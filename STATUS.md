@@ -154,6 +154,11 @@ encryption и 5-минутное pairing window синхронизированы
   `reboot`, `selftest`; CR/LF, ограничение длины и восстановление после переполнения
   проверены native-тестами. `dump-config` возвращает читаемые поля и точный 48-byte
   wire payload. Регрессионный протокол и host-runner: `tools/usb_regression.py`.
+- **BLE-индикатор на OLED (Э2.7 закрыт)**: `DisplaySnapshot`/`DisplayFrame`
+  (`include/types.h`) содержат `ble_connected`; общий `display_layout.cpp` рисует
+  `"BLE"` при подключении (pixel-golden покрытие в `simulator/`); AppController
+  подключает живое значение — `snapshot.ble_connected = ble_.bleConnected();`
+  в `AppController::updateDisplay()` (`src/app_controller.cpp`).
 
 ### Мобильное приложение (Flutter)
 
@@ -287,9 +292,6 @@ encryption и 5-минутное pairing window синхронизированы
 - Per-task бюджеты `Scheduler` (`kSched*BudgetUs` в `app_controller.cpp`) —
   оценки с запасом под flash-запись, не измерения с реального железа; после
   первого прогона `sched` на XIAO их стоит сверить с фактическими `max_us`.
-- Нет BLE-индикатора на экране (Э2.7): `DisplaySnapshot`/`DisplayFrame` не содержат
-  поля состояния BLE, `display_layout.cpp` не рисует такой элемент, хотя
-  `BleManager::bleConnected()` уже доступен для чтения.
 - В production loop есть блокирующие участки: `delay()` до ~1000 мс в
   low-power idle между задачами планировщика; синхронные flash-записи
   (`InternalFsBackend::write` — remove+write+flush+close) выполняются прямо на

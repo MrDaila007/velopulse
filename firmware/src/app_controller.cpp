@@ -1518,6 +1518,7 @@ void AppController::updateDisplay(uint32_t now_ms) {
   DisplaySnapshot snapshot;
   snapshot.trip = trip_computer_.snapshot();
   snapshot.battery = battery_.snapshot();
+  snapshot.ble_connected = ble_.bleConnected();
   const CompanionHeaderView companion = companion_state_.header(now_ms);
   if (companion.valid) {
     snprintf(snapshot.companion_header, sizeof(snapshot.companion_header), "%s",
