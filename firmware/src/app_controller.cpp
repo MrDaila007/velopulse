@@ -1761,10 +1761,6 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
       odometer_save_.requestRebootSave();
       const bool odometer_saved =
           persistOdometer(OdometerSaveTrigger::kReboot);
-      // Flush unconditionally: a failed odometer save still bumps
-      // counters_.write_errors, and a reboot is exactly the moment we
-      // most want that captured, not skipped.
-      persistStorageCounters();
       if (!odometer_saved) {
         result.status = CommandStatus::kErrStorage;
       } else {
@@ -1773,6 +1769,12 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
         reboot_pending_ = true;
         reboot_requested_ms_ = now_ms;
       }
+      // Flush unconditionally and last: a failed odometer save still bumps
+      // counters_.write_errors, and a successful one falls through to the
+      // ambient-calibration save above, whose own counters delta must be
+      // captured too — this must be the final storage action before the
+      // pending reset fires, or that delta is silently dropped.
+      persistStorageCounters();
       break;
     }
 
