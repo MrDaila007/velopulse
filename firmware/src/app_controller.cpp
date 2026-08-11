@@ -675,6 +675,7 @@ void AppController::handlePowerManagerResult(
     maybePersistOdometer(now_ms);
     ambient_calibration_save_.requestDeepSleepSave();
     maybePersistAmbientCalibration(now_ms);
+    persistStorageCounters();
   }
   if (result.mode_changed &&
       power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
@@ -1097,6 +1098,7 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         if (!persistOdometer(OdometerSaveTrigger::kReboot)) {
           Serial.println("ERROR reboot storage");
         } else {
+          persistStorageCounters();
           reboot_pending_ = true;
           reboot_requested_ms_ = now_ms;
           Serial.println("OK reboot");
@@ -1450,6 +1452,13 @@ bool AppController::persistAmbientCalibration(AmbientCalibrationSaveTrigger trig
   return ok;
 }
 
+void AppController::persistStorageCounters() {
+  if (!storage_.mounted()) return;
+  const bool ok = storage_.saveStorageCounters();
+  Serial.print("Counters save: result=");
+  Serial.println(ok ? "OK" : "ERROR");
+}
+
 bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
                                          uint64_t total_revolutions) {
   OdometerData data;
@@ -1744,6 +1753,7 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
       } else {
         ambient_calibration_save_.requestRebootSave();
         maybePersistAmbientCalibration(now_ms);
+        persistStorageCounters();
         reboot_pending_ = true;
         reboot_requested_ms_ = now_ms;
       }

@@ -73,9 +73,9 @@ encryption и 5-минутное pairing window синхронизированы
   `BIKECOMP_AMBIENT_RAW_DARK/BRIGHT`; переживает deep sleep, reboot и USB disconnect.
 - Канонический little-endian codec 48-байтовой `DeviceConfig` без зависимости от
   C++ padding; валидируются все диапазоны, маска/порядок страниц и имя устройства.
-- `StorageManager`: `/cfg_a/b`, `/odo_a/b` и `/alc_a/b`, заголовок `BKCP`, version,
-  sequence, CRC32, выбор свежего слота, чередование записей и пропуск неизменённых
-  данных.
+- `StorageManager`: `/cfg_a/b`, `/odo_a/b`, `/alc_a/b` и `/cnt_a/b`, заголовок `BKCP`,
+  version, sequence, CRC32, выбор свежего слота, чередование записей и пропуск
+  неизменённых данных.
 - При повреждении одного слота используется второй; при повреждении обоих defaults
   записываются в слот A. Одометр, общее число оборотов и ambient-калибровка
   восстанавливаются при старте.
@@ -97,8 +97,8 @@ encryption и 5-минутное pairing window синхронизированы
   `isr_overflow`, `flash_write_count` ← `StorageCounters::writes`,
   `free_heap` через `dbgHeapFree()`, i2c/selftest). Little-endian 16-byte payload
   возвращается через `GET_DIAGNOSTIC`. Serial dump при старте;
-  `AppController::diagnosticSnapshot()`. `StorageCounters` — RAM-only (см.
-  «Ограничения»).
+  `AppController::diagnosticSnapshot()`. `StorageCounters` персистируются в
+  `/cnt_a|b` на контрольных точках, не на каждой записи (см. «Ограничения»).
 - **Watchdog (Э2.1-долг закрыт)**: nRF52 WDT через `src/platform/watchdog_nrf52.cpp`
   (`nrf_wdt.h` HAL напрямую — `nrfx_wdt` driver source не собран в этом core,
   `nrfx_wdt_*` не слинковался бы). `watchdogConfigure()` вызывается первой строкой
@@ -277,7 +277,11 @@ encryption и 5-минутное pairing window синхронизированы
   override `BIKECOMP_OPEN_PAIRING=1` остаётся opt-in. Error Log Read/Notify и sensor
   test 5 Гц ждут BLE hardware DoD. Стандартные DIS/BAS (`0x180A`/`0x180F`) отложены;
   приложение их не использует. `flash_write_count` и остальные `StorageCounters`
-  RAM-only — сбрасываются при каждом reboot, серимализации/загрузки нет.
+  персистируются в `/cnt_a|b` только в контрольных точках — deep sleep и reboot
+  (Serial `reboot`, BLE `CommandId::kReboot`) через
+  `AppController::persistStorageCounters()`, не на каждой записи; значение после
+  power-loss без чистого reboot отражает последний checkpoint, а не точный момент
+  потери питания.
   `sd_softdevice_disable` при fail init не вызываем (ломает USB CDC); teardown =
   `Advertising.stop()`.
 - Watchdog реализован программно (native-тесты на CRV/wrap-safe scheduler, три
@@ -316,10 +320,9 @@ encryption и 5-минутное pairing window синхронизированы
 
 Watchdog и Scheduler-тайминги (Э2.1) реализованы и прошли software gate;
 **аппаратная проверка `wdt-hang` на XIAO ещё не выполнена** — это первый шаг
-перед тем, как считать watchdog полностью закрытым. Оставшиеся софтовые долги,
-готовые к реализации без стенда: персист `StorageCounters` между reboot;
-устранение самих блокирующих участков production loop (теперь измеримых
-через `sched`).
+перед тем, как считать watchdog полностью закрытым. Оставшийся софтовый долг,
+готовый к реализации без стенда: устранение самих блокирующих участков
+production loop (теперь измеримых через `sched`).
 
 Параллельно — аппаратные долги: собрать LDR-делитель, измерить raw dark/room/outdoor,
 выбрать резистор и загрузить production 128×64; завершить OLED gate (`LOW BATT`, три

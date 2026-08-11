@@ -7,8 +7,8 @@
 - [x] 0.3 Настроить PlatformIO и XIAO nRF52840 build/upload.
 - [x] 0.4 Зафиксировать платформу, C++ standard и библиотеки.
 - [x] 0.5 Завершить каркас всех модулей. BLE (`ble_manager`) и diagnostics
-  (`diagnostics.{h,cpp}`) реализованы; `StorageCounters` внутри diagnostics
-  остаётся RAM-only (см. «Общие firmware-долги»).
+  (`diagnostics.{h,cpp}`) реализованы; `StorageCounters` персистируется между
+  reboot (см. «Общие firmware-долги»).
 - [x] 0.6 Настроить native environment и host-тест CRC32.
 - [ ] 0.7 Инициализировать Flutter-проект — отслеживается в `tasks/mobile/`.
 - [x] 0.8 Настроить CI для firmware и Flutter.
@@ -68,10 +68,11 @@
   `BIKECOMP_FEATURE_WATCHDOG=0`.
 - [x] Добавить диагностический snapshot всех counters: `diagnostics.{h,cpp}`,
   `GET_DIAGNOSTIC`, Serial dump при старте. Персист `StorageCounters`
-  (`storage_manager.h:170`) между reboot — отдельный открытый пункт ниже.
-- [ ] Персистировать `StorageCounters` между reboot. Сейчас поле `counters_`
-  только инкрементируется в памяти, без serialize/load-пути — `flash_write_count`
-  и остальные счётчики обнуляются на каждом старте.
+  (`storage_manager.h:170`) между reboot — см. пункт ниже.
+- [x] Персистировать `StorageCounters` между reboot: новый A/B слот `/cnt_a|b`
+  (`storage_manager.{h,cpp}`), payload version 1, 48 байт. `StorageManager::begin()`
+  восстанавливает `counters_` из свежего слота; `AppController::persistStorageCounters()`
+  сохраняет снимок перед deep sleep и перед reboot (Serial и BLE `CommandId::kReboot`).
 - [x] Добавить feature-flag deep sleep и wake от GPIO/USB (код; полевая верификация — Э7).
 - [ ] Исключить длительные блокировки из production loop и проверить ISR review.
   Найдено: `delay(delay_ms)` до ~1000 мс в low-power idle

@@ -59,6 +59,7 @@ class AppController {
   void maybePersistAmbientCalibration(uint32_t now_ms);
   bool persistAmbientCalibration(AmbientCalibrationSaveTrigger trigger,
                                  uint32_t now_ms);
+  void persistStorageCounters();
   bool saveAndApplyOdometer(uint64_t odometer_mm,
                             uint64_t total_revolutions);
   void printDiagnostics() const;
