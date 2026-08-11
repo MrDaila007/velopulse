@@ -135,6 +135,40 @@ bool decodeAmbientCalibration(const uint8_t* input,
   return true;
 }
 
+void encodeStorageCounters(const StorageCounters& counters,
+                           uint8_t output[kStorageCountersPayloadSize]) {
+  writeU32(output + 0, counters.writes);
+  writeU32(output + 4, counters.skipped_writes);
+  writeU32(output + 8, counters.read_errors);
+  writeU32(output + 12, counters.write_errors);
+  writeU32(output + 16, counters.config_slot_recoveries);
+  writeU32(output + 20, counters.odometer_slot_recoveries);
+  writeU32(output + 24, counters.ambient_calibration_slot_recoveries);
+  writeU32(output + 28, counters.config_defaults_restored);
+  writeU32(output + 32, counters.odometer_defaults_restored);
+  writeU32(output + 36, counters.ambient_calibration_defaults_restored);
+  writeU32(output + 40, counters.config_migrations);
+  writeU32(output + 44, counters.odometer_migrations);
+}
+
+bool decodeStorageCounters(const uint8_t* input, size_t length,
+                           StorageCounters& counters) {
+  if (input == nullptr || length != kStorageCountersPayloadSize) return false;
+  counters.writes = readU32(input + 0);
+  counters.skipped_writes = readU32(input + 4);
+  counters.read_errors = readU32(input + 8);
+  counters.write_errors = readU32(input + 12);
+  counters.config_slot_recoveries = readU32(input + 16);
+  counters.odometer_slot_recoveries = readU32(input + 20);
+  counters.ambient_calibration_slot_recoveries = readU32(input + 24);
+  counters.config_defaults_restored = readU32(input + 28);
+  counters.odometer_defaults_restored = readU32(input + 32);
+  counters.ambient_calibration_defaults_restored = readU32(input + 36);
+  counters.config_migrations = readU32(input + 40);
+  counters.odometer_migrations = readU32(input + 44);
+  return true;
+}
+
 struct StorageManager::Slot {
   bool present = false;
   bool valid = false;

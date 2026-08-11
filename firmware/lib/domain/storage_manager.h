@@ -14,6 +14,8 @@ constexpr uint16_t kAmbientCalibrationRecordVersion = 1;
 constexpr size_t kRecordHeaderSize = 16;
 constexpr size_t kOdometerPayloadSize = 16;
 constexpr size_t kAmbientCalibrationPayloadSize = 5;
+constexpr uint16_t kStorageCountersRecordVersion = 1;
+constexpr size_t kStorageCountersPayloadSize = 48;
 constexpr size_t kMaximumRecordSize = 64;
 
 struct RecordHeader {
@@ -125,6 +127,11 @@ struct StorageCounters {
   uint32_t config_migrations = 0;
   uint32_t odometer_migrations = 0;
 };
+
+void encodeStorageCounters(const StorageCounters& counters,
+                           uint8_t output[kStorageCountersPayloadSize]);
+bool decodeStorageCounters(const uint8_t* input, size_t length,
+                           StorageCounters& counters);
 
 class StorageManager {
  public:

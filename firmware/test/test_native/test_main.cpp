@@ -786,6 +786,48 @@ void test_ambient_calibration_encode_decode_round_trip() {
   TEST_ASSERT_FALSE(decodeAmbientCalibration(payload, sizeof(payload) - 1, decoded));
 }
 
+void test_storage_counters_encode_decode_round_trip() {
+  StorageCounters original;
+  original.writes = 42u;
+  original.skipped_writes = 7u;
+  original.read_errors = 3u;
+  original.write_errors = 1u;
+  original.config_slot_recoveries = 2u;
+  original.odometer_slot_recoveries = 5u;
+  original.ambient_calibration_slot_recoveries = 4u;
+  original.config_defaults_restored = 1u;
+  original.odometer_defaults_restored = 1u;
+  original.ambient_calibration_defaults_restored = 1u;
+  original.config_migrations = 6u;
+  original.odometer_migrations = 8u;
+
+  uint8_t payload[kStorageCountersPayloadSize];
+  encodeStorageCounters(original, payload);
+
+  StorageCounters decoded;
+  TEST_ASSERT_TRUE(decodeStorageCounters(payload, sizeof(payload), decoded));
+  TEST_ASSERT_EQUAL_UINT32(original.writes, decoded.writes);
+  TEST_ASSERT_EQUAL_UINT32(original.skipped_writes, decoded.skipped_writes);
+  TEST_ASSERT_EQUAL_UINT32(original.read_errors, decoded.read_errors);
+  TEST_ASSERT_EQUAL_UINT32(original.write_errors, decoded.write_errors);
+  TEST_ASSERT_EQUAL_UINT32(original.config_slot_recoveries,
+                           decoded.config_slot_recoveries);
+  TEST_ASSERT_EQUAL_UINT32(original.odometer_slot_recoveries,
+                           decoded.odometer_slot_recoveries);
+  TEST_ASSERT_EQUAL_UINT32(original.ambient_calibration_slot_recoveries,
+                           decoded.ambient_calibration_slot_recoveries);
+  TEST_ASSERT_EQUAL_UINT32(original.config_defaults_restored,
+                           decoded.config_defaults_restored);
+  TEST_ASSERT_EQUAL_UINT32(original.odometer_defaults_restored,
+                           decoded.odometer_defaults_restored);
+  TEST_ASSERT_EQUAL_UINT32(original.ambient_calibration_defaults_restored,
+                           decoded.ambient_calibration_defaults_restored);
+  TEST_ASSERT_EQUAL_UINT32(original.config_migrations, decoded.config_migrations);
+  TEST_ASSERT_EQUAL_UINT32(original.odometer_migrations, decoded.odometer_migrations);
+
+  TEST_ASSERT_FALSE(decodeStorageCounters(payload, sizeof(payload) - 1, decoded));
+}
+
 void test_ambient_calibration_defaults_without_flash_write_then_alternates_slots() {
   MemoryStorageBackend backend;
   StorageManager storage(backend);
@@ -3105,6 +3147,7 @@ int main(int, char**) {
   RUN_TEST(test_storage_restores_defaults_when_both_slots_are_corrupt);
   RUN_TEST(test_odometer_alternates_and_recovers_older_slot);
   RUN_TEST(test_ambient_calibration_encode_decode_round_trip);
+  RUN_TEST(test_storage_counters_encode_decode_round_trip);
   RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_migrate_config_v1_to_v2_preserves_fields);
   RUN_TEST(test_migrate_odometer_v1_to_v2_preserves_totals);
