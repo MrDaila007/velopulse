@@ -96,6 +96,9 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
     page = DisplayPage::kTrip;
     snapshot.battery.percent = 18;
     snapshot.battery.low_battery = true;
+  } else if (name == "ble_connected") {
+    page = DisplayPage::kTrip;
+    snapshot.ble_connected = true;
   } else if (name == "speed_0") {
     page = DisplayPage::kTrip;
     snapshot.trip.speed_x100 = 0;

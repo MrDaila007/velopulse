@@ -1688,6 +1688,18 @@ void test_display_formatter_low_battery_warning() {
   TEST_ASSERT_TRUE(frame.low_battery_warning);
 }
 
+void test_display_formatter_ble_indicator() {
+  DisplaySnapshot snapshot;
+  snapshot.trip.ride_state = RideState::kIdle;
+
+  DisplayFrame disconnected = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
+  TEST_ASSERT_FALSE(disconnected.ble_connected);
+
+  snapshot.ble_connected = true;
+  DisplayFrame connected = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
+  TEST_ASSERT_TRUE(connected.ble_connected);
+}
+
 void test_odometer_save_distance_boundaries_and_five_km_count() {
   OdometerSavePolicy policy;
   policy.configure(500);
@@ -3157,6 +3169,7 @@ int main(int, char**) {
   RUN_TEST(test_display_formatter_all_pages_and_battery);
   RUN_TEST(test_display_formatter_battery_and_value_limits);
   RUN_TEST(test_display_formatter_low_battery_warning);
+  RUN_TEST(test_display_formatter_ble_indicator);
   RUN_TEST(test_odometer_save_distance_boundaries_and_five_km_count);
   RUN_TEST(test_odometer_save_paused_settle_delay_and_cancel);
   RUN_TEST(test_odometer_save_display_off_deep_sleep_and_force);

@@ -29,11 +29,11 @@
 - [x] 2.4 Реализовать fixed-point SpeedCalculator, smoothing и timeout.
 - [x] 2.5 Реализовать TripComputer: trip/odo/time/avg/max/reset.
 - [x] 2.6 Реализовать RideState: auto start/pause.
-- [ ] 2.7 Завершить DisplayManager. Не хватает BLE-индикатора: `DisplaySnapshot`/
-  `DisplayFrame` (`include/types.h:49-72`) не содержат поля состояния BLE, ноль
-  упоминаний BLE в `display_layout.cpp`. `BleManager::bleConnected()`
-  (`src/ble_manager.h:72`) уже доступен для чтения — не хватает только wiring
-  и отрисовки.
+- [x] 2.7 Завершить DisplayManager. BLE-индикатор реализован: `DisplaySnapshot`/
+  `DisplayFrame` (`include/types.h`) содержат `ble_connected`, `display_layout.cpp`
+  рисует `"BLE"` при подключении, `AppController::updateDisplay()` подключает
+  `BleManager::bleConnected()`. Simulator gate: сценарий `ble_connected`,
+  24 golden-кадра.
 - [x] 2.8 Реализовать PageCarousel, mask/order/pinned page.
 - [x] 2.9 Реализовать 4/1 Гц render, dim/off и wake OLED.
 - [x] 2.10 Реализовать BatteryManager: ADC, EMA, SoC, monotonicity.

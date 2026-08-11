@@ -80,6 +80,14 @@ class DisplaySimulatorTest(unittest.TestCase):
                 self.assertIn(["TEXT", "1", str(speed_y + 1), "24.8"], commands)
                 self.assertIn(["FRAME", "108", "1", "12", "8"], commands)
 
+    def test_ble_indicator_shown_only_when_connected(self):
+        for display_height in DISPLAY_HEIGHTS:
+            with self.subTest(display_height=display_height):
+                connected = firmware_commands("ble_connected", display_height)
+                self.assertIn(["TEXT", "56", "7", "BLE"], connected)
+                trip = firmware_commands("trip", display_height)
+                self.assertNotIn(["TEXT", "56", "7", "BLE"], trip)
+
     def test_all_scenarios_match_golden_pixels_for_both_profiles(self):
         for display_height in DISPLAY_HEIGHTS:
             for scenario in GOLDEN_SCENARIOS:

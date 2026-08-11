@@ -20,7 +20,9 @@ RENDERER_SOURCES = (
 )
 SCENARIO_ORDER = ("trip", "average", "maximum", "time", "odometer", "weather_clock",
                   "weather_rain")
-GOLDEN_SCENARIOS = SCENARIO_ORDER + ("idle", "paused", "battery_unknown", "low_battery")
+GOLDEN_SCENARIOS = SCENARIO_ORDER + (
+    "idle", "paused", "battery_unknown", "low_battery", "ble_connected",
+)
 BOUNDARY_SCENARIOS = (
     "speed_0",
     "speed_99_9",
