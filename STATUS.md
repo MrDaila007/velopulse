@@ -191,21 +191,21 @@ encryption и 5-минутное pairing window синхронизированы
 
 ## Проверки
 
-- `pio test -e native`: **127/127** тестов проходят (прогнано 2026-08-10), включая
+- `pio test -e native`: **128/128** тестов проходят (прогнано 2026-08-10), включая
   ambient auto-calibration, автояркость, weather-страницы, Serial ambient/display
   commands, advertising, safe/dangerous framing, shared fixtures, Config Write,
   diagnostics, Serial parser, watchdog CRV, Scheduler timing/wrap и
   wake-source classification.
 - `pio run -e xiao_ble_sense`: primary 128×64 собирается, RAM 17 968 Б,
-  Flash 191 028 Б (прогнано 2026-08-10, после watchdog+scheduler timing;
+  Flash 191 492 Б (прогнано 2026-08-10, после watchdog+scheduler timing;
   +96 Б RAM — 4 новых `uint32_t` на 6 задач `ScheduledTask`).
 - `pio run -e xiao_ble_sense_128x32`: compatible build собирается, RAM 17 456 Б,
-  Flash 190 948 Б (прогнано 2026-08-10).
+  Flash 191 428 Б (прогнано 2026-08-10).
 - `pio run -e xiao_ble_sense_deep_sleep`: собирается, RAM 17 968 Б,
-  Flash 191 412 Б (прогнано 2026-08-10).
+  Flash 191 876 Б (прогнано 2026-08-10).
 - Сборка с `-DBIKECOMP_FEATURE_WATCHDOG=0`: собирается, WDT не стартует
   (`kSelftestWatchdogOk` не выставляется) — прогнано 2026-08-10.
-- `./simulator/test.sh`: 6 групп проверок, **22 golden-кадра** (11 сценариев ×
+- `./simulator/test.sh`: 6 групп проверок, **24 golden-кадра** (12 сценариев ×
   128×32/128×64, включая `weather_clock`/`weather_rain`) — подтверждено 2026-08-10.
 - Boot smoke на XIAO (`/dev/ttyACM0`): `BLE GATT: OK`, `BLE ADV name: BikeComp-D210`
   (не литерал `XXXX`), `OLED OK`, `selftest=0x3F`, `heap/16≈12695`, устройство
@@ -309,8 +309,8 @@ encryption и 5-минутное pairing window синхронизированы
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 - Zephyr-порт (`firmware-zephyr/`) не синхронизирован с этими изменениями: weather-
-  страницы, speed-gap guard/reboot, web-компаньон и ambient auto-calibration
-  реализованы только в Arduino-прошивке.
+  страницы, speed-gap guard/reboot, web-компаньон, ambient auto-calibration и
+  BLE-индикатор на экране реализованы только в Arduino-прошивке.
 
 ## Следующий шаг
 
