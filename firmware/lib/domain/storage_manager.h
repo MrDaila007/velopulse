@@ -95,6 +95,8 @@ struct StoragePaths {
   const char* odometer_b = "/odo_b";
   const char* ambient_calibration_a = "/alc_a";
   const char* ambient_calibration_b = "/alc_b";
+  const char* counters_a = "/cnt_a";
+  const char* counters_b = "/cnt_b";
 };
 
 enum class StorageSource : uint8_t {
@@ -146,6 +148,7 @@ class StorageManager {
   bool loadAmbientCalibration(AmbientCalibrationData& calibration,
                               StorageLoadInfo& info);
   bool saveAmbientCalibration(const AmbientCalibrationData& calibration);
+  bool saveStorageCounters();
 
   bool mounted() const { return mounted_; }
   const StorageCounters& counters() const { return counters_; }
@@ -153,11 +156,13 @@ class StorageManager {
 
  private:
   struct Slot;
-  enum class PayloadKind : uint8_t { kConfig, kOdometer, kAmbientCalibration };
+  enum class PayloadKind : uint8_t { kConfig, kOdometer, kAmbientCalibration, kStorageCounters };
 
   void readConfigSlot(const char* path, Slot& slot);
   void readOdometerSlot(const char* path, Slot& slot);
   void readAmbientCalibrationSlot(const char* path, Slot& slot);
+  void readStorageCountersSlot(const char* path, Slot& slot);
+  void loadStorageCounters();
   bool writeSlot(const char* path,
                  const uint8_t* payload,
                  size_t payload_length,

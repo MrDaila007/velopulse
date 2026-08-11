@@ -327,6 +327,19 @@ void putOdometerRecord(MemoryStorageBackend& backend,
   backend.write(path, record, length);
 }
 
+void putStorageCountersRecord(MemoryStorageBackend& backend,
+                              const char* path,
+                              const StorageCounters& counters,
+                              uint32_t sequence,
+                              uint16_t version = kStorageCountersRecordVersion) {
+  uint8_t payload[kStorageCountersPayloadSize];
+  uint8_t record[kMaximumRecordSize];
+  encodeStorageCounters(counters, payload);
+  const size_t length = encodeRecord(payload, sizeof(payload), version,
+                                     sequence, record, sizeof(record));
+  backend.write(path, record, length);
+}
+
 #ifndef PROTOCOL_FIXTURES_DIR
 #define PROTOCOL_FIXTURES_DIR "../protocol/fixtures"
 #endif
@@ -826,6 +839,54 @@ void test_storage_counters_encode_decode_round_trip() {
   TEST_ASSERT_EQUAL_UINT32(original.odometer_migrations, decoded.odometer_migrations);
 
   TEST_ASSERT_FALSE(decodeStorageCounters(payload, sizeof(payload) - 1, decoded));
+}
+
+void test_storage_counters_absent_record_defaults_without_flash_write() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+  TEST_ASSERT_EQUAL_UINT32(0u, storage.counters().writes);
+  TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/cnt_a"));
+  TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/cnt_b"));
+}
+
+void test_storage_counters_persist_across_reboot() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  OdometerData odometer{1234u, 5u};
+  TEST_ASSERT_TRUE(storage.saveOdometer(odometer));
+  odometer.odometer_mm = 2000u;
+  TEST_ASSERT_TRUE(storage.saveOdometer(odometer));
+
+  const uint32_t writes_before_save = storage.counters().writes;
+  TEST_ASSERT_TRUE(writes_before_save >= 2u);
+  TEST_ASSERT_TRUE(storage.saveStorageCounters());
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/cnt_a"));
+
+  StorageManager reloaded(backend);
+  TEST_ASSERT_TRUE(reloaded.begin());
+  TEST_ASSERT_EQUAL_UINT32(writes_before_save, reloaded.counters().writes);
+}
+
+void test_storage_counters_recovers_from_corrupt_slot_and_keeps_read_error() {
+  MemoryStorageBackend backend;
+  StorageCounters slot_a;
+  slot_a.writes = 10u;
+  putStorageCountersRecord(backend, "/cnt_a", slot_a, 3u);
+
+  StorageCounters slot_b;
+  slot_b.writes = 9u;
+  putStorageCountersRecord(backend, "/cnt_b", slot_b, 2u);
+  backend.corrupt("/cnt_a", kRecordHeaderSize);
+
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+  // Slot A (sequence 3, newest) is corrupt; falls back to slot B (sequence 2)
+  // and keeps the read_errors bump this boot's failed slot A read caused.
+  TEST_ASSERT_EQUAL_UINT32(9u, storage.counters().writes);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().read_errors);
 }
 
 void test_ambient_calibration_defaults_without_flash_write_then_alternates_slots() {
@@ -3149,6 +3210,9 @@ int main(int, char**) {
   RUN_TEST(test_ambient_calibration_encode_decode_round_trip);
   RUN_TEST(test_storage_counters_encode_decode_round_trip);
   RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
+  RUN_TEST(test_storage_counters_absent_record_defaults_without_flash_write);
+  RUN_TEST(test_storage_counters_persist_across_reboot);
+  RUN_TEST(test_storage_counters_recovers_from_corrupt_slot_and_keeps_read_error);
   RUN_TEST(test_migrate_config_v1_to_v2_preserves_fields);
   RUN_TEST(test_migrate_odometer_v1_to_v2_preserves_totals);
   RUN_TEST(test_storage_migrates_config_v1_fixture_and_rewrites_v2);

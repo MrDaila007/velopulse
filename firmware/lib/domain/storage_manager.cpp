@@ -184,8 +184,12 @@ StorageManager::StorageManager(StorageBackend& backend,
 
 bool StorageManager::begin() {
   mounted_ = backend_.begin();
-  if (!mounted_) ++counters_.read_errors;
-  return mounted_;
+  if (!mounted_) {
+    ++counters_.read_errors;
+    return false;
+  }
+  loadStorageCounters();
+  return true;
 }
 
 void StorageManager::readConfigSlot(const char* path, Slot& slot) {
@@ -301,6 +305,68 @@ void StorageManager::readAmbientCalibrationSlot(const char* path, Slot& slot) {
   slot.valid = true;
 }
 
+void StorageManager::readStorageCountersSlot(const char* path, Slot& slot) {
+  slot = Slot{};
+  uint8_t record[kMaximumRecordSize];
+  size_t record_length = 0;
+  const StorageIoResult result =
+      backend_.read(path, record, sizeof(record), record_length);
+  if (result == StorageIoResult::kNotFound) return;
+  slot.present = true;
+  if (result != StorageIoResult::kOk) {
+    ++counters_.read_errors;
+    return;
+  }
+
+  DecodedRecord decoded;
+  if (!decodeRecord(record, record_length, kStorageCountersRecordVersion,
+                    kStorageCountersPayloadSize, decoded)) {
+    ++counters_.read_errors;
+    return;
+  }
+
+  StorageCounters restored;
+  if (!decodeStorageCounters(decoded.payload, decoded.header.payload_len,
+                             restored)) {
+    ++counters_.read_errors;
+    return;
+  }
+  encodeStorageCounters(restored, slot.payload);
+  slot.sequence = decoded.header.sequence;
+  slot.version = decoded.header.version;
+  slot.needs_migration = false;
+  slot.valid = true;
+}
+
+void StorageManager::loadStorageCounters() {
+  const uint32_t read_errors_before = counters_.read_errors;
+  Slot a;
+  Slot b;
+  readStorageCountersSlot(paths_.counters_a, a);
+  readStorageCountersSlot(paths_.counters_b, b);
+  const uint32_t read_errors_during = counters_.read_errors - read_errors_before;
+
+  const Slot* selected = nullptr;
+  if (a.valid && b.valid) {
+    selected = isNewer(b.sequence, a.sequence) ? &b : &a;
+  } else if (a.valid) {
+    selected = &a;
+  } else if (b.valid) {
+    selected = &b;
+  }
+  if (selected == nullptr) return;
+
+  StorageCounters restored;
+  if (!decodeStorageCounters(selected->payload, kStorageCountersPayloadSize,
+                             restored)) {
+    return;
+  }
+  // Preserve this boot's own read-error bump instead of discarding it under
+  // the wholesale overwrite below.
+  restored.read_errors += read_errors_during;
+  counters_ = restored;
+}
+
 bool StorageManager::writeSlot(const char* path,
                                const uint8_t* payload,
                                size_t payload_length,
@@ -339,6 +405,10 @@ bool StorageManager::savePayload(const char* path_a,
     case PayloadKind::kAmbientCalibration:
       readAmbientCalibrationSlot(path_a, a);
       readAmbientCalibrationSlot(path_b, b);
+      break;
+    case PayloadKind::kStorageCounters:
+      readStorageCountersSlot(path_a, a);
+      readStorageCountersSlot(path_b, b);
       break;
   }
 
@@ -557,6 +627,17 @@ bool StorageManager::saveAmbientCalibration(const AmbientCalibrationData& calibr
   return savePayload(paths_.ambient_calibration_a, paths_.ambient_calibration_b,
                      payload, sizeof(payload), kAmbientCalibrationRecordVersion,
                      PayloadKind::kAmbientCalibration, false);
+}
+
+bool StorageManager::saveStorageCounters() {
+  // Snapshot before encoding: writeSlot() below will bump counters_.writes
+  // as a side effect of the save itself, which must not leak into this
+  // payload (it belongs to the *next* save).
+  uint8_t payload[kStorageCountersPayloadSize];
+  encodeStorageCounters(counters_, payload);
+  return savePayload(paths_.counters_a, paths_.counters_b, payload,
+                     sizeof(payload), kStorageCountersRecordVersion,
+                     PayloadKind::kStorageCounters, false);
 }
 
 const char* storageSourceName(StorageSource source) {
