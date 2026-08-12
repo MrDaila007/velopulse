@@ -75,11 +75,11 @@
   сохраняет снимок перед deep sleep и перед reboot (Serial и BLE `CommandId::kReboot`).
 - [x] Добавить feature-flag deep sleep и wake от GPIO/USB (код; полевая верификация — Э7).
 - [ ] Исключить длительные блокировки из production loop и проверить ISR review.
-  Найдено: `delay(delay_ms)` до ~1000 мс в low-power idle
-  (`src/app_controller.cpp:579`); синхронные flash-записи (remove+write+flush+close
-  в `InternalFsBackend::write`) прямо на scheduler-пути при автосохранении
-  одометра/ambient-калибровки (`app_controller.cpp:1411,1419,1426`); несколько
-  `delay(2)` в `printGpioProbe()`, вызываемой из Serial-консоли (`:478,495,500`).
-  Сама блокировка ещё не убрана — но `sched` (см. 2.1) и watchdog-таймаут
-  8 с теперь дают инструмент измерить и сеть безопасности на случай, если
-  какая-то из них всё же зависнет на реальном железе.
+  Low-power idle `delay()` теперь ограничен `kMaxIdleDelayChunkMs` = 50 мс
+  (`clampIdleDelayMs`, `idle_delay.{h,cpp}`) вместо до ~1000 мс. Остаются: синхронные
+  flash-записи (remove+write+flush+close в `InternalFsBackend::write`) прямо на
+  scheduler-пути при автосохранении одометра/ambient-калибровки/counters
+  (`app_controller.cpp:1409,1451,1472`); несколько `delay(2)` в `printGpioProbe()`,
+  вызываемой из Serial-консоли (`:522,539,544`).
+  watchdog-таймаут 8 с и `sched` (см. 2.1) остаются сетью безопасности и
+  измерительным инструментом для оставшихся блокировок.

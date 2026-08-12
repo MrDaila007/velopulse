@@ -35,6 +35,7 @@
 #include "display_profile.h"
 #include "board_pins.h"
 #include "boot_counter.h"
+#include "idle_delay.h"
 #include "platform/deep_sleep.h"
 #include "platform/watchdog.h"
 #include "serial_usb_test.h"
@@ -80,6 +81,8 @@ constexpr uint32_t kSchedAmbientBudgetUs = 150000u;   // ADC avg + 1 flash write
 constexpr uint32_t kSchedBatteryBudgetUs = 150000u;   // ADC read + 1 flash write.
 constexpr uint32_t kSchedDisplayBudgetUs = 150000u;   // I2C sendBuffer + 1 flash write.
 constexpr uint32_t kSchedBleBudgetUs = 300000u;       // up to 3 chained flash writes.
+
+constexpr uint32_t kMaxIdleDelayChunkMs = 50u;  // bound a single delay() in low-power idle.
 
 uint32_t schedulerMicros() { return static_cast<uint32_t>(micros()); }
 
@@ -620,7 +623,8 @@ void AppController::loop() {
   if (power_manager_.systemMode() == SystemPowerMode::kLowPowerIdle) {
     const uint32_t next_due = scheduler_.nextDueMs(now_ms);
     if (next_due > now_ms && next_due != UINT32_MAX) {
-      const uint32_t delay_ms = next_due - now_ms;
+      const uint32_t delay_ms =
+          clampIdleDelayMs(next_due - now_ms, kMaxIdleDelayChunkMs);
       if (delay_ms > 1u) delay(delay_ms);
     }
   } else {
