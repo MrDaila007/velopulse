@@ -315,7 +315,7 @@ encryption и 5-минутное pairing window синхронизированы
   и так держит `next_due - now_ms` в пределах ~10 мс, так что клэмп на 50 мс
   сейчас не имеет измеримого эффекта в рантайме; синхронные flash-записи
   (`InternalFsBackend::write` — remove+write+flush+close) выполняются прямо на
-  scheduler-пути при сохранении одометра/ambient-калибровки; несколько
+  scheduler-пути при сохранении одометра/ambient-калибровки/counters; несколько
   `delay(2)` в диагностической `printGpioProbe()`, доступной из
   Serial-консоли. Flash-записи и `printGpioProbe()` ещё не убраны — но теперь
   под watchdog-таймаутом 8 с (см. выше), и `sched` даёт `max_us`/`overruns` на

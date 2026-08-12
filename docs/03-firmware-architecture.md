@@ -316,7 +316,11 @@ avg_speed_x100 = (trip_distance_mm * 360UL) / moving_time_ms       // при mov
 * `IDLE_DISPLAY_OFF → LOW_POWER_IDLE`: `power_save_mode` **или** истёк `deep_sleep_timeout_s`
   после выключения дисплея. Реализовано в `PowerManager` (`lib/domain/power_manager.*`).
 * `LOW_POWER_IDLE`: scheduler замедляется (10–5000 мс), между итерациями `loop()` — `delay()`
-  до ближайшей задачи; при `power_save_mode` BLE-реклама останавливается.
+  до ближайшей задачи; при `power_save_mode` BLE-реклама останавливается. Этот `delay()`
+  дополнительно ограничен `kMaxIdleDelayChunkMs` (`app_controller.cpp`, через
+  `clampIdleDelayMs`) — при ослаблении периодов `kLowPowerSchedulerPeriods` ради экономии
+  энергии этот предел тоже нужно поднимать, иначе `loop()` продолжит просыпаться с частотой,
+  заданной клэмпом, а не таблицей периодов.
 * `LOW_POWER_IDLE → DEEP_SLEEP`: при `BIKECOMP_FEATURE_DEEP_SLEEP=1` и `deep_sleep_enabled`
   в конфиге — `sd_power_system_off()` после сохранения одометра (`platform/deep_sleep_nrf52.cpp`).
   При `BIKECOMP_FEATURE_DEEP_SLEEP=0` телеметрия сообщает `kDeepSleepPending`, но остаётся

@@ -1372,6 +1372,7 @@ void test_clamp_idle_delay_bounds_to_max_chunk() {
   TEST_ASSERT_EQUAL_UINT32(50u, clampIdleDelayMs(50u, 50u));
   TEST_ASSERT_EQUAL_UINT32(0u, clampIdleDelayMs(0u, 50u));
   TEST_ASSERT_EQUAL_UINT32(1000u, clampIdleDelayMs(1000u, 0u));
+  TEST_ASSERT_EQUAL_UINT32(50u, clampIdleDelayMs(UINT32_MAX, 50u));
 }
 
 void test_watchdog_timeout_ms_to_crv_matches_lfclk_formula() {

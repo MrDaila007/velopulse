@@ -82,6 +82,10 @@ constexpr uint32_t kSchedBatteryBudgetUs = 150000u;   // ADC read + 1 flash writ
 constexpr uint32_t kSchedDisplayBudgetUs = 150000u;   // I2C sendBuffer + 1 flash write.
 constexpr uint32_t kSchedBleBudgetUs = 300000u;       // up to 3 chained flash writes.
 
+// Bounds how long AppController::loop()'s low-power-idle branch can ever
+// sleep in one delay() call, regardless of what kLowPowerSchedulerPeriods
+// (power_manager.h) says. Raising those periods for power savings won't take
+// effect beyond this cap unless this constant is raised too.
 constexpr uint32_t kMaxIdleDelayChunkMs = 50u;  // bound a single delay() in low-power idle.
 
 uint32_t schedulerMicros() { return static_cast<uint32_t>(micros()); }

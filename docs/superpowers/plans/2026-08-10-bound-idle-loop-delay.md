@@ -202,3 +202,11 @@ git commit -m "fix(firmware): bound low-power idle delay to 50ms chunks"
 - **Placeholder scan:** no TBD/vague steps; every step has literal code, exact file:line anchors, and literal shell commands.
 - **Type consistency:** `clampIdleDelayMs(uint32_t, uint32_t) -> uint32_t` matches the types already flowing through `loop()` (`scheduler_.nextDueMs(now_ms)` returns `uint32_t`, `next_due - now_ms` is `uint32_t`, `delay_ms` was already `uint32_t`) — no new conversions introduced.
 - **Behavior-preservation note:** total idle duration before the next due task is unchanged (chunking sums to the same wait); only the longest single unresponsive window shrinks from ~1000 ms to 50 ms. This is called out explicitly in the Architecture section so a reviewer doesn't mistake it for a power-consumption change.
+
+## Post-implementation correction
+
+The ~1000 ms premise stated above in the Goal and Architecture sections (and repeated in Task 2 Step 5 and the Self-Review) was found to be stale during Task 2's review. `kLowPowerSchedulerPeriods.pulses_ms = 10` (`firmware/lib/domain/power_manager.h`), set in an earlier, unrelated commit, already bounds `next_due - now_ms` — and therefore the low-power-idle `delay()` — to ~10 ms today, not ~1000 ms. Steps above are left as-written since they're a historical record of what was actually done, but the "~1000ms → 50ms" framing they use no longer reflects reality.
+
+The `kMaxIdleDelayChunkMs = 50` clamp added by this plan is still correct and worth keeping: it is a defensive/regression guard against `pulses_ms` (or the other `kLowPowerSchedulerPeriods` fields) ever being loosened in the future, not a fix for an observed block. At today's `pulses_ms = 10` it has no measurable runtime effect.
+
+The accurate framing now lives in `STATUS.md` (see the "В production loop есть блокирующие участки" bullet) and `tasks/firmware/README.md` (see the "Исключить длительные блокировки из production loop" bullet), both corrected in a prior fix round. Cross-reference comments were also added at `firmware/src/app_controller.cpp` (`kMaxIdleDelayChunkMs`) and `firmware/lib/domain/power_manager.h` (`kLowPowerSchedulerPeriods`) pointing at each other, plus a note in `docs/03-firmware-architecture.md`.

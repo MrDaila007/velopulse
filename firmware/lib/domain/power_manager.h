@@ -54,6 +54,10 @@ struct SchedulerPeriods {
 };
 
 constexpr SchedulerPeriods kNormalSchedulerPeriods{};
+// AppController::loop()'s idle delay() is separately capped by
+// kMaxIdleDelayChunkMs (app_controller.cpp): loosening these periods for
+// power savings requires raising that cap too, or the loop will keep waking
+// at the cap's rate regardless of what pulses_ms (or the other fields) say.
 constexpr SchedulerPeriods kLowPowerSchedulerPeriods{
     10, 200, 2000, 5000, 1000, 1000,
 };
