@@ -62,9 +62,8 @@ weather-страницами (clock/rain, opt-in) поверх BLE Companion Syn
 6. Flutter codecs/FakeBleTransport и automatic gate Э5 — выполнены.
 7. После hardware gate Э5 начать Э6.
 8. Выполнить soak, power и field tests Э7, затем собрать v1.0.
-9. Софтовые firmware-долги без стенда (см. [Firmware](tasks/firmware/README.md)):
-   watchdog + инструментация таймингов `Scheduler` (Э2.1), BLE-индикатор на
-   экране (Э2.7), устранение блокирующих участков production loop.
+9. Софтовый firmware-долг без стенда (см. [Firmware](tasks/firmware/README.md)):
+   устранение блокирующих участков production loop.
 
 ## Папки задач
 
