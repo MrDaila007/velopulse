@@ -32,6 +32,7 @@
 #include "error_log.h"
 #include "display_formatter.h"
 #include "display_power.h"
+#include "idle_delay.h"
 #include "odometer_save_policy.h"
 #include "page_carousel.h"
 #include "power_manager.h"
@@ -1363,6 +1364,14 @@ void test_scheduler_duration_wraps_safely_across_micros_rollover() {
   scheduler.run(0);
   TEST_ASSERT_EQUAL_UINT32(100u, task.last_duration_us);
   TEST_ASSERT_EQUAL_UINT32(100u, task.max_duration_us);
+}
+
+void test_clamp_idle_delay_bounds_to_max_chunk() {
+  TEST_ASSERT_EQUAL_UINT32(50u, clampIdleDelayMs(1000u, 50u));
+  TEST_ASSERT_EQUAL_UINT32(30u, clampIdleDelayMs(30u, 50u));
+  TEST_ASSERT_EQUAL_UINT32(50u, clampIdleDelayMs(50u, 50u));
+  TEST_ASSERT_EQUAL_UINT32(0u, clampIdleDelayMs(0u, 50u));
+  TEST_ASSERT_EQUAL_UINT32(1000u, clampIdleDelayMs(1000u, 0u));
 }
 
 void test_watchdog_timeout_ms_to_crv_matches_lfclk_formula() {
@@ -3243,6 +3252,7 @@ int main(int, char**) {
   RUN_TEST(test_scheduler_budget_zero_never_overruns);
   RUN_TEST(test_scheduler_no_micros_fn_leaves_duration_fields_zero);
   RUN_TEST(test_scheduler_duration_wraps_safely_across_micros_rollover);
+  RUN_TEST(test_clamp_idle_delay_bounds_to_max_chunk);
   RUN_TEST(test_watchdog_timeout_ms_to_crv_matches_lfclk_formula);
   RUN_TEST(test_watchdog_timeout_ms_to_crv_clamps_below_minimum);
   RUN_TEST(test_watchdog_timeout_ms_to_crv_clamps_above_maximum);
