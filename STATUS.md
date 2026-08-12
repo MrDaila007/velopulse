@@ -308,12 +308,15 @@ encryption и 5-минутное pairing window синхронизированы
   оценки с запасом под flash-запись, не измерения с реального железа; после
   первого прогона `sched` на XIAO их стоит сверить с фактическими `max_us`.
 - В production loop есть блокирующие участки: low-power idle `delay()` теперь
-  ограничен `kMaxIdleDelayChunkMs` = 50 мс через `clampIdleDelayMs`
-  (`idle_delay.{h,cpp}`) вместо до ~1000 мс — суммарное время ожидания то же,
-  но максимальное непрерывное окно блокировки сократилось; синхронные
-  flash-записи (`InternalFsBackend::write` — remove+write+flush+close)
-  выполняются прямо на scheduler-пути при сохранении одометра/ambient-калибровки;
-  несколько `delay(2)` в диагностической `printGpioProbe()`, доступной из
+  ограничен через `clampIdleDelayMs` максимумом `kMaxIdleDelayChunkMs` = 50 мс
+  (`idle_delay.{h,cpp}`) — это защитная граница на случай, если периоды
+  `kLowPowerSchedulerPeriods` (`power_manager.h`) когда-нибудь ослабят, а не
+  исправление наблюдаемой блокировки: сегодня `pulses_ms = 10` в этой таблице
+  и так держит `next_due - now_ms` в пределах ~10 мс, так что клэмп на 50 мс
+  сейчас не имеет измеримого эффекта в рантайме; синхронные flash-записи
+  (`InternalFsBackend::write` — remove+write+flush+close) выполняются прямо на
+  scheduler-пути при сохранении одометра/ambient-калибровки; несколько
+  `delay(2)` в диагностической `printGpioProbe()`, доступной из
   Serial-консоли. Flash-записи и `printGpioProbe()` ещё не убраны — но теперь
   под watchdog-таймаутом 8 с (см. выше), и `sched` даёт `max_us`/`overruns` на
   задачу для их измерения.

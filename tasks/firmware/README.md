@@ -75,9 +75,13 @@
   сохраняет снимок перед deep sleep и перед reboot (Serial и BLE `CommandId::kReboot`).
 - [x] Добавить feature-flag deep sleep и wake от GPIO/USB (код; полевая верификация — Э7).
 - [ ] Исключить длительные блокировки из production loop и проверить ISR review.
-  Low-power idle `delay()` теперь ограничен `kMaxIdleDelayChunkMs` = 50 мс
-  (`clampIdleDelayMs`, `idle_delay.{h,cpp}`) вместо до ~1000 мс. Остаются: синхронные
-  flash-записи (remove+write+flush+close в `InternalFsBackend::write`) прямо на
+  Low-power idle `delay()` теперь ограничен через `clampIdleDelayMs` максимумом
+  `kMaxIdleDelayChunkMs` = 50 мс (`idle_delay.{h,cpp}`) — защитная граница на
+  случай будущего ослабления `kLowPowerSchedulerPeriods` (`power_manager.h`), а
+  не исправление наблюдаемой блокировки: сегодня `pulses_ms = 10` в этой
+  таблице и так держит ожидание в пределах ~10 мс, так что клэмп сейчас не
+  имеет измеримого эффекта в рантайме. Остаются: синхронные flash-записи
+  (remove+write+flush+close в `InternalFsBackend::write`) прямо на
   scheduler-пути при автосохранении одометра/ambient-калибровки/counters
   (`app_controller.cpp:1409,1451,1472`); несколько `delay(2)` в `printGpioProbe()`,
   вызываемой из Serial-консоли (`:522,539,544`).
