@@ -340,12 +340,13 @@ encryption и 5-минутное pairing window синхронизированы
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 - Zephyr-порт (`firmware-zephyr/`) не синхронизирован с этими изменениями: weather-
-  страницы, speed-gap guard/reboot, web-компаньон, ambient auto-calibration,
-  BLE-индикатор на экране и async flash writes (`StorageBackend::beginWrite`/
-  `pollWrite`) реализованы только в Arduino-прошивке — расшаренный
-  `test/shared/memory_storage_backend.{h,cpp}` всё ещё объявляет старый
-  `write() override` и не собирается для
-  `firmware-zephyr/tests/domain/src/test_codec_storage.cpp`.
+  страницы, speed-gap guard/reboot, web-компаньон, ambient auto-calibration и
+  BLE-индикатор на экране реализованы только в Arduino-прошивке. Async flash
+  writes (`StorageBackend::beginWrite`/`pollWrite`) собираются на обеих
+  сторонах: расшаренный `test/shared/memory_storage_backend.{h,cpp}` мигрирован
+  на новый интерфейс, `firmware-zephyr/tests/domain/src/test_codec_storage.cpp`
+  снова собирается (не проверено локально — Zephyr-тулчейн недоступен в этой
+  среде, подтверждено только чтением кода).
 
 ## Следующий шаг
 
