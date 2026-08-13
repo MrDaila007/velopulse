@@ -77,24 +77,46 @@ StorageIoResult LittleFsBackend::read(const char* path,
   return StorageIoResult::kOk;
 }
 
-bool LittleFsBackend::write(const char* path,
-                            const uint8_t* data,
-                            size_t length) {
-  if (!mounted_) return false;
+bool LittleFsBackend::beginWrite(const char* path, const uint8_t* data,
+                                 size_t length) {
+  if (!mounted_ || write_state_ != AsyncWriteState::kIdle) return false;
+  if (length > sizeof(pending_data_)) return false;
+  memcpy(pending_data_, data, length);
+  pending_length_ = length;
+  pending_path_ = path;
+  write_state_ = AsyncWriteState::kPendingRemove;
+  return true;
+}
 
-  char mounted_path[48];
-  buildMountedPath(path, mounted_path, sizeof(mounted_path));
-  fs_unlink(mounted_path);
-
-  struct fs_file_t file;
-  fs_file_t_init(&file);
-  if (fs_open(&file, mounted_path, FS_O_CREATE | FS_O_WRITE) != 0) {
-    return false;
+AsyncWriteStatus LittleFsBackend::pollWrite() {
+  switch (write_state_) {
+    case AsyncWriteState::kIdle:
+      return AsyncWriteStatus::kIdle;
+    case AsyncWriteState::kPendingRemove: {
+      char mounted_path[48];
+      buildMountedPath(pending_path_, mounted_path, sizeof(mounted_path));
+      fs_unlink(mounted_path);
+      write_state_ = AsyncWriteState::kPendingWrite;
+      return AsyncWriteStatus::kInProgress;
+    }
+    case AsyncWriteState::kPendingWrite: {
+      write_state_ = AsyncWriteState::kIdle;
+      char mounted_path[48];
+      buildMountedPath(pending_path_, mounted_path, sizeof(mounted_path));
+      struct fs_file_t file;
+      fs_file_t_init(&file);
+      if (fs_open(&file, mounted_path, FS_O_CREATE | FS_O_WRITE) != 0) {
+        return AsyncWriteStatus::kError;
+      }
+      const ssize_t written = fs_write(&file, pending_data_, pending_length_);
+      fs_sync(&file);
+      fs_close(&file);
+      return (written >= 0 && static_cast<size_t>(written) == pending_length_)
+                 ? AsyncWriteStatus::kOk
+                 : AsyncWriteStatus::kError;
+    }
   }
-  const ssize_t written = fs_write(&file, data, length);
-  fs_sync(&file);
-  fs_close(&file);
-  return written >= 0 && static_cast<size_t>(written) == length;
+  return AsyncWriteStatus::kError;  // unreachable
 }
 
 }  // namespace bike

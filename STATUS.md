@@ -342,11 +342,16 @@ encryption и 5-минутное pairing window синхронизированы
 - Zephyr-порт (`firmware-zephyr/`) не синхронизирован с этими изменениями: weather-
   страницы, speed-gap guard/reboot, web-компаньон, ambient auto-calibration и
   BLE-индикатор на экране реализованы только в Arduino-прошивке. Async flash
-  writes (`StorageBackend::beginWrite`/`pollWrite`) собираются на обеих
-  сторонах: расшаренный `test/shared/memory_storage_backend.{h,cpp}` мигрирован
-  на новый интерфейс, `firmware-zephyr/tests/domain/src/test_codec_storage.cpp`
-  снова собирается (не проверено локально — Zephyr-тулчейн недоступен в этой
-  среде, подтверждено только чтением кода).
+  writes (`StorageBackend::beginWrite`/`pollWrite`) теперь мигрированы на обеих
+  сторонах Zephyr-порта: расшаренный `test/shared/memory_storage_backend.{h,cpp}`
+  и реальный прошивочный бэкенд `firmware-zephyr/app/src/platform/
+  littlefs_backend.{h,cpp}` (`LittleFsBackend`, `fs_unlink`/`fs_open`/`fs_write`
+  разбиты на два `pollWrite()`-тика по образцу `InternalFsBackend`) — оба были
+  пропущены при исходном изменении интерфейса и найдены только по двум
+  последовательным падениям CI (`scripts/test.sh`, затем `scripts/build.sh`).
+  Не проверено локально сборкой — Zephyr-тулчейн недоступен в этой среде,
+  оба фикса подтверждены только чтением кода и совпадением с уже
+  проверенным паттерном в Arduino-бэкенде.
 
 ## Следующий шаг
 
