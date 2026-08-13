@@ -1566,6 +1566,7 @@ bool AppController::drainStorageSave() {
 
 bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
                                          uint64_t total_revolutions) {
+  drainStorageSave();
   OdometerData data;
   data.odometer_mm = odometer_mm;
   data.total_revolutions = total_revolutions;
@@ -1724,6 +1725,7 @@ void AppController::processPendingConfigWrite(uint32_t now_ms) {
     applyConfig(parsed.config);
   }
 
+  drainStorageSave();
   const bool saved = storage_.mounted() && storage_.saveConfig(config_);
   if (!saved) {
     result.status = CommandStatus::kErrStorage;
@@ -1838,6 +1840,7 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
         break;
       }
       const DeviceConfig defaults;
+      drainStorageSave();
       if (!storage_.mounted() || !storage_.saveConfig(defaults)) {
         saveAndApplyOdometer(old_odometer_mm, old_total_revolutions);
         result.status = CommandStatus::kErrStorage;
@@ -1875,6 +1878,7 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
       candidate.batt_cal_scale_permille =
           command.params.battery_scale_permille;
       candidate.batt_cal_offset_mv = command.params.battery_offset_mv;
+      drainStorageSave();
       if (!storage_.mounted() || !storage_.saveConfig(candidate)) {
         result.status = CommandStatus::kErrStorage;
       } else {
