@@ -454,6 +454,32 @@ void test_storage_async_failed_odometer_save_does_not_leak_sequence_into_unrelat
   TEST_ASSERT_EQUAL_UINT32(0u, storage.lastOdometerSequence());
 }
 
+void test_storage_async_drain_gives_up_on_a_backend_that_never_completes() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 100;  // exceeds the internal drain cap
+  TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kError, storage.drainPendingSave());
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().write_errors);
+}
+
+void test_storage_async_sync_save_rejected_while_another_save_in_progress() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  OdometerData odometer{1000u, 1u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+
+  AmbientCalibrationData ambient{266u, 1126u, 1u};
+  TEST_ASSERT_FALSE(storage.saveAmbientCalibration(ambient));
+}
+
 void putConfigRecord(MemoryStorageBackend& backend,
                      const char* path,
                      const DeviceConfig& config,
@@ -3377,6 +3403,8 @@ int main(int, char**) {
   RUN_TEST(test_storage_async_dedup_skip_completes_synchronously);
   RUN_TEST(test_storage_async_write_error_propagates_through_poll);
   RUN_TEST(test_storage_async_failed_odometer_save_does_not_leak_sequence_into_unrelated_write);
+  RUN_TEST(test_storage_async_drain_gives_up_on_a_backend_that_never_completes);
+  RUN_TEST(test_storage_async_sync_save_rejected_while_another_save_in_progress);
   RUN_TEST(test_storage_counters_encode_decode_round_trip);
   RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_storage_counters_absent_record_defaults_without_flash_write);

@@ -686,8 +686,10 @@ void AppController::handlePowerManagerResult(
   if (result.request_deep_sleep_save) {
     odometer_save_.requestDeepSleepSave();
     maybePersistOdometer(now_ms);
+    drainStorageSave();
     ambient_calibration_save_.requestDeepSleepSave();
     maybePersistAmbientCalibration(now_ms);
+    drainStorageSave();
     persistStorageCounters();
   }
   if (result.mode_changed &&
@@ -1762,10 +1764,12 @@ void AppController::processPendingSafeCommand(uint32_t now_ms) {
       break;
     case CommandId::kForceSave: {
       odometer_save_.requestForceSave();
+      drainStorageSave();
       const OdometerSaveTrigger trigger =
           odometer_save_.evaluate(trip_computer_.snapshot().odometer_mm, now_ms);
-      if (trigger != OdometerSaveTrigger::kForceSave ||
-          !persistOdometer(trigger)) {
+      const bool started = persistOdometer(trigger);
+      if (trigger != OdometerSaveTrigger::kForceSave || !started ||
+          !drainStorageSave()) {
         result.status = CommandStatus::kErrStorage;
       }
       break;
@@ -1953,6 +1957,7 @@ void AppController::updateBle(uint32_t now_ms) {
 
   if (reboot_pending_ &&
       static_cast<uint32_t>(now_ms - reboot_requested_ms_) >= 250u) {
+    drainStorageSave();
     NVIC_SystemReset();
   }
 
