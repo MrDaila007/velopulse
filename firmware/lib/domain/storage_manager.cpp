@@ -377,6 +377,9 @@ bool StorageManager::beginWriteSlotAsync(const char* path,
                                          size_t payload_length,
                                          uint16_t version,
                                          uint32_t sequence) {
+  pending_is_odometer_ = false;  // reset first -- beginSavePayloadAsync re-sets
+                                 // this after a successful call below, only
+                                 // for an odometer-kind write.
   uint8_t record[kMaximumRecordSize];
   const size_t record_length = encodeRecord(payload, payload_length, version,
                                             sequence, record, sizeof(record));
@@ -419,7 +422,14 @@ StorageAsyncStatus StorageManager::drainPendingSave() {
     const StorageAsyncStatus status = pollSave();
     if (status != StorageAsyncStatus::kInProgress) return status;
   }
-  return save_in_progress_ ? StorageAsyncStatus::kError : StorageAsyncStatus::kIdle;
+  if (save_in_progress_) {
+    // Backend never resolved within the safety cap -- force-clear so the
+    // manager doesn't wedge permanently; count it as a write error.
+    save_in_progress_ = false;
+    ++counters_.write_errors;
+    return StorageAsyncStatus::kError;
+  }
+  return StorageAsyncStatus::kIdle;
 }
 
 bool StorageManager::beginSavePayloadAsync(const char* path_a,
@@ -476,9 +486,12 @@ bool StorageManager::beginSavePayloadAsync(const char* path_a,
   } else if (a.valid && b.valid) {
     target = isNewer(b.sequence, a.sequence) ? path_a : path_b;
   }
-  pending_is_odometer_ = (kind == PayloadKind::kOdometer);
-  pending_odometer_sequence_ = sequence;
-  return beginWriteSlotAsync(target, payload, payload_length, version, sequence);
+  const bool started = beginWriteSlotAsync(target, payload, payload_length, version, sequence);
+  if (started && kind == PayloadKind::kOdometer) {
+    pending_is_odometer_ = true;
+    pending_odometer_sequence_ = sequence;
+  }
+  return started;
 }
 
 bool StorageManager::savePayload(const char* path_a,

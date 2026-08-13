@@ -428,6 +428,32 @@ void test_storage_async_write_error_propagates_through_poll() {
   TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().write_errors);
 }
 
+void test_storage_async_failed_odometer_save_does_not_leak_sequence_into_unrelated_write() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  // A failed odometer save leaves a stale pending_odometer_sequence_ behind
+  // -- it must not survive to taint a later, unrelated write's completion.
+  backend.polls_to_complete = 1;
+  backend.write_ok = false;
+  OdometerData odometer{5000u, 10u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kError, storage.drainPendingSave());
+  TEST_ASSERT_EQUAL_UINT32(0u, storage.lastOdometerSequence());
+
+  // loadConfig()'s boot-time defaults-write goes through the raw writeSlot()
+  // path (not beginSavePayloadAsync), which is exactly the path that never
+  // touched pending_is_odometer_ before the fix. It must succeed without
+  // stamping the stale odometer sequence.
+  backend.write_ok = true;
+  DeviceConfig config;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadConfig(config, info));
+  TEST_ASSERT_TRUE(info.defaults_written);
+  TEST_ASSERT_EQUAL_UINT32(0u, storage.lastOdometerSequence());
+}
+
 void putConfigRecord(MemoryStorageBackend& backend,
                      const char* path,
                      const DeviceConfig& config,
@@ -3350,6 +3376,7 @@ int main(int, char**) {
   RUN_TEST(test_storage_async_drain_pending_save_blocks_to_completion);
   RUN_TEST(test_storage_async_dedup_skip_completes_synchronously);
   RUN_TEST(test_storage_async_write_error_propagates_through_poll);
+  RUN_TEST(test_storage_async_failed_odometer_save_does_not_leak_sequence_into_unrelated_write);
   RUN_TEST(test_storage_counters_encode_decode_round_trip);
   RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_storage_counters_absent_record_defaults_without_flash_write);
