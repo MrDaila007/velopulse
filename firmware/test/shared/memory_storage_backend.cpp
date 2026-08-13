@@ -20,6 +20,23 @@ StorageIoResult MemoryStorageBackend::read(const char* path,
   return StorageIoResult::kOk;
 }
 
+bool MemoryStorageBackend::beginWrite(const char* path, const uint8_t* data,
+                                      size_t length) {
+  if (write_pending_) return false;
+  pending_path_ = path;
+  pending_data_.assign(data, data + length);
+  write_pending_ = true;
+  return true;
+}
+
+AsyncWriteStatus MemoryStorageBackend::pollWrite() {
+  if (!write_pending_) return AsyncWriteStatus::kIdle;
+  write_pending_ = false;
+  if (!write_ok) return AsyncWriteStatus::kError;
+  files[pending_path_] = pending_data_;
+  return AsyncWriteStatus::kOk;
+}
+
 bool MemoryStorageBackend::write(const char* path,
                                  const uint8_t* data,
                                  size_t length) {

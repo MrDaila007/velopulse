@@ -18,13 +18,25 @@ class MemoryStorageBackend final : public StorageBackend {
                        size_t capacity,
                        size_t& length) override;
 
-  bool write(const char* path, const uint8_t* data, size_t length) override;
+  bool beginWrite(const char* path, const uint8_t* data,
+                  size_t length) override;
+  AsyncWriteStatus pollWrite() override;
+
+  // Test-only synchronous seeding helper -- bypasses beginWrite/pollWrite
+  // entirely, used by putConfigRecord() below to set up raw slot contents
+  // directly.
+  bool write(const char* path, const uint8_t* data, size_t length);
 
   void corrupt(const char* path, size_t offset);
 
   bool begin_ok = true;
   bool write_ok = true;
   std::map<std::string, std::vector<uint8_t>> files;
+
+ private:
+  bool write_pending_ = false;
+  std::string pending_path_;
+  std::vector<uint8_t> pending_data_;
 };
 
 void putConfigRecord(MemoryStorageBackend& backend,
