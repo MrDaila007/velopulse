@@ -372,30 +372,64 @@ void StorageManager::loadStorageCounters() {
   counters_ = restored;
 }
 
+bool StorageManager::beginWriteSlotAsync(const char* path,
+                                         const uint8_t* payload,
+                                         size_t payload_length,
+                                         uint16_t version,
+                                         uint32_t sequence) {
+  uint8_t record[kMaximumRecordSize];
+  const size_t record_length = encodeRecord(payload, payload_length, version,
+                                            sequence, record, sizeof(record));
+  if (record_length == 0 || !backend_.beginWrite(path, record, record_length)) {
+    ++counters_.write_errors;
+    return false;
+  }
+  save_in_progress_ = true;
+  return true;
+}
+
 bool StorageManager::writeSlot(const char* path,
                                const uint8_t* payload,
                                size_t payload_length,
                                uint16_t version,
                                uint32_t sequence) {
-  uint8_t record[kMaximumRecordSize];
-  const size_t record_length = encodeRecord(payload, payload_length, version,
-                                            sequence, record, sizeof(record));
-  if (record_length == 0 || !backend_.write(path, record, record_length)) {
-    ++counters_.write_errors;
+  if (!beginWriteSlotAsync(path, payload, payload_length, version, sequence)) {
     return false;
   }
-  ++counters_.writes;
-  return true;
+  return drainPendingSave() == StorageAsyncStatus::kOk;
 }
 
-bool StorageManager::savePayload(const char* path_a,
-                                 const char* path_b,
-                                 const uint8_t* payload,
-                                 size_t payload_length,
-                                 uint16_t version,
-                                 PayloadKind kind,
-                                 bool force_write) {
-  if (!mounted_) return false;
+StorageAsyncStatus StorageManager::pollSave() {
+  if (!save_in_progress_) return StorageAsyncStatus::kIdle;
+  const AsyncWriteStatus status = backend_.pollWrite();
+  if (status == AsyncWriteStatus::kInProgress) return StorageAsyncStatus::kInProgress;
+  save_in_progress_ = false;
+  if (status == AsyncWriteStatus::kOk) {
+    ++counters_.writes;
+    if (pending_is_odometer_) last_odometer_sequence_ = pending_odometer_sequence_;
+    return StorageAsyncStatus::kOk;
+  }
+  ++counters_.write_errors;
+  return StorageAsyncStatus::kError;
+}
+
+StorageAsyncStatus StorageManager::drainPendingSave() {
+  constexpr int kMaxDrainPolls = 8;  // the real state machine completes in <=2
+  for (int i = 0; i < kMaxDrainPolls && save_in_progress_; ++i) {
+    const StorageAsyncStatus status = pollSave();
+    if (status != StorageAsyncStatus::kInProgress) return status;
+  }
+  return save_in_progress_ ? StorageAsyncStatus::kError : StorageAsyncStatus::kIdle;
+}
+
+bool StorageManager::beginSavePayloadAsync(const char* path_a,
+                                           const char* path_b,
+                                           const uint8_t* payload,
+                                           size_t payload_length,
+                                           uint16_t version,
+                                           PayloadKind kind,
+                                           bool force_write) {
+  if (!mounted_ || save_in_progress_) return false;
   Slot a;
   Slot b;
   switch (kind) {
@@ -442,7 +476,24 @@ bool StorageManager::savePayload(const char* path_a,
   } else if (a.valid && b.valid) {
     target = isNewer(b.sequence, a.sequence) ? path_a : path_b;
   }
-  return writeSlot(target, payload, payload_length, version, sequence);
+  pending_is_odometer_ = (kind == PayloadKind::kOdometer);
+  pending_odometer_sequence_ = sequence;
+  return beginWriteSlotAsync(target, payload, payload_length, version, sequence);
+}
+
+bool StorageManager::savePayload(const char* path_a,
+                                 const char* path_b,
+                                 const uint8_t* payload,
+                                 size_t payload_length,
+                                 uint16_t version,
+                                 PayloadKind kind,
+                                 bool force_write) {
+  if (!beginSavePayloadAsync(path_a, path_b, payload, payload_length, version,
+                             kind, force_write)) {
+    return false;
+  }
+  if (!save_in_progress_) return true;  // dedup-skip completed synchronously
+  return drainPendingSave() == StorageAsyncStatus::kOk;
 }
 
 bool StorageManager::loadConfig(DeviceConfig& config, StorageLoadInfo& info) {
@@ -566,22 +617,18 @@ bool StorageManager::loadOdometer(OdometerData& odometer,
   return info.defaults_written;
 }
 
-bool StorageManager::saveOdometer(const OdometerData& odometer) {
-  const uint32_t writes_before = counters_.writes;
-  const uint32_t skipped_before = counters_.skipped_writes;
+bool StorageManager::beginSaveOdometer(const OdometerData& odometer) {
   uint8_t payload[kOdometerPayloadSize];
   encodeOdometer(odometer, payload);
-  const bool ok = savePayload(paths_.odometer_a, paths_.odometer_b, payload,
-                              sizeof(payload), kOdometerRecordVersion,
-                              PayloadKind::kOdometer, false);
-  if (!ok) return false;
-  if (counters_.writes > writes_before) {
-    last_odometer_sequence_ += 1u;
-    if (last_odometer_sequence_ == 0u) last_odometer_sequence_ = 1u;
-  } else if (counters_.skipped_writes == skipped_before) {
-    // No skip and no write should not happen on success, but keep sequence.
-  }
-  return true;
+  return beginSavePayloadAsync(paths_.odometer_a, paths_.odometer_b, payload,
+                               sizeof(payload), kOdometerRecordVersion,
+                               PayloadKind::kOdometer, false);
+}
+
+bool StorageManager::saveOdometer(const OdometerData& odometer) {
+  if (!beginSaveOdometer(odometer)) return false;
+  if (!save_in_progress_) return true;
+  return drainPendingSave() == StorageAsyncStatus::kOk;
 }
 
 bool StorageManager::loadAmbientCalibration(AmbientCalibrationData& calibration,
@@ -626,23 +673,38 @@ bool StorageManager::loadAmbientCalibration(AmbientCalibrationData& calibration,
   return true;
 }
 
-bool StorageManager::saveAmbientCalibration(const AmbientCalibrationData& calibration) {
+bool StorageManager::beginSaveAmbientCalibration(
+    const AmbientCalibrationData& calibration) {
   uint8_t payload[kAmbientCalibrationPayloadSize];
   encodeAmbientCalibration(calibration, payload);
-  return savePayload(paths_.ambient_calibration_a, paths_.ambient_calibration_b,
-                     payload, sizeof(payload), kAmbientCalibrationRecordVersion,
-                     PayloadKind::kAmbientCalibration, false);
+  return beginSavePayloadAsync(paths_.ambient_calibration_a,
+                               paths_.ambient_calibration_b, payload,
+                               sizeof(payload), kAmbientCalibrationRecordVersion,
+                               PayloadKind::kAmbientCalibration, false);
+}
+
+bool StorageManager::saveAmbientCalibration(
+    const AmbientCalibrationData& calibration) {
+  if (!beginSaveAmbientCalibration(calibration)) return false;
+  if (!save_in_progress_) return true;
+  return drainPendingSave() == StorageAsyncStatus::kOk;
+}
+
+bool StorageManager::beginSaveStorageCounters() {
+  // Snapshot before encoding: the eventual pollSave() completion will bump
+  // counters_.writes as a side effect of the save itself, which must not
+  // leak into this payload (it belongs to the *next* save).
+  uint8_t payload[kStorageCountersPayloadSize];
+  encodeStorageCounters(counters_, payload);
+  return beginSavePayloadAsync(paths_.counters_a, paths_.counters_b, payload,
+                               sizeof(payload), kStorageCountersRecordVersion,
+                               PayloadKind::kStorageCounters, false);
 }
 
 bool StorageManager::saveStorageCounters() {
-  // Snapshot before encoding: writeSlot() below will bump counters_.writes
-  // as a side effect of the save itself, which must not leak into this
-  // payload (it belongs to the *next* save).
-  uint8_t payload[kStorageCountersPayloadSize];
-  encodeStorageCounters(counters_, payload);
-  return savePayload(paths_.counters_a, paths_.counters_b, payload,
-                     sizeof(payload), kStorageCountersRecordVersion,
-                     PayloadKind::kStorageCounters, false);
+  if (!beginSaveStorageCounters()) return false;
+  if (!save_in_progress_) return true;
+  return drainPendingSave() == StorageAsyncStatus::kOk;
 }
 
 const char* storageSourceName(StorageSource source) {

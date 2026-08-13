@@ -351,6 +351,83 @@ void test_memory_backend_async_write_completes_after_configured_polls() {
   TEST_ASSERT_FALSE(backend.beginWrite("/test_async3", data, sizeof(data)));
 }
 
+void test_storage_async_save_completes_over_multiple_polls() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  OdometerData data{1234u, 5u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(data));
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kInProgress, storage.pollSave());
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.pollSave());
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().writes);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.lastOdometerSequence());
+}
+
+void test_storage_async_save_serializes_concurrent_begin() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  OdometerData odometer{1000u, 1u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+
+  AmbientCalibrationData ambient{266u, 1126u, 1u};
+  TEST_ASSERT_FALSE(storage.beginSaveAmbientCalibration(ambient));
+
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
+  TEST_ASSERT_TRUE(storage.beginSaveAmbientCalibration(ambient));
+}
+
+void test_storage_async_drain_pending_save_blocks_to_completion() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/cnt_a"));
+}
+
+void test_storage_async_dedup_skip_completes_synchronously() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  AmbientCalibrationData data{266u, 1126u, 1u};
+  TEST_ASSERT_TRUE(storage.beginSaveAmbientCalibration(data));
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
+
+  const uint32_t writes_before = storage.counters().writes;
+  const uint32_t skipped_before = storage.counters().skipped_writes;
+  TEST_ASSERT_TRUE(storage.beginSaveAmbientCalibration(data));
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(writes_before, storage.counters().writes);
+  TEST_ASSERT_EQUAL_UINT32(skipped_before + 1u, storage.counters().skipped_writes);
+}
+
+void test_storage_async_write_error_propagates_through_poll() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  backend.write_ok = false;
+  TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kError, storage.drainPendingSave());
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().write_errors);
+}
+
 void putConfigRecord(MemoryStorageBackend& backend,
                      const char* path,
                      const DeviceConfig& config,
@@ -3268,6 +3345,11 @@ int main(int, char**) {
   RUN_TEST(test_odometer_alternates_and_recovers_older_slot);
   RUN_TEST(test_ambient_calibration_encode_decode_round_trip);
   RUN_TEST(test_memory_backend_async_write_completes_after_configured_polls);
+  RUN_TEST(test_storage_async_save_completes_over_multiple_polls);
+  RUN_TEST(test_storage_async_save_serializes_concurrent_begin);
+  RUN_TEST(test_storage_async_drain_pending_save_blocks_to_completion);
+  RUN_TEST(test_storage_async_dedup_skip_completes_synchronously);
+  RUN_TEST(test_storage_async_write_error_propagates_through_poll);
   RUN_TEST(test_storage_counters_encode_decode_round_trip);
   RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_storage_counters_absent_record_defaults_without_flash_write);

@@ -82,6 +82,13 @@ enum class AsyncWriteStatus : uint8_t {
   kError,
 };
 
+enum class StorageAsyncStatus : uint8_t {
+  kIdle,
+  kInProgress,
+  kOk,
+  kError,
+};
+
 class StorageBackend {
  public:
   virtual ~StorageBackend() = default;
@@ -163,6 +170,13 @@ class StorageManager {
   bool saveAmbientCalibration(const AmbientCalibrationData& calibration);
   bool saveStorageCounters();
 
+  bool beginSaveOdometer(const OdometerData& odometer);
+  bool beginSaveAmbientCalibration(const AmbientCalibrationData& calibration);
+  bool beginSaveStorageCounters();
+  StorageAsyncStatus pollSave();
+  StorageAsyncStatus drainPendingSave();
+  bool saveInProgress() const { return save_in_progress_; }
+
   bool mounted() const { return mounted_; }
   const StorageCounters& counters() const { return counters_; }
   uint32_t lastOdometerSequence() const { return last_odometer_sequence_; }
@@ -188,12 +202,27 @@ class StorageManager {
                    uint16_t version,
                    PayloadKind kind,
                    bool force_write);
+  bool beginWriteSlotAsync(const char* path,
+                           const uint8_t* payload,
+                           size_t payload_length,
+                           uint16_t version,
+                           uint32_t sequence);
+  bool beginSavePayloadAsync(const char* path_a,
+                             const char* path_b,
+                             const uint8_t* payload,
+                             size_t payload_length,
+                             uint16_t version,
+                             PayloadKind kind,
+                             bool force_write);
 
   StorageBackend& backend_;
   StoragePaths paths_;
   bool mounted_ = false;
   StorageCounters counters_;
   uint32_t last_odometer_sequence_ = 0;
+  bool save_in_progress_ = false;
+  bool pending_is_odometer_ = false;
+  uint32_t pending_odometer_sequence_ = 0;
 };
 
 const char* storageSourceName(StorageSource source);
