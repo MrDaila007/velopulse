@@ -356,9 +356,8 @@ class BikeComputerRepositoryImpl implements BikeComputerRepository {
 
   @override
   Future<Result<void>> rebootDevice() => _enqueue(
-    () => _sendDangerousCommand(
-      const DeviceCommand(id: DeviceCommandId.reboot),
-    ),
+    () =>
+        _sendDangerousCommand(const DeviceCommand(id: DeviceCommandId.reboot)),
   );
 
   Future<Result<void>> _sendDangerousCommand(DeviceCommand request) async {
