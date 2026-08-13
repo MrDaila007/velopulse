@@ -75,6 +75,13 @@ enum class StorageIoResult : uint8_t {
   kError,
 };
 
+enum class AsyncWriteStatus : uint8_t {
+  kIdle,
+  kInProgress,
+  kOk,
+  kError,
+};
+
 class StorageBackend {
  public:
   virtual ~StorageBackend() = default;
@@ -83,9 +90,15 @@ class StorageBackend {
                                uint8_t* output,
                                size_t capacity,
                                size_t& length) = 0;
-  virtual bool write(const char* path,
-                     const uint8_t* data,
-                     size_t length) = 0;
+  // Starts an async write. Returns false only on caller error (a write is
+  // already in progress on this backend). The implementation must copy
+  // `data` internally -- it will not remain valid past this call. Call
+  // pollWrite() repeatedly (e.g. once per scheduler tick) until it returns
+  // something other than kInProgress to observe the outcome.
+  virtual bool beginWrite(const char* path,
+                         const uint8_t* data,
+                         size_t length) = 0;
+  virtual AsyncWriteStatus pollWrite() = 0;
 };
 
 struct StoragePaths {

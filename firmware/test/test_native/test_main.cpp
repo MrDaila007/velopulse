@@ -289,7 +289,29 @@ class MemoryStorageBackend final : public StorageBackend {
     return StorageIoResult::kOk;
   }
 
-  bool write(const char* path, const uint8_t* data, size_t length) override {
+  bool beginWrite(const char* path, const uint8_t* data,
+                  size_t length) override {
+    if (write_pending_) return false;
+    pending_path_ = path;
+    pending_data_.assign(data, data + length);
+    polls_remaining_ = polls_to_complete;
+    write_pending_ = true;
+    return true;
+  }
+
+  AsyncWriteStatus pollWrite() override {
+    if (!write_pending_) return AsyncWriteStatus::kIdle;
+    if (--polls_remaining_ > 0) return AsyncWriteStatus::kInProgress;
+    write_pending_ = false;
+    if (!write_ok) return AsyncWriteStatus::kError;
+    files[pending_path_] = pending_data_;
+    return AsyncWriteStatus::kOk;
+  }
+
+  // Test-only synchronous seeding helper -- bypasses beginWrite/pollWrite
+  // entirely. Used by putXRecord()/corrupt() fixtures below to set up raw
+  // slot contents directly.
+  bool write(const char* path, const uint8_t* data, size_t length) {
     if (!write_ok) return false;
     files[path] = std::vector<uint8_t>(data, data + length);
     return true;
@@ -299,8 +321,35 @@ class MemoryStorageBackend final : public StorageBackend {
 
   bool begin_ok = true;
   bool write_ok = true;
+  size_t polls_to_complete = 1;
   std::map<std::string, std::vector<uint8_t>> files;
+
+ private:
+  bool write_pending_ = false;
+  std::string pending_path_;
+  std::vector<uint8_t> pending_data_;
+  size_t polls_remaining_ = 0;
 };
+
+void test_memory_backend_async_write_completes_after_configured_polls() {
+  MemoryStorageBackend backend;
+  backend.polls_to_complete = 3;
+  const uint8_t data[] = {1, 2, 3, 4};
+  TEST_ASSERT_TRUE(backend.beginWrite("/test_async", data, sizeof(data)));
+  TEST_ASSERT_EQUAL(AsyncWriteStatus::kInProgress, backend.pollWrite());
+  TEST_ASSERT_EQUAL(AsyncWriteStatus::kInProgress, backend.pollWrite());
+  TEST_ASSERT_EQUAL(AsyncWriteStatus::kOk, backend.pollWrite());
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/test_async"));
+  const auto& stored = backend.files.at("/test_async");
+  TEST_ASSERT_EQUAL_UINT32(sizeof(data), stored.size());
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(data, stored.data(), sizeof(data));
+  TEST_ASSERT_EQUAL(AsyncWriteStatus::kIdle, backend.pollWrite());
+
+  // A second beginWrite while one is already pending is rejected.
+  backend.polls_to_complete = 1;
+  TEST_ASSERT_TRUE(backend.beginWrite("/test_async2", data, sizeof(data)));
+  TEST_ASSERT_FALSE(backend.beginWrite("/test_async3", data, sizeof(data)));
+}
 
 void putConfigRecord(MemoryStorageBackend& backend,
                      const char* path,
@@ -3218,6 +3267,7 @@ int main(int, char**) {
   RUN_TEST(test_storage_restores_defaults_when_both_slots_are_corrupt);
   RUN_TEST(test_odometer_alternates_and_recovers_older_slot);
   RUN_TEST(test_ambient_calibration_encode_decode_round_trip);
+  RUN_TEST(test_memory_backend_async_write_completes_after_configured_polls);
   RUN_TEST(test_storage_counters_encode_decode_round_trip);
   RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_storage_counters_absent_record_defaults_without_flash_write);

@@ -14,12 +14,14 @@ class InternalFsBackend final : public StorageBackend {
                        uint8_t* output,
                        size_t capacity,
                        size_t& length) override;
-  bool write(const char* path,
-             const uint8_t* data,
-             size_t length) override;
+  bool beginWrite(const char* path, const uint8_t* data,
+                  size_t length) override;
+  AsyncWriteStatus pollWrite() override;
 
  private:
   bool mounted_ = false;
+  bool write_pending_ = false;
+  AsyncWriteStatus pending_result_ = AsyncWriteStatus::kIdle;
 };
 
 }  // namespace bike
