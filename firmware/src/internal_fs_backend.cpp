@@ -3,6 +3,8 @@
 #include <Adafruit_LittleFS.h>
 #include <InternalFileSystem.h>
 
+#include <cstring>
+
 using namespace Adafruit_LittleFS_Namespace;
 
 namespace bike {
@@ -37,34 +39,40 @@ StorageIoResult InternalFsBackend::read(const char* path,
 
 bool InternalFsBackend::beginWrite(const char* path, const uint8_t* data,
                                    size_t length) {
-  if (write_pending_) return false;
-  // Task 1 keeps this fully synchronous, matching the old write() exactly --
-  // the real two-poll remove/write split lands in Task 3, touching only
-  // this method's body, not this file's interface shape.
-  if (InternalFS.exists(path) && !InternalFS.remove(path)) {
-    pending_result_ = AsyncWriteStatus::kError;
-    write_pending_ = true;
-    return true;
-  }
-  File file(path, FILE_O_WRITE, InternalFS);
-  if (!file) {
-    pending_result_ = AsyncWriteStatus::kError;
-    write_pending_ = true;
-    return true;
-  }
-  const size_t bytes_written = file.write(data, length);
-  file.flush();
-  const bool complete = bytes_written == length && file.size() == length;
-  file.close();
-  pending_result_ = complete ? AsyncWriteStatus::kOk : AsyncWriteStatus::kError;
-  write_pending_ = true;
+  if (write_state_ != AsyncWriteState::kIdle) return false;
+  if (length > sizeof(pending_data_)) return false;
+  memcpy(pending_data_, data, length);
+  pending_length_ = length;
+  pending_path_ = path;
+  write_state_ = AsyncWriteState::kPendingRemove;
   return true;
 }
 
 AsyncWriteStatus InternalFsBackend::pollWrite() {
-  if (!write_pending_) return AsyncWriteStatus::kIdle;
-  write_pending_ = false;
-  return pending_result_;
+  switch (write_state_) {
+    case AsyncWriteState::kIdle:
+      return AsyncWriteStatus::kIdle;
+    case AsyncWriteState::kPendingRemove: {
+      if (InternalFS.exists(pending_path_) && !InternalFS.remove(pending_path_)) {
+        write_state_ = AsyncWriteState::kIdle;
+        return AsyncWriteStatus::kError;
+      }
+      write_state_ = AsyncWriteState::kPendingWrite;
+      return AsyncWriteStatus::kInProgress;
+    }
+    case AsyncWriteState::kPendingWrite: {
+      write_state_ = AsyncWriteState::kIdle;
+      File file(pending_path_, FILE_O_WRITE, InternalFS);
+      if (!file) return AsyncWriteStatus::kError;
+      const size_t bytes_written = file.write(pending_data_, pending_length_);
+      file.flush();
+      const bool complete =
+          bytes_written == pending_length_ && file.size() == pending_length_;
+      file.close();
+      return complete ? AsyncWriteStatus::kOk : AsyncWriteStatus::kError;
+    }
+  }
+  return AsyncWriteStatus::kError;  // unreachable
 }
 
 }  // namespace bike

@@ -19,9 +19,13 @@ class InternalFsBackend final : public StorageBackend {
   AsyncWriteStatus pollWrite() override;
 
  private:
+  enum class AsyncWriteState : uint8_t { kIdle, kPendingRemove, kPendingWrite };
+
   bool mounted_ = false;
-  bool write_pending_ = false;
-  AsyncWriteStatus pending_result_ = AsyncWriteStatus::kIdle;
+  AsyncWriteState write_state_ = AsyncWriteState::kIdle;
+  const char* pending_path_ = nullptr;
+  uint8_t pending_data_[kMaximumRecordSize] = {};
+  size_t pending_length_ = 0;
 };
 
 }  // namespace bike
