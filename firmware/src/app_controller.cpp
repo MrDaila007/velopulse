@@ -737,6 +737,10 @@ void AppController::tryEnterDeepSleep(uint32_t now_ms) {
   // async write left in flight would otherwise be silently lost to System OFF.
   persistStorageCounters();
   drainStorageSave();
+  // A true System OFF resets the WDT along with the rest of the core, so
+  // this feed only matters if the SoC is emulating System OFF (e.g. a
+  // debugger attached) instead of actually entering it — in that case the
+  // WDT keeps counting and this buys time before a spurious watchdog reset.
   if (kWatchdogEnabled) watchdogFeed();
   deepSleepPrepareAndEnter(kHallSenseNrfGpio, sense_low);
 #else

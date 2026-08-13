@@ -23,9 +23,9 @@ void removeTestFiles() {
 }
 
 // Drives beginWrite()/pollWrite() to completion synchronously. InternalFsBackend
-// still completes on the first pollWrite() call (Task 1 keeps it fully
-// synchronous under the hood), so this loop runs once in practice today, but
-// stays correct once Task 3 makes it genuinely async.
+// now genuinely splits the write across two pollWrite() calls (remove on the
+// first tick, open+write+flush+close on the second), so this loop runs twice
+// in practice today.
 bool writeRecordSync(bike::InternalFsBackend& backend, const char* path,
                      const uint8_t* data, size_t length) {
   if (!backend.beginWrite(path, data, length)) return false;

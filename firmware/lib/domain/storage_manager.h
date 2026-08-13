@@ -98,7 +98,8 @@ class StorageBackend {
                                size_t capacity,
                                size_t& length) = 0;
   // Starts an async write. Returns false only on caller error (a write is
-  // already in progress on this backend). The implementation must copy
+  // already in progress on this backend, or length exceeds the backend's
+  // internal buffer). The implementation must copy
   // `data` internally -- it will not remain valid past this call. Call
   // pollWrite() repeatedly (e.g. once per scheduler tick) until it returns
   // something other than kInProgress to observe the outcome.

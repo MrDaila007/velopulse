@@ -80,10 +80,20 @@
   случай будущего ослабления `kLowPowerSchedulerPeriods` (`power_manager.h`), а
   не исправление наблюдаемой блокировки: сегодня `pulses_ms = 10` в этой
   таблице и так держит ожидание в пределах ~10 мс, так что клэмп сейчас не
-  имеет измеримого эффекта в рантайме. Остаются: синхронные flash-записи
-  (remove+write+flush+close в `InternalFsBackend::write`) прямо на
-  scheduler-пути при автосохранении одометра/ambient-калибровки/counters
-  (`app_controller.cpp:1409,1451,1472`); несколько `delay(2)` в `printGpioProbe()`,
-  вызываемой из Serial-консоли (`:522,539,544`).
+  имеет измеримого эффекта в рантайме. Остаются: несколько `delay(2)` в
+  `printGpioProbe()`, вызываемой из Serial-консоли (`:522,539,544`).
   watchdog-таймаут 8 с и `sched` (см. 2.1) остаются сетью безопасности и
   измерительным инструментом для оставшихся блокировок.
+- [x] Сделать flash-записи асинхронными. `StorageBackend::beginWrite`/`pollWrite`
+  (`storage_manager.h`) заменили синхронный `write()`; `InternalFsBackend`
+  (`internal_fs_backend.{h,cpp}`) разбивает remove+open+write+flush+close на
+  два `pollWrite()`-тика. `StorageManager` сохранил старые синхронные
+  `saveConfig`/`saveOdometer`/`saveAmbientCalibration`/`saveStorageCounters`
+  как тонкие обёртки (begin + drain) для boot-time и non-hot-path вызовов;
+  новые `beginSaveOdometer`/`beginSaveAmbientCalibration`/
+  `beginSaveStorageCounters` + `pollSave()` используются только на
+  mid-ride пути через новую scheduler-задачу `"storage"`
+  (`AppController::pollStorageSave`). Deep sleep и оба `reboot`-чекпоинта
+  синхронно дренируют (`drainStorageSave()`) любую незавершённую запись перед
+  power-off/reset. Остаются: несколько `delay(2)` в `printGpioProbe()`,
+  вызываемой из Serial-консоли — не на hot path, вне зоны этого изменения.
