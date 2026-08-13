@@ -39,6 +39,7 @@ class AppController {
   static void displayTask(void* context, uint32_t now_ms);
   static void batteryTask(void* context, uint32_t now_ms);
   static void bleTask(void* context, uint32_t now_ms);
+  static void storageTask(void* context, uint32_t now_ms);
 
   void processPulses(uint32_t now_ms);
   void updateState(uint32_t now_ms);
@@ -60,6 +61,11 @@ class AppController {
   bool persistAmbientCalibration(AmbientCalibrationSaveTrigger trigger,
                                  uint32_t now_ms);
   void persistStorageCounters();
+  void completeOdometerSave(bool ok);
+  void completeAmbientCalibrationSave(bool ok);
+  void completePendingStorageSave(bool ok);
+  bool drainStorageSave();
+  void pollStorageSave();
   bool saveAndApplyOdometer(uint64_t odometer_mm,
                             uint64_t total_revolutions);
   void printDiagnostics() const;
@@ -128,7 +134,7 @@ class AppController {
   BleManager ble_;
   PowerManager power_manager_;
   SerialCommandParser serial_command_parser_;
-  ScheduledTask tasks_[6];
+  ScheduledTask tasks_[7];
   Scheduler scheduler_;
   uint8_t selftest_mask_ = 0;
   uint32_t sensor_test_started_ms_ = 0;
@@ -138,6 +144,23 @@ class AppController {
   bool critical_battery_active_ = false;
   bool reboot_pending_ = false;
   uint32_t reboot_requested_ms_ = 0;
+  enum class PendingStorageSave : uint8_t {
+    kNone,
+    kOdometer,
+    kAmbientCalibration,
+    kStorageCounters,
+  };
+  PendingStorageSave pending_storage_save_ = PendingStorageSave::kNone;
+  OdometerSaveTrigger pending_odometer_trigger_ = OdometerSaveTrigger::kNone;
+  uint64_t pending_odometer_mm_ = 0;
+  AmbientCalibrationSaveTrigger pending_ambient_trigger_ =
+      AmbientCalibrationSaveTrigger::kNone;
+  uint32_t pending_ambient_now_ms_ = 0;
+  uint16_t pending_ambient_raw_dark_ = 0;
+  uint16_t pending_ambient_raw_bright_ = 0;
+  AmbientCalibrationQuality pending_ambient_quality_ =
+      AmbientCalibrationQuality::kNarrow;
+  bool last_storage_save_ok_ = true;
   bool ambient_raw_logging_ = false;
   bool hall_watch_logging_ = false;
   uint32_t hall_watch_last_ms_ = 0;
