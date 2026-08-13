@@ -1,0 +1,12 @@
+# Generic Zephyr / west workspace — clangd picks up compile_commands.json
+# from any */build/ directory discovered by walking up from the open file.
+CompileFlags:
+  Add:
+    - -Wno-unknown-warning-option
+    - -Wno-gnu-zero-variadic-macro-arguments
+    - -Wno-unused-command-line-argument
+
+Diagnostics:
+  Suppress:
+    - drv_unknown_argument
+    - unknown_warning_option

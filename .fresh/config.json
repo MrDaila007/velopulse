@@ -1,0 +1,11 @@
+{
+  "version": 1,
+
+  "file_explorer": {
+    "follow_active_buffer": true,
+    "custom_ignore_patterns": [
+      "graphify-out/**",
+      ".worktrees/**"
+    ]
+  }
+}
