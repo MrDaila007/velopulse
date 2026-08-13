@@ -289,7 +289,29 @@ class MemoryStorageBackend final : public StorageBackend {
     return StorageIoResult::kOk;
   }
 
-  bool write(const char* path, const uint8_t* data, size_t length) override {
+  bool beginWrite(const char* path, const uint8_t* data,
+                  size_t length) override {
+    if (write_pending_) return false;
+    pending_path_ = path;
+    pending_data_.assign(data, data + length);
+    polls_remaining_ = polls_to_complete;
+    write_pending_ = true;
+    return true;
+  }
+
+  AsyncWriteStatus pollWrite() override {
+    if (!write_pending_) return AsyncWriteStatus::kIdle;
+    if (--polls_remaining_ > 0) return AsyncWriteStatus::kInProgress;
+    write_pending_ = false;
+    if (!write_ok) return AsyncWriteStatus::kError;
+    files[pending_path_] = pending_data_;
+    return AsyncWriteStatus::kOk;
+  }
+
+  // Test-only synchronous seeding helper -- bypasses beginWrite/pollWrite
+  // entirely. Used by putXRecord()/corrupt() fixtures below to set up raw
+  // slot contents directly.
+  bool write(const char* path, const uint8_t* data, size_t length) {
     if (!write_ok) return false;
     files[path] = std::vector<uint8_t>(data, data + length);
     return true;
@@ -299,8 +321,164 @@ class MemoryStorageBackend final : public StorageBackend {
 
   bool begin_ok = true;
   bool write_ok = true;
+  size_t polls_to_complete = 1;
   std::map<std::string, std::vector<uint8_t>> files;
+
+ private:
+  bool write_pending_ = false;
+  std::string pending_path_;
+  std::vector<uint8_t> pending_data_;
+  size_t polls_remaining_ = 0;
 };
+
+void test_memory_backend_async_write_completes_after_configured_polls() {
+  MemoryStorageBackend backend;
+  backend.polls_to_complete = 3;
+  const uint8_t data[] = {1, 2, 3, 4};
+  TEST_ASSERT_TRUE(backend.beginWrite("/test_async", data, sizeof(data)));
+  TEST_ASSERT_EQUAL(AsyncWriteStatus::kInProgress, backend.pollWrite());
+  TEST_ASSERT_EQUAL(AsyncWriteStatus::kInProgress, backend.pollWrite());
+  TEST_ASSERT_EQUAL(AsyncWriteStatus::kOk, backend.pollWrite());
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/test_async"));
+  const auto& stored = backend.files.at("/test_async");
+  TEST_ASSERT_EQUAL_UINT32(sizeof(data), stored.size());
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(data, stored.data(), sizeof(data));
+  TEST_ASSERT_EQUAL(AsyncWriteStatus::kIdle, backend.pollWrite());
+
+  // A second beginWrite while one is already pending is rejected.
+  backend.polls_to_complete = 1;
+  TEST_ASSERT_TRUE(backend.beginWrite("/test_async2", data, sizeof(data)));
+  TEST_ASSERT_FALSE(backend.beginWrite("/test_async3", data, sizeof(data)));
+}
+
+void test_storage_async_save_completes_over_multiple_polls() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  OdometerData data{1234u, 5u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(data));
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kInProgress, storage.pollSave());
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.pollSave());
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().writes);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.lastOdometerSequence());
+}
+
+void test_storage_async_save_serializes_concurrent_begin() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  OdometerData odometer{1000u, 1u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+
+  AmbientCalibrationData ambient{266u, 1126u, 1u};
+  TEST_ASSERT_FALSE(storage.beginSaveAmbientCalibration(ambient));
+
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
+  TEST_ASSERT_TRUE(storage.beginSaveAmbientCalibration(ambient));
+}
+
+void test_storage_async_drain_pending_save_blocks_to_completion() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(1u, backend.files.count("/cnt_a"));
+}
+
+void test_storage_async_dedup_skip_completes_synchronously() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  AmbientCalibrationData data{266u, 1126u, 1u};
+  TEST_ASSERT_TRUE(storage.beginSaveAmbientCalibration(data));
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
+
+  const uint32_t writes_before = storage.counters().writes;
+  const uint32_t skipped_before = storage.counters().skipped_writes;
+  TEST_ASSERT_TRUE(storage.beginSaveAmbientCalibration(data));
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(writes_before, storage.counters().writes);
+  TEST_ASSERT_EQUAL_UINT32(skipped_before + 1u, storage.counters().skipped_writes);
+}
+
+void test_storage_async_write_error_propagates_through_poll() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  backend.write_ok = false;
+  TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kError, storage.drainPendingSave());
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().write_errors);
+}
+
+void test_storage_async_failed_odometer_save_does_not_leak_sequence_into_unrelated_write() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  // A failed odometer save leaves a stale pending_odometer_sequence_ behind
+  // -- it must not survive to taint a later, unrelated write's completion.
+  backend.polls_to_complete = 1;
+  backend.write_ok = false;
+  OdometerData odometer{5000u, 10u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kError, storage.drainPendingSave());
+  TEST_ASSERT_EQUAL_UINT32(0u, storage.lastOdometerSequence());
+
+  // loadConfig()'s boot-time defaults-write goes through the raw writeSlot()
+  // path (not beginSavePayloadAsync), which is exactly the path that never
+  // touched pending_is_odometer_ before the fix. It must succeed without
+  // stamping the stale odometer sequence.
+  backend.write_ok = true;
+  DeviceConfig config;
+  StorageLoadInfo info;
+  TEST_ASSERT_TRUE(storage.loadConfig(config, info));
+  TEST_ASSERT_TRUE(info.defaults_written);
+  TEST_ASSERT_EQUAL_UINT32(0u, storage.lastOdometerSequence());
+}
+
+void test_storage_async_drain_gives_up_on_a_backend_that_never_completes() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 100;  // exceeds the internal drain cap
+  TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kError, storage.drainPendingSave());
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().write_errors);
+}
+
+void test_storage_async_sync_save_rejected_while_another_save_in_progress() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  OdometerData odometer{1000u, 1u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_TRUE(storage.saveInProgress());
+
+  AmbientCalibrationData ambient{266u, 1126u, 1u};
+  TEST_ASSERT_FALSE(storage.saveAmbientCalibration(ambient));
+}
 
 void putConfigRecord(MemoryStorageBackend& backend,
                      const char* path,
@@ -3218,6 +3396,15 @@ int main(int, char**) {
   RUN_TEST(test_storage_restores_defaults_when_both_slots_are_corrupt);
   RUN_TEST(test_odometer_alternates_and_recovers_older_slot);
   RUN_TEST(test_ambient_calibration_encode_decode_round_trip);
+  RUN_TEST(test_memory_backend_async_write_completes_after_configured_polls);
+  RUN_TEST(test_storage_async_save_completes_over_multiple_polls);
+  RUN_TEST(test_storage_async_save_serializes_concurrent_begin);
+  RUN_TEST(test_storage_async_drain_pending_save_blocks_to_completion);
+  RUN_TEST(test_storage_async_dedup_skip_completes_synchronously);
+  RUN_TEST(test_storage_async_write_error_propagates_through_poll);
+  RUN_TEST(test_storage_async_failed_odometer_save_does_not_leak_sequence_into_unrelated_write);
+  RUN_TEST(test_storage_async_drain_gives_up_on_a_backend_that_never_completes);
+  RUN_TEST(test_storage_async_sync_save_rejected_while_another_save_in_progress);
   RUN_TEST(test_storage_counters_encode_decode_round_trip);
   RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_storage_counters_absent_record_defaults_without_flash_write);

@@ -22,6 +22,20 @@ void removeTestFiles() {
   if (InternalFS.exists(kTestOdoB)) InternalFS.remove(kTestOdoB);
 }
 
+// Drives beginWrite()/pollWrite() to completion synchronously. InternalFsBackend
+// now genuinely splits the write across two pollWrite() calls (remove on the
+// first tick, open+write+flush+close on the second), so this loop runs twice
+// in practice today.
+bool writeRecordSync(bike::InternalFsBackend& backend, const char* path,
+                     const uint8_t* data, size_t length) {
+  if (!backend.beginWrite(path, data, length)) return false;
+  bike::AsyncWriteStatus status;
+  do {
+    status = backend.pollWrite();
+  } while (status == bike::AsyncWriteStatus::kInProgress);
+  return status == bike::AsyncWriteStatus::kOk;
+}
+
 }  // namespace
 
 void setUp() { removeTestFiles(); }
@@ -62,7 +76,7 @@ void test_internal_fs_ab_write_read_and_corrupt_fallback() {
   TEST_ASSERT_EQUAL(bike::StorageIoResult::kOk,
                     backend.read(kTestSlotA, record, sizeof(record), length));
   record[bike::kRecordHeaderSize + 10] ^= 0x80u;
-  TEST_ASSERT_TRUE(backend.write(kTestSlotA, record, length));
+  TEST_ASSERT_TRUE(writeRecordSync(backend, kTestSlotA, record, length));
 
   bike::StorageManager fallback(backend, paths);
   TEST_ASSERT_TRUE(fallback.begin());
@@ -102,7 +116,7 @@ void test_odometer_ab_write_read_and_corrupt_fallback() {
   TEST_ASSERT_EQUAL(bike::StorageIoResult::kOk,
                     backend.read(kTestOdoB, record, sizeof(record), length));
   record[bike::kRecordHeaderSize] ^= 0x80u;
-  TEST_ASSERT_TRUE(backend.write(kTestOdoB, record, length));
+  TEST_ASSERT_TRUE(writeRecordSync(backend, kTestOdoB, record, length));
 
   bike::StorageManager fallback(backend, paths);
   TEST_ASSERT_TRUE(fallback.begin());

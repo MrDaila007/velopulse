@@ -125,6 +125,16 @@ encryption и 5-минутное pairing window синхронизированы
   factory reset). Serial-команда `sched`. Попутно исправлен смежный баг:
   `Scheduler::nextDueMs` сравнивал сырые `next_due_ms` вместо wrap-safe дельты и
   мог занизить срочность задачи почти на 2^31 мс вокруг переполнения `millis()`.
+- **Async flash writes**: `StorageBackend::beginWrite`/`pollWrite`
+  (`storage_manager.h`) заменили синхронный `write()`; `InternalFsBackend`
+  (`internal_fs_backend.{h,cpp}`) разбивает remove+open+write+flush+close на
+  два `pollWrite()`-тика. Новая scheduler-задача `"storage"`
+  (`AppController::pollStorageSave`) двигает mid-ride сохранения одометра/
+  ambient-калибровки/counters; старые синхронные `saveConfig`/`saveOdometer`/
+  `saveAmbientCalibration`/`saveStorageCounters` остались тонкими
+  begin+drain обёртками для boot-time и non-hot-path вызовов. Deep sleep и
+  оба `reboot`-чекпоинта синхронно дренируют (`drainStorageSave()`) любую
+  незавершённую запись перед power-off/reset.
 - BLE Э4.1–4.14: `BleManager` GATT + live Device Info на Read (uptime, flags,
   bonded, pairing window); FICR serial; `reset_reason` из `NRF_POWER->RESETREAS`;
   `boot_count` в `/boot_cnt`; live Telemetry notify (seq + adaptive 1 Гц /
@@ -313,13 +323,13 @@ encryption и 5-минутное pairing window синхронизированы
   `kLowPowerSchedulerPeriods` (`power_manager.h`) когда-нибудь ослабят, а не
   исправление наблюдаемой блокировки: сегодня `pulses_ms = 10` в этой таблице
   и так держит `next_due - now_ms` в пределах ~10 мс, так что клэмп на 50 мс
-  сейчас не имеет измеримого эффекта в рантайме; синхронные flash-записи
-  (`InternalFsBackend::write` — remove+write+flush+close) выполняются прямо на
-  scheduler-пути при сохранении одометра/ambient-калибровки/counters; несколько
-  `delay(2)` в диагностической `printGpioProbe()`, доступной из
-  Serial-консоли. Flash-записи и `printGpioProbe()` ещё не убраны — но теперь
-  под watchdog-таймаутом 8 с (см. выше), и `sched` даёт `max_us`/`overruns` на
-  задачу для их измерения.
+  сейчас не имеет измеримого эффекта в рантайме; flash-записи одометра/
+  ambient-калибровки/counters на mid-ride пути теперь асинхронные и
+  разбиты на два `pollWrite()`-тика через scheduler-задачу `"storage"`
+  (см. «Готово» выше), но несколько `delay(2)` в диагностической
+  `printGpioProbe()`, доступной из Serial-консоли, ещё не убраны. Оба —
+  под watchdog-таймаутом 8 с (см. выше), и `sched` даёт `max_us`/`overruns`
+  на задачу для их измерения.
 - Mobile hardware gate не завершён. Исправленный release APK установлен, и базовые
   discovery/connect подтверждены на реальном телефоне и XIAO. Нужны измерение поиска
   ≤5 с, 10/10 connect, bonding после reboot, write-then-verify пяти настроек, все
@@ -330,8 +340,12 @@ encryption и 5-минутное pairing window синхронизированы
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 - Zephyr-порт (`firmware-zephyr/`) не синхронизирован с этими изменениями: weather-
-  страницы, speed-gap guard/reboot, web-компаньон, ambient auto-calibration и
-  BLE-индикатор на экране реализованы только в Arduino-прошивке.
+  страницы, speed-gap guard/reboot, web-компаньон, ambient auto-calibration,
+  BLE-индикатор на экране и async flash writes (`StorageBackend::beginWrite`/
+  `pollWrite`) реализованы только в Arduino-прошивке — расшаренный
+  `test/shared/memory_storage_backend.{h,cpp}` всё ещё объявляет старый
+  `write() override` и не собирается для
+  `firmware-zephyr/tests/domain/src/test_codec_storage.cpp`.
 
 ## Следующий шаг
 

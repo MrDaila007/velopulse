@@ -16,7 +16,12 @@ uint16_t readBootCount(StorageBackend& backend, const char* path) {
 bool writeBootCount(StorageBackend& backend, const char* path, uint16_t count) {
   const uint8_t buf[2] = {static_cast<uint8_t>(count & 0xFFu),
                           static_cast<uint8_t>((count >> 8) & 0xFFu)};
-  return backend.write(path, buf, sizeof(buf));
+  if (!backend.beginWrite(path, buf, sizeof(buf))) return false;
+  AsyncWriteStatus status;
+  do {
+    status = backend.pollWrite();
+  } while (status == AsyncWriteStatus::kInProgress);
+  return status == AsyncWriteStatus::kOk;
 }
 
 }  // namespace

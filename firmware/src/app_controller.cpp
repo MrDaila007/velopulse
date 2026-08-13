@@ -65,22 +65,26 @@ constexpr size_t kTaskAmbient = 2;
 constexpr size_t kTaskBattery = 3;
 constexpr size_t kTaskDisplay = 4;
 constexpr size_t kTaskBle = 5;
+constexpr size_t kTaskStorage = 6;
 
 // Scheduler::run() overrun budgets, in microseconds. These are diagnostic
-// thresholds surfaced via the "sched" Serial command, not enforced limits —
+// thresholds surfaced via the "sched" Serial command, not enforced limits --
 // the watchdog is what actually protects against a wedged loop. A typical
-// internal-flash page erase is ~85ms (InternalFsBackend::write), and
-// updateState/updateAmbient/updateDisplay/updateBattery can each trigger one
-// via maybePersistOdometer/maybePersistAmbientCalibration, so their budgets
-// carry generous headroom above a single erase rather than the sub-ms cost of
-// their non-flash work. updateBle additionally covers a dangerous-command
-// factory reset, which can chain up to three flash writes back to back.
+// internal-flash page erase is ~85ms. Only the "storage" task actually
+// performs flash I/O now (StorageManager::pollSave() drives
+// InternalFsBackend's two-poll remove/write split); updateState/
+// updateAmbient/updateDisplay/updateBattery/updateBle only ever *start* an
+// async save (beginSaveX: fast reads + a memcpy, no flash write), so their
+// budgets below are now more headroom than their non-flash work needs --
+// kept generous pending a real hardware sched measurement rather than
+// tightened here.
 constexpr uint32_t kSchedPulsesBudgetUs = 2000u;      // ISR ring drain only.
-constexpr uint32_t kSchedStateBudgetUs = 150000u;     // trip calc + 1 flash write.
-constexpr uint32_t kSchedAmbientBudgetUs = 150000u;   // ADC avg + 1 flash write.
-constexpr uint32_t kSchedBatteryBudgetUs = 150000u;   // ADC read + 1 flash write.
-constexpr uint32_t kSchedDisplayBudgetUs = 150000u;   // I2C sendBuffer + 1 flash write.
-constexpr uint32_t kSchedBleBudgetUs = 300000u;       // up to 3 chained flash writes.
+constexpr uint32_t kSchedStateBudgetUs = 150000u;     // trip calc + begin an async save.
+constexpr uint32_t kSchedAmbientBudgetUs = 150000u;   // ADC avg + begin an async save.
+constexpr uint32_t kSchedBatteryBudgetUs = 150000u;   // ADC read only.
+constexpr uint32_t kSchedDisplayBudgetUs = 150000u;   // I2C sendBuffer only.
+constexpr uint32_t kSchedBleBudgetUs = 300000u;       // up to 3 chained async-save starts.
+constexpr uint32_t kSchedStorageBudgetUs = 150000u;   // one poll of the in-flight save (<=1 flash op).
 
 // Bounds how long AppController::loop()'s low-power-idle branch can ever
 // sleep in one delay() call, regardless of what kLowPowerSchedulerPeriods
@@ -151,8 +155,9 @@ AppController::AppController()
              {"ambient", 10, 0, ambientTask, this, 0, kSchedAmbientBudgetUs},
              {"battery", 1000, 0, batteryTask, this, 0, kSchedBatteryBudgetUs},
              {"display", 50, 0, displayTask, this, 0, kSchedDisplayBudgetUs},
-             {"ble", 100, 0, bleTask, this, 0, kSchedBleBudgetUs}},
-      scheduler_(tasks_, 6, schedulerMicros) {}
+             {"ble", 100, 0, bleTask, this, 0, kSchedBleBudgetUs},
+             {"storage", 50, 0, storageTask, this, 0, kSchedStorageBudgetUs}},
+      scheduler_(tasks_, 7, schedulerMicros) {}
 
 void AppController::begin() {
   // CONFIG/RREN/CRV are write-locked once the WDT is running, so configure
@@ -681,8 +686,10 @@ void AppController::handlePowerManagerResult(
   if (result.request_deep_sleep_save) {
     odometer_save_.requestDeepSleepSave();
     maybePersistOdometer(now_ms);
+    drainStorageSave();
     ambient_calibration_save_.requestDeepSleepSave();
     maybePersistAmbientCalibration(now_ms);
+    drainStorageSave();
     persistStorageCounters();
   }
   if (result.mode_changed &&
@@ -698,16 +705,23 @@ void AppController::tryEnterDeepSleep(uint32_t now_ms) {
 #if defined(BIKECOMP_FEATURE_DEEP_SLEEP) && BIKECOMP_FEATURE_DEEP_SLEEP
   if (!config_.deep_sleep_enabled || power_manager_.sleepBlocked()) return;
 
+  // Drain anything still in flight from handlePowerManagerResult's earlier
+  // request_deep_sleep_save branch this same tick, so the checks below see
+  // an accurate storage_.saveInProgress() and persistOdometer isn't
+  // rejected by a save that isn't actually "in the way" anymore.
+  drainStorageSave();
+
   odometer_save_.requestDeepSleepSave();
   const uint64_t odometer_mm = trip_computer_.snapshot().odometer_mm;
   const OdometerSaveTrigger trigger =
       odometer_save_.evaluate(odometer_mm, now_ms);
-  if (trigger != OdometerSaveTrigger::kNone &&
-      !persistOdometer(trigger)) {
-    return;
+  if (trigger != OdometerSaveTrigger::kNone) {
+    if (!persistOdometer(trigger)) return;
+    drainStorageSave();
   }
   ambient_calibration_save_.requestDeepSleepSave();
   maybePersistAmbientCalibration(now_ms);
+  drainStorageSave();
 
   display_.turnOff(now_ms);
   ble_.stopAdvertising();
@@ -721,8 +735,10 @@ void AppController::tryEnterDeepSleep(uint32_t now_ms) {
   // Re-flush counters here: the persistOdometer/maybePersistAmbientCalibration
   // calls above (and the earlier snapshot in handlePowerManagerResult) can
   // still bump counters_.writes/skipped_writes/write_errors, and this is the
-  // last chance to capture that before power-off.
+  // last chance to capture that before power-off -- drain it fully since an
+  // async write left in flight would otherwise be silently lost to System OFF.
   persistStorageCounters();
+  drainStorageSave();
   // A true System OFF resets the WDT along with the rest of the core, so
   // this feed only matters if the SoC is emulating System OFF (e.g. a
   // debugger attached) instead of actually entering it — in that case the
@@ -1107,13 +1123,12 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         break;
 
       case SerialCommand::kReboot: {
+        drainStorageSave();
         odometer_save_.requestRebootSave();
-        const bool odometer_saved =
-            persistOdometer(OdometerSaveTrigger::kReboot);
-        // Flush unconditionally: a failed odometer save still bumps
-        // counters_.write_errors, and a reboot is exactly the moment we
-        // most want that captured, not skipped.
+        const bool started = persistOdometer(OdometerSaveTrigger::kReboot);
+        const bool odometer_saved = started && drainStorageSave();
         persistStorageCounters();
+        drainStorageSave();
         if (!odometer_saved) {
           Serial.println("ERROR reboot storage");
         } else {
@@ -1386,6 +1401,11 @@ void AppController::bleTask(void* context, uint32_t now_ms) {
   static_cast<AppController*>(context)->updateBle(now_ms);
 }
 
+void AppController::storageTask(void* context, uint32_t now_ms) {
+  (void)now_ms;
+  static_cast<AppController*>(context)->pollStorageSave();
+}
+
 void AppController::applyRideUpdate(const RideUpdate& update, uint32_t now_ms) {
   if (update.moving_delta_ms != 0) trip_computer_.addMovingTime(update.moving_delta_ms);
   trip_computer_.setRideState(update.state);
@@ -1405,24 +1425,37 @@ void AppController::maybePersistOdometer(uint32_t now_ms) {
 }
 
 bool AppController::persistOdometer(OdometerSaveTrigger trigger) {
+  if (storage_.saveInProgress()) return false;
   const uint64_t odometer_mm = trip_computer_.snapshot().odometer_mm;
+  pending_odometer_trigger_ = trigger;
+  pending_odometer_mm_ = odometer_mm;
 
   OdometerData data;
   data.odometer_mm = odometer_mm;
   data.total_revolutions = trip_computer_.totalRevolutions();
-  const bool ok = storage_.mounted() && storage_.saveOdometer(data);
+  if (!storage_.mounted() || !storage_.beginSaveOdometer(data)) {
+    completeOdometerSave(false);
+    return false;
+  }
+  if (!storage_.saveInProgress()) {
+    completeOdometerSave(true);
+    return true;
+  }
+  pending_storage_save_ = PendingStorageSave::kOdometer;
+  return true;
+}
+
+void AppController::completeOdometerSave(bool ok) {
+  last_storage_save_ok_ = ok;
   if (ok) {
-    odometer_save_.markSaved(odometer_mm);
-    // Only clear one-shot pending flags after a successful write; otherwise
-    // pause/display-off/critical/usb triggers would be lost on Flash errors.
-    odometer_save_.acknowledge(trigger);
+    odometer_save_.markSaved(pending_odometer_mm_);
+    odometer_save_.acknowledge(pending_odometer_trigger_);
   } else {
     ble_.recordError(ErrorLogCode::kFlashError, ErrorLogSeverity::kError,
-                     static_cast<uint16_t>(trigger), millis());
+                     static_cast<uint16_t>(pending_odometer_trigger_), millis());
   }
-
   Serial.print("Odo save: trigger=");
-  Serial.print(odometerSaveTriggerName(trigger));
+  Serial.print(odometerSaveTriggerName(pending_odometer_trigger_));
   Serial.print(", result=");
   Serial.print(ok ? "OK" : "ERROR");
   Serial.print(", sequence=");
@@ -1433,7 +1466,6 @@ bool AppController::persistOdometer(OdometerSaveTrigger trigger) {
   Serial.print(storage_.counters().skipped_writes);
   Serial.print(", write_errors=");
   Serial.println(storage_.counters().write_errors);
-  return ok;
 }
 
 void AppController::maybePersistAmbientCalibration(uint32_t now_ms) {
@@ -1447,39 +1479,100 @@ void AppController::maybePersistAmbientCalibration(uint32_t now_ms) {
 
 bool AppController::persistAmbientCalibration(AmbientCalibrationSaveTrigger trigger,
                                               uint32_t now_ms) {
+  if (storage_.saveInProgress()) return false;
   const AmbientLightCalibrator& calibrator = ambient_light_.calibration();
   AmbientCalibrationData data;
   data.raw_dark = calibrator.rawDark();
   data.raw_bright = calibrator.rawBright();
   data.quality = static_cast<uint8_t>(calibrator.quality());
-  const bool ok = storage_.mounted() && storage_.saveAmbientCalibration(data);
+
+  pending_ambient_trigger_ = trigger;
+  pending_ambient_now_ms_ = now_ms;
+  pending_ambient_raw_dark_ = data.raw_dark;
+  pending_ambient_raw_bright_ = data.raw_bright;
+  pending_ambient_quality_ = calibrator.quality();
+
+  if (!storage_.mounted() || !storage_.beginSaveAmbientCalibration(data)) {
+    completeAmbientCalibrationSave(false);
+    return false;
+  }
+  if (!storage_.saveInProgress()) {
+    completeAmbientCalibrationSave(true);
+    return true;
+  }
+  pending_storage_save_ = PendingStorageSave::kAmbientCalibration;
+  return true;
+}
+
+void AppController::completeAmbientCalibrationSave(bool ok) {
+  last_storage_save_ok_ = ok;
   if (ok) {
     ambient_light_.markCalibrationPersisted();
-    ambient_calibration_save_.acknowledge(trigger, now_ms);
+    ambient_calibration_save_.acknowledge(pending_ambient_trigger_,
+                                          pending_ambient_now_ms_);
   }
-
   Serial.print("Ambient cal save: trigger=");
-  Serial.print(ambientCalibrationSaveTriggerName(trigger));
+  Serial.print(ambientCalibrationSaveTriggerName(pending_ambient_trigger_));
   Serial.print(", result=");
   Serial.print(ok ? "OK" : "ERROR");
   Serial.print(", raw_dark=");
-  Serial.print(data.raw_dark);
+  Serial.print(pending_ambient_raw_dark_);
   Serial.print(", raw_bright=");
-  Serial.print(data.raw_bright);
+  Serial.print(pending_ambient_raw_bright_);
   Serial.print(", quality=");
-  Serial.println(ambientCalibrationQualityName(calibrator.quality()));
-  return ok;
+  Serial.println(ambientCalibrationQualityName(pending_ambient_quality_));
 }
 
 void AppController::persistStorageCounters() {
-  if (!storage_.mounted()) return;
-  const bool ok = storage_.saveStorageCounters();
-  Serial.print("Counters save: result=");
-  Serial.println(ok ? "OK" : "ERROR");
+  if (!storage_.mounted() || storage_.saveInProgress()) return;
+  if (!storage_.beginSaveStorageCounters()) {
+    Serial.println("Counters save: result=ERROR");
+    return;
+  }
+  if (!storage_.saveInProgress()) {
+    Serial.println("Counters save: result=OK");
+    return;
+  }
+  pending_storage_save_ = PendingStorageSave::kStorageCounters;
+}
+
+void AppController::pollStorageSave() {
+  if (pending_storage_save_ == PendingStorageSave::kNone) return;
+  const StorageAsyncStatus status = storage_.pollSave();
+  if (status == StorageAsyncStatus::kInProgress) return;
+  completePendingStorageSave(status == StorageAsyncStatus::kOk);
+}
+
+void AppController::completePendingStorageSave(bool ok) {
+  switch (pending_storage_save_) {
+    case PendingStorageSave::kOdometer:
+      completeOdometerSave(ok);
+      break;
+    case PendingStorageSave::kAmbientCalibration:
+      completeAmbientCalibrationSave(ok);
+      break;
+    case PendingStorageSave::kStorageCounters:
+      last_storage_save_ok_ = ok;
+      Serial.print("Counters save: result=");
+      Serial.println(ok ? "OK" : "ERROR");
+      break;
+    case PendingStorageSave::kNone:
+      break;
+  }
+  pending_storage_save_ = PendingStorageSave::kNone;
+}
+
+bool AppController::drainStorageSave() {
+  if (storage_.saveInProgress()) {
+    const StorageAsyncStatus status = storage_.drainPendingSave();
+    completePendingStorageSave(status == StorageAsyncStatus::kOk);
+  }
+  return last_storage_save_ok_;
 }
 
 bool AppController::saveAndApplyOdometer(uint64_t odometer_mm,
                                          uint64_t total_revolutions) {
+  drainStorageSave();
   OdometerData data;
   data.odometer_mm = odometer_mm;
   data.total_revolutions = total_revolutions;
@@ -1638,6 +1731,7 @@ void AppController::processPendingConfigWrite(uint32_t now_ms) {
     applyConfig(parsed.config);
   }
 
+  drainStorageSave();
   const bool saved = storage_.mounted() && storage_.saveConfig(config_);
   if (!saved) {
     result.status = CommandStatus::kErrStorage;
@@ -1670,10 +1764,12 @@ void AppController::processPendingSafeCommand(uint32_t now_ms) {
       break;
     case CommandId::kForceSave: {
       odometer_save_.requestForceSave();
+      drainStorageSave();
       const OdometerSaveTrigger trigger =
           odometer_save_.evaluate(trip_computer_.snapshot().odometer_mm, now_ms);
-      if (trigger != OdometerSaveTrigger::kForceSave ||
-          !persistOdometer(trigger)) {
+      const bool started = persistOdometer(trigger);
+      if (trigger != OdometerSaveTrigger::kForceSave || !started ||
+          !drainStorageSave()) {
         result.status = CommandStatus::kErrStorage;
       }
       break;
@@ -1752,6 +1848,7 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
         break;
       }
       const DeviceConfig defaults;
+      drainStorageSave();
       if (!storage_.mounted() || !storage_.saveConfig(defaults)) {
         saveAndApplyOdometer(old_odometer_mm, old_total_revolutions);
         result.status = CommandStatus::kErrStorage;
@@ -1766,23 +1863,21 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
     }
 
     case CommandId::kReboot: {
+      drainStorageSave();
       odometer_save_.requestRebootSave();
-      const bool odometer_saved =
-          persistOdometer(OdometerSaveTrigger::kReboot);
+      const bool started = persistOdometer(OdometerSaveTrigger::kReboot);
+      const bool odometer_saved = started && drainStorageSave();
       if (!odometer_saved) {
         result.status = CommandStatus::kErrStorage;
       } else {
         ambient_calibration_save_.requestRebootSave();
         maybePersistAmbientCalibration(now_ms);
+        drainStorageSave();
         reboot_pending_ = true;
         reboot_requested_ms_ = now_ms;
       }
-      // Flush unconditionally and last: a failed odometer save still bumps
-      // counters_.write_errors, and a successful one falls through to the
-      // ambient-calibration save above, whose own counters delta must be
-      // captured too — this must be the final storage action before the
-      // pending reset fires, or that delta is silently dropped.
       persistStorageCounters();
+      drainStorageSave();
       break;
     }
 
@@ -1791,6 +1886,7 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
       candidate.batt_cal_scale_permille =
           command.params.battery_scale_permille;
       candidate.batt_cal_offset_mv = command.params.battery_offset_mv;
+      drainStorageSave();
       if (!storage_.mounted() || !storage_.saveConfig(candidate)) {
         result.status = CommandStatus::kErrStorage;
       } else {
@@ -1861,6 +1957,7 @@ void AppController::updateBle(uint32_t now_ms) {
 
   if (reboot_pending_ &&
       static_cast<uint32_t>(now_ms - reboot_requested_ms_) >= 250u) {
+    drainStorageSave();
     NVIC_SystemReset();
   }
 
