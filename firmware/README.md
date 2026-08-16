@@ -27,16 +27,78 @@ python3 ../tools/sync_versions.py
 Профиль выбирается при сборке: `xiao_ble_sense` — основной SSD1306 128×64,
 `xiao_ble_sense_128x32` — совместимый SSD1306 128×32. Оба используют I²C `0x3C`.
 
-## Команды
+## Сборка и прошивка
+
+Цели Makefile (из каталога `firmware/`):
+
+```bash
+make                    # сборка ENV=xiao_ble_sense
+make test               # pio test -e native
+make upload             # USB serial DFU (nrfutil / двойной Reset)
+make flash-stlink       # SWD через ST-Link, бутлодер не стирается
+make dfu-ble            # BLE OTA с этого ПК (нужен bleak)
+make monitor            # Serial 115200
+make help
+make build ENV=xiao_ble_sense_128x32
+make build ENV=xiao_ble_sense_deep_sleep
+```
+
+Те же `flash-stlink` / `dfu-ble` доступны из `firmware-zephyr/` (прокси в Arduino-сборку).
+
+Эквивалент без make:
 
 ```bash
 pio test -e native
 pio run -e xiao_ble_sense
-pio run -e xiao_ble_sense_deep_sleep   # +BIKECOMP_FEATURE_DEEP_SLEEP=1
-pio run -e xiao_ble_sense_128x32
 pio run -e xiao_ble_sense -t upload
+./scripts/flash_stlink.sh
+python3 scripts/ble_dfu.py
 pio device monitor -b 115200
 ```
+
+### USB serial / UF2
+
+Штатный путь, если CDC живой: `make upload` или двойной Reset и копирование UF2.
+USB-C Super-nRF52840 может не перечисляться; бутлодер Adafruit UF2 при этом
+остаётся, и прошивать можно по SWD или BLE.
+
+### ST-Link (SWD)
+
+Нужны OpenOCD и ST-Link (SWDIO, SWCLK, GND; питание 3.3 В или USB платы).
+
+```bash
+make flash-stlink
+# или: ./scripts/flash_stlink.sh xiao_ble_sense_128x32
+```
+
+Скрипт пишет `firmware.hex` без mass-erase бутлодера и обновляет CRC16 настроек
+Adafruit на `0xFF000`, иначе после reset приложение может не стартовать.
+
+### BLE OTA
+
+После рабочей прошивки с `BLEDfu` плата рекламирует `BikeComp-XXXX` и сервис
+`00001530-1212-EFDE-1523-785FEABCD123`. Это аварийный Adafruit DFU, не Nordic
+Secure DFU v1.1.
+
+**С телефона:** nRF Connect или nRF Device Firmware Update → Connect → DFU →
+`.pio/build/xiao_ble_sense/firmware.zip`. Имя в бутлодере — `AdaDFU` / `DfuTarg`.
+OLED в бутлодере гаснет — это нормально.
+
+**С ПК** (BlueZ, пакет `bleak`):
+
+```bash
+make dfu-ble
+# или: python3 scripts/ble_dfu.py .pio/build/xiao_ble_sense/firmware.zip
+```
+
+Если после SWD-заливки connect сразу рвётся: на ПК остался старый bond.
+
+```bash
+bluetoothctl remove ED:CC:18:B1:9F:7D   # адрес из scan
+```
+
+Затем перезапустите плату (pairing window 5 минут) и снова `make dfu-ble`.
+Слабый RSSI (~−80 dBm) сильно замедляет заливку; поднесите плату ближе к ноутбуку.
 
 После загрузки первый импульс запускает поездку и начисляет один оборот. Скорость
 появляется после второго корректного импульса. Импульсы быстрее лимита 100 км/ч

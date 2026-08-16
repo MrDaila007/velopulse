@@ -20,6 +20,7 @@ namespace bike {
 namespace {
 
 BLEService g_service(kBleServiceUuid);
+BLEDfu g_dfu;
 BLECharacteristic g_device_info(kBleDeviceInfoUuid);
 BLECharacteristic g_telemetry(kBleTelemetryUuid);
 BLECharacteristic g_config_read(kBleConfigReadUuid);
@@ -481,7 +482,8 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   resolveDeviceLocalName(config.device_name, serial_suffix, g_local_name,
                          sizeof(g_local_name));
 
-  Bluefruit.configUuid128Count(8);
+  // BikeComp GATT (1 service + 8 chars) plus Adafruit BLEDfu (1 + 3).
+  Bluefruit.configUuid128Count(16);
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
 
   if (!Bluefruit.begin()) {
@@ -489,6 +491,11 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   }
 
   Bluefruit.autoConnLed(false);
+
+  if (g_dfu.begin() != ERROR_NONE) {
+    Serial.println("BLE DFU: begin failed");
+    return false;
+  }
 
   Bluefruit.setEventCallback(onBleEvent);
   Bluefruit.Security.setPairCompleteCallback(onPairComplete);
@@ -509,6 +516,7 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   startAdvertising();
   Serial.print("BLE ADV name: ");
   Serial.println(g_local_name);
+  Serial.println("BLE DFU: Adafruit OTA enabled");
   ok_ = true;
   return true;
 }

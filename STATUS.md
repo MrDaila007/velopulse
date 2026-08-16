@@ -1,6 +1,6 @@
 # Статус проекта
 
-Обновлено: 2026-08-10
+Обновлено: 2026-08-14
 
 ## Снимок веток
 
@@ -153,6 +153,10 @@ encryption и 5-минутное pairing window синхронизированы
   single-slot execution и token/error statuses. Реализованы reset odometer/factory,
   reboot с отложенным reset, battery calibration, set odometer и runtime pairing
   window; параметры сохраняются до ответа OK.
+  Adafruit BLEDfu в том же `BleManager`: buttonless переход в bootloader OTA
+  (`GPREGRET=0xB1`) при записи DFU Control Point; первая заливка при мёртвом USB —
+  `firmware/scripts/flash_stlink.sh`, дальше `firmware.zip` с телефона. Это не
+  Nordic Secure DFU v1.1.
   Pairing/bonding: LESC Just Works, Flash bond store Bluefruit, encrypted GATT
   permissions, release-default `BIKECOMP_OPEN_PAIRING=0`; новые pairing requests
   после 5 минут отклоняются disconnect + defensive bond revoke, сохранённые bonds

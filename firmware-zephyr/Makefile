@@ -7,9 +7,11 @@
 #   make rebuild      # clean + build
 #   make uf2          # print path to zephyr.uf2
 #   make bootstrap    # west init/update in repo (optional)
+#   make flash-stlink # Arduino SWD flash (ST-Link)
+#   make dfu-ble      # Arduino BLE OTA from this PC
 
 SHELL := /bin/bash
-.PHONY: all build clean rebuild bootstrap env env-show uf2 hex upload flash monitor test help native-test
+.PHONY: all build clean rebuild bootstrap env env-show uf2 hex upload flash flash-stlink dfu-ble monitor test help native-test
 
 ROOT        := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 REPO_ROOT   := $(abspath $(ROOT)/..)
@@ -59,6 +61,13 @@ upload flash:
 upload-nobuild:
 	@$(SCRIPTS)/upload.sh --no-build
 
+# Arduino production image over SWD / BLE OTA (Adafruit bootloader on the board).
+flash-stlink:
+	@$(MAKE) -C "$(REPO_ROOT)/firmware" flash-stlink
+
+dfu-ble:
+	@$(MAKE) -C "$(REPO_ROOT)/firmware" dfu-ble
+
 monitor:
 	@$(SCRIPTS)/monitor.sh
 
@@ -81,6 +90,8 @@ help:
 	@echo "  make hex         Build and print HEX path"
 	@echo "  make upload      Build + flash over USB serial (adafruit-nrfutil)"
 	@echo "  make flash       Alias for upload"
+	@echo "  make flash-stlink Arduino SWD flash via ST-Link (keeps bootloader)"
+	@echo "  make dfu-ble     Arduino BLE OTA of firmware.zip from this PC"
 	@echo "  make monitor     Open serial console (115200)"
 	@echo "  make test        Run ztest domain suite (host unittest)"
 	@echo "  make env         Discover paths and write ignored .env"

@@ -58,6 +58,8 @@
 - [x] nRF Connect читает все доступные для Read характеристики побайтно по
   спецификации (пользовательский лог 2026-07-31: Device Info, Telemetry, Config
   Read, Command Result, Error Log; service + 7 custom characteristics обнаружены).
+- [x] Adafruit BLEDfu (buttonless OTA) зарегистрирован рядом с BikeComp GATT;
+  первая заливка при мёртвом USB — `scripts/flash_stlink.sh`.
 - [ ] Валидная config write применяется и сохраняется.
 - [ ] Невалидная config write возвращает `ERR_RANGE` и верный field.
 - [ ] RESET_TRIP работает через BLE.

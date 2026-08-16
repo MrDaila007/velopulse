@@ -36,7 +36,8 @@ struct BleBootSeed {
   bool open_pairing_always = false;
 };
 
-// Adafruit Bluefruit peripheral: Bike Computer Configuration Service GATT table.
+// Adafruit Bluefruit peripheral: Bike Computer Configuration Service GATT table
+// plus BLEDfu (buttonless jump into the XIAO bootloader OTA).
 // É4.4 registers service + 7 characteristics (props, permissions, lengths, CCCD).
 // É4.6 refreshes Device Info on each Read (uptime / live flags / bonded).
 // É4.7 publishes Telemetry at adaptive rate (1 Hz notify / 0.2 Hz Read refresh).

@@ -112,21 +112,16 @@ Arduino core.
 
 ```bash
 cd firmware
-
-# Run host-side domain tests
-pio test -e native
-
-# Build production firmware
-pio run -e xiao_ble_sense
-# Build the compatible 128x32 firmware
-pio run -e xiao_ble_sense_128x32
-
-# Upload to a connected board
-pio run -e xiao_ble_sense -t upload
-
-# Open the 115200 baud serial monitor
-pio device monitor -b 115200
+make                    # build xiao_ble_sense
+make test               # host domain tests
+make upload             # USB serial DFU (double-reset bootloader)
+make flash-stlink       # SWD if USB does not enumerate
+make dfu-ble            # BLE OTA from this PC (after a BLEDfu image is on the board)
+make monitor            # 115200 serial console
 ```
+
+USB, ST-Link, and BLE OTA (phone or PC) are documented in
+[`firmware/README.md`](firmware/README.md) (Russian).
 
 Wiring and device behavior are described in
 [`firmware/README.md`](firmware/README.md). The firmware README is currently in

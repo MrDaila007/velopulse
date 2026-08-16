@@ -28,7 +28,7 @@ D3/P0.29 (LIGHT_POWER) → LDR → ADC_NODE → R_FIXED (10 kΩ) → GND
 
 ### Калибровка
 
-1. Прошить production firmware (`pio run -e xiao_ble_sense -t upload`).
+1. Прошить production firmware (`cd firmware && make upload`, либо `make flash-stlink` / `make dfu-ble`).
 2. Открыть Serial 115200 и отправить `ambient-raw` (или `tools/ldr_calibrate.py`).
 3. Записать `raw` в трёх условиях:
    - **dark** — LDR полностью закрыт

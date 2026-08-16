@@ -55,12 +55,15 @@
 
 ```bash
 cd firmware
-pio run -e xiao_ble_sense            # сборка
-pio run -e xiao_ble_sense_128x32     # совместимая сборка OLED 128×32
-pio run -e xiao_ble_sense -t upload  # прошивка (двойной сброс → режим bootloader)
-pio test -e native                   # тесты доменной логики на хосте
-pio device monitor                   # Serial-консоль (115200)
+make                    # сборка xiao_ble_sense
+make test               # тесты доменной логики на хосте
+make upload             # USB serial DFU (двойной Reset → bootloader)
+make flash-stlink       # SWD, если USB не перечисляется
+make dfu-ble            # BLE OTA с ПК (после первой заливки с BLEDfu)
+make monitor            # Serial-консоль (115200)
 ```
+
+Подробности каналов прошивки (USB, ST-Link, телефон/ПК BLE): [`firmware/README.md`](firmware/README.md).
 
 ### Приложение
 

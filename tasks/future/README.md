@@ -1,6 +1,8 @@
 # После v1.0
 
 - [ ] v1.1 Nordic Secure BLE DFU.
+- [x] Аварийный Adafruit BLEDfu (buttonless OTA через bootloader XIAO) — обход
+  мёртвого USB; не заменяет Secure DFU.
 - [ ] v1.1 Стандартный Cycling Speed and Cadence GATT profile.
 - [x] v1.1 Android-версия Flutter-приложения (release APK в CI/Release workflow).
 - [ ] v1.2 Журнал поездок/GPS во внешней QSPI Flash.

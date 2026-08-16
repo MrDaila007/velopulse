@@ -34,15 +34,20 @@ make env              # найти установки и записать игн
 make env-show         # проверить, какие пути будут использованы
 make                  # или ./scripts/build.sh
 make upload           # прошивка по USB serial (как pio run -t upload)
+make flash-stlink     # Arduino-образ по ST-Link (если USB мёртв)
+make dfu-ble          # Arduino BLE OTA firmware.zip с этого ПК
 make monitor          # serial console 115200
 # make clean / make rebuild / make uf2
 ```
 
 Прошивка:
 
-- **Serial (рекомендуется):** `make upload` — adafruit-nrfutil по USB, без drag-and-drop UF2.
+- **Serial (рекомендуется, если CDC живой):** `make upload` — adafruit-nrfutil по USB, без drag-and-drop UF2.
   Нужен пакет PIO `tool-adafruit-nrfutil` или переменная `ADAFRUIT_NRFUTIL`.
 - **UF2 вручную:** `build/zephyr/zephyr.uf2` (двойной Reset → копирование на диск `XIAO BLE`).
+- **Arduino SWD / BLE OTA** (плата с Adafruit bootloader, USB может отсутствовать):
+  `make flash-stlink` и `make dfu-ble` вызывают цели из [`../firmware/Makefile`](../firmware/Makefile).
+  Подробности — в [`firmware/README.md`](../firmware/README.md).
 
 После обновления со старой Zephyr-разметки первый запуск переформатирует бывший
 общий storage в отдельные NVS и LittleFS. Старые Zephyr bonds/config будут удалены;
