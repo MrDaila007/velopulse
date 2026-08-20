@@ -3455,7 +3455,7 @@ void test_csc_parses_c3_cadence_and_s3_speed_and_computes_motion() {
   tracker.poll(2000 + kCscStaleMs);
   TEST_ASSERT_FALSE(tracker.cadenceValid());
 
-  const uint8_t speed_pkt[] = {0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x04};
+  const uint8_t speed_pkt[] = {0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00};
   TEST_ASSERT_TRUE(parseCscMeasurement(speed_pkt, sizeof(speed_pkt), meas));
   TEST_ASSERT_TRUE(meas.wheel_present);
   TEST_ASSERT_FALSE(meas.crank_present);
