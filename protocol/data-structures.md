@@ -1,6 +1,6 @@
 # Бинарные структуры BLE-протокола
 
-Версия протокола: **1.0** · Порядок байт: **little-endian** (ТЗ §33)
+Версия протокола: **1.2** · Порядок байт: **little-endian** (ТЗ §33)
 
 Этот файл — нормативный контракт. Прошивка (`firmware/include/ble_protocol.h`) и приложение
 (`mobile-app/lib/data/protocol/*.dart`) обязаны совпадать с ним побайтно. Расхождение
@@ -74,12 +74,14 @@
 
 ## 3. Telemetry (UUID `…0003`, Read + Notify)
 
-Размер: **36 байт**, `struct_version = 1`. Частота notify: 1 Гц при активной подписке
-(ТЗ §14); 0.2 Гц, если подписки нет (актуализация значения для Read).
+Размер: **36 байт** (`struct_version = 1`) или **44 байта** (`struct_version = 2`).
+Частота notify: 1 Гц при активной подписке (ТЗ §14); 0.2 Гц, если подписки нет
+(актуализация значения для Read). Прошивка публикует v2; получатель v1 читает
+первые 36 байт и игнорирует хвост.
 
 | Off | Тип | Поле | Ед. | Описание |
 | --: | --- | --- | --- | --- |
-| 0 | u8 | `struct_version` | — | `1` |
+| 0 | u8 | `struct_version` | — | `1` или `2` |
 | 1 | u8 | `flags` | — | См. ниже |
 | 2 | u16 | `speed_x100` | 0.01 км/ч | Текущая скорость, `0` при паузе |
 | 4 | u16 | `avg_speed_x100` | 0.01 км/ч | По времени движения |
@@ -95,6 +97,10 @@
 | 32 | u16 | `seq` | — | Счётчик пакетов, растёт на 1, обнаружение пропусков |
 | 34 | u8 | `sensor_state` | — | См. §8.3 |
 | 35 | u8 | `power_state` | — | См. §8.4 |
+| 36 | u16 | `cadence_x10` | 0.1 rpm | Каденс с BLE CSC (C3). `0`, если нет данных. v2 |
+| 38 | u8 | `csc_flags` | — | См. ниже. v2 |
+| 39 | u8 | `reserved_csc` | — | `0`. v2 |
+| 40 | u32 | `last_crank_event_age_ms` | мс | Возраст последнего crank event (`0xFFFFFFFF` = не было). v2 |
 
 `flags` (Telemetry):
 
@@ -109,9 +115,27 @@
 | 6 | `units_imperial` (только информативно, значения всегда метрические) |
 | 7 | `charge_status_unknown` — статус зарядки недостоверен |
 
+`csc_flags` (Telemetry v2):
+
+| Бит | Значение |
+| --- | --- |
+| 0 | `csc_connected` — BikeComp подключён к BLE CSC-датчику как central |
+| 1 | `wheel_present` — датчик в режиме скорости (CSC wheel, CYCPLUS S3) |
+| 2 | `crank_present` — датчик в режиме каденса (CSC crank, CYCPLUS C3) |
+| 3 | `cadence_valid` — `cadence_x10` свежий |
+| 4 | `pairing` — открыто окно поиска CSC |
+| 5 | `speed_source_active` — скорость/одометр считаются по CSC wheel (S3), Hall подавлен |
+| 6–7 | reserved |
+
 Замечания:
 * `RSSI` в структуре отсутствует — измеряется приложением локально (ТЗ §14).
 * При изменении окружности колеса `revolutions` не сбрасывается; сброс — только вместе с поездкой.
+* Скорость и одометр при `speed_source_active` считаются по CSC wheel revolutions
+  (режим S3) с той же `wheel_circumference_mm`, что и Hall. Пока события колеса
+  свежие (менее 4 с), импульсы Холла дренируются и не добавляются, чтобы не удвоить
+  дистанцию. После обрыва BLE или тишины S3 Hall снова становится источником
+  скорости. Каденс C3 не заменяет Hall: переключатель C/S на корпусе датчика
+  выбирает один режим, одновременно оба невозможны.
 
 ---
 
@@ -130,13 +154,13 @@
 | 8 | u16 | `deep_sleep_timeout_s` | 60…3600, `0` = выкл | 900 | §10.2 |
 | 10 | u8 | `brightness_pct` | 1…100 | 60 | §7.4 |
 | 11 | u8 | `page_switch_period_s` | 1…60 | 4 | §6.2 |
-| 12 | u8 | `enabled_pages_mask` | биты 0…4, ≥1 бит | `0x1F` | §6.3 |
+| 12 | u8 | `enabled_pages_mask` | биты 0…7, ≥1 бит | `0x1F` | §6.3 |
 | 13 | u8 | `low_battery_pct` | 5…50 | 20 | §8.3 |
 | 14 | u16 | `odometer_save_interval_m` | 100…5000 | 500 | §9.2 |
 | 16 | u8 | `smoothing_window` | 2…5 | 3 | §4.5 |
 | 17 | u8 | `debounce_ms` | 0…50 | 3 | §24 |
 | 18 | u8 | `active_edge` | 0=FALLING, 1=RISING, 2=CHANGE | 0 | §24 |
-| 19 | u8 | `pinned_page` | 0…4 (используется при выкл. карусели) | 0 | §6.3 |
+| 19 | u8 | `pinned_page` | 0…7 (используется при выкл. карусели) | 0 | §6.3 |
 | 20 | u16 | `batt_cal_scale_permille` | 800…1200 | 1000 | §2.5 |
 | 22 | i16 | `batt_cal_offset_mv` | −500…+500 | 0 | §2.5 |
 | 24 | u8[5] | `page_order` | перестановка 0…4 | `{0,1,2,3,4}` | §6.3 |
@@ -400,7 +424,7 @@
 ```cpp
 #pragma pack(push, 1)
 struct TelemetryPacket {
-    uint8_t  struct_version;   // 1
+    uint8_t  struct_version;   // 1 or 2
     uint8_t  flags;
     uint16_t speed_x100;
     uint16_t avg_speed_x100;
@@ -416,8 +440,12 @@ struct TelemetryPacket {
     uint16_t seq;
     uint8_t  sensor_state;
     uint8_t  power_state;
+    uint16_t cadence_x10;              // v2
+    uint8_t  csc_flags;                // v2
+    uint8_t  reserved_csc;             // v2
+    uint32_t last_crank_event_age_ms;  // v2
 };
-static_assert(sizeof(TelemetryPacket) == 36, "Telemetry layout mismatch");
+static_assert(sizeof(TelemetryPacket) == 44, "Telemetry layout mismatch");
 #pragma pack(pop)
 ```
 

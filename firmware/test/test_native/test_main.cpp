@@ -27,6 +27,7 @@
 #include "config_codec.h"
 #include "config_validator.h"
 #include "crc32.h"
+#include "csc_measurement.h"
 #include "display_burn_in.h"
 #include "diagnostics.h"
 #include "error_log.h"
@@ -205,6 +206,27 @@ void test_serial_console_parses_gpio_commands() {
       SerialCommand::kGpioProbe,
       SerialCommand::kGpioWatch,
       SerialCommand::kGpioStop,
+  };
+  size_t found = 0;
+  for (size_t i = 0; commands[i] != '\0'; ++i) {
+    const SerialCommand command = parser.feed(commands[i]);
+    if (command != SerialCommand::kNone) {
+      TEST_ASSERT_LESS_THAN(sizeof(expected) / sizeof(expected[0]), found);
+      TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(expected[found]),
+                              static_cast<uint8_t>(command));
+      ++found;
+    }
+  }
+  TEST_ASSERT_EQUAL(sizeof(expected) / sizeof(expected[0]), found);
+}
+
+void test_serial_console_parses_csc_commands() {
+  SerialCommandParser parser;
+  const char* commands = "csc-status\ncsc-pair\ncsc-forget\n";
+  const SerialCommand expected[] = {
+      SerialCommand::kCscStatus,
+      SerialCommand::kCscPair,
+      SerialCommand::kCscForget,
   };
   size_t found = 0;
   for (size_t i = 0; commands[i] != '\0'; ++i) {
@@ -702,7 +724,7 @@ void test_config_validator_accepts_all_boundaries() {
   maximum.deep_sleep_timeout_s = 3600;
   maximum.brightness_pct = 100;
   maximum.page_switch_period_s = 60;
-  maximum.enabled_pages_mask = 0x7F;
+  maximum.enabled_pages_mask = 0xFF;
   maximum.low_battery_pct = 50;
   maximum.odometer_save_interval_m = 5000;
   maximum.smoothing_window = 5;
@@ -747,7 +769,7 @@ void test_config_validator_rejects_ranges_mask_order_and_name() {
                     ConfigValidator::validate(config));
   config = {};
   config.enabled_pages_mask = 0x80;
-  TEST_ASSERT_EQUAL(ConfigValidationError::kEnabledPagesMask,
+  TEST_ASSERT_EQUAL(ConfigValidationError::kNone,
                     ConfigValidator::validate(config));
   config = {};
   config.low_battery_pct = 4;
@@ -770,7 +792,7 @@ void test_config_validator_rejects_ranges_mask_order_and_name() {
   TEST_ASSERT_EQUAL(ConfigValidationError::kActiveEdge,
                     ConfigValidator::validate(config));
   config = {};
-  config.pinned_page = 7;
+  config.pinned_page = 8;
   TEST_ASSERT_EQUAL(ConfigValidationError::kPinnedPage,
                     ConfigValidator::validate(config));
   config = {};
@@ -1640,6 +1662,15 @@ void test_page_carousel_weather_pages() {
   TEST_ASSERT_EQUAL(DisplayPage::kWeatherRain, carousel.currentPage());
 }
 
+void test_page_carousel_cadence_page() {
+  DeviceConfig config;
+  config.enabled_pages_mask = 0x80u;
+  PageCarousel carousel;
+  carousel.configure(config, 0);
+  TEST_ASSERT_EQUAL_UINT8(1u, carousel.pageCount());
+  TEST_ASSERT_EQUAL(DisplayPage::kCadence, carousel.currentPage());
+}
+
 void test_display_power_dim_off_wake_disable_and_wrap() {
   DisplayPower power;
   power.configure(60, 1000);
@@ -1943,6 +1974,15 @@ void test_display_formatter_all_pages_and_battery() {
            sizeof(snapshot.companion_weather_rain), "R40%%");
   frame = DisplayFormatter::format(snapshot, DisplayPage::kWeatherRain);
   TEST_ASSERT_EQUAL_STRING("+18.5C R40%", frame.lower);
+
+  snapshot.cadence_valid = true;
+  snapshot.cadence_x10 = 870;
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kCadence);
+  TEST_ASSERT_EQUAL_STRING("MOV CAD 87.0 rpm", frame.lower);
+  snapshot.cadence_valid = false;
+  snapshot.csc_connected = true;
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kCadence);
+  TEST_ASSERT_EQUAL_STRING("MOV CAD --", frame.lower);
 }
 
 void test_display_formatter_battery_and_value_limits() {
@@ -2404,7 +2444,7 @@ void test_fill_telemetry_packet_moving_and_idle() {
   TelemetryPacket packet = {};
   fillTelemetryPacket(packet, input);
   packet.seq = 42;
-  TEST_ASSERT_EQUAL_UINT8(kBleStructVersion, packet.struct_version);
+  TEST_ASSERT_EQUAL_UINT8(kTelemetryStructVersion, packet.struct_version);
   TEST_ASSERT_EQUAL_UINT8(
       kTelemetryFlagMoving | kTelemetryFlagDisplayOn | kTelemetryFlagUsbConnected |
           kTelemetryFlagSmoothingEnabled,
@@ -2788,7 +2828,8 @@ void test_diagnostic_saturates_narrow_fields() {
 
 void test_ble_protocol_sizes_match_contract() {
   TEST_ASSERT_EQUAL_UINT32(48u, kDeviceInfoSize);
-  TEST_ASSERT_EQUAL_UINT32(36u, kTelemetrySize);
+  TEST_ASSERT_EQUAL_UINT32(36u, kTelemetryV1Size);
+  TEST_ASSERT_EQUAL_UINT32(44u, kTelemetrySize);
   TEST_ASSERT_EQUAL_UINT32(48u, kConfigurationSize);
   TEST_ASSERT_EQUAL_UINT32(kDeviceConfigPayloadSize, kConfigurationSize);
   TEST_ASSERT_EQUAL_UINT32(20u, kCommandMaxSize);
@@ -2840,9 +2881,9 @@ void test_protocol_fixture_telemetry_v1_moving_and_paused() {
 
   uint8_t encoded[kTelemetrySize];
   encodeTelemetry(makeMovingTelemetry(), encoded);
-  TEST_ASSERT_EQUAL_UINT8_ARRAY(moving_hex.data(), encoded, kTelemetrySize);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(moving_hex.data(), encoded, moving_hex.size());
   encodeTelemetry(makePausedTelemetry(), encoded);
-  TEST_ASSERT_EQUAL_UINT8_ARRAY(paused_hex.data(), encoded, kTelemetrySize);
+  TEST_ASSERT_EQUAL_UINT8_ARRAY(paused_hex.data(), encoded, paused_hex.size());
 
   TelemetryPacket decoded = {};
   TEST_ASSERT_TRUE(
@@ -3353,12 +3394,17 @@ void test_protocol_codec_rejects_bad_length_and_version() {
   uint8_t telemetry[kTelemetrySize] = {};
   encodeTelemetry(makeMovingTelemetry(), telemetry);
   TelemetryPacket decoded_telemetry = {};
-  telemetry[0] = 2;
+  telemetry[0] = 0;
   TEST_ASSERT_FALSE(
       decodeTelemetry(telemetry, sizeof(telemetry), decoded_telemetry));
   telemetry[0] = 1;
   TEST_ASSERT_FALSE(
-      decodeTelemetry(telemetry, sizeof(telemetry) - 1, decoded_telemetry));
+      decodeTelemetry(telemetry, kTelemetryV1Size - 1, decoded_telemetry));
+  TEST_ASSERT_TRUE(
+      decodeTelemetry(telemetry, kTelemetryV1Size, decoded_telemetry));
+  telemetry[0] = 2;
+  TEST_ASSERT_TRUE(
+      decodeTelemetry(telemetry, sizeof(telemetry), decoded_telemetry));
 
   uint8_t command[4] = {1, 1, 0, 0};
   CommandPacket decoded_command = {};
@@ -3381,6 +3427,100 @@ void test_protocol_codec_rejects_bad_length_and_version() {
   TEST_ASSERT_EQUAL_UINT8(1u, decoded_log.entry_count);
   TEST_ASSERT_EQUAL_UINT16(7u, decoded_log.entries[0].detail);
   TEST_ASSERT_FALSE(decodeErrorLog(encoded_log, 9, decoded_log));
+}
+
+void test_csc_parses_c3_cadence_and_s3_speed_and_computes_motion() {
+  TEST_ASSERT_TRUE(cscNameLooksLikeCycplus("CYCPLUS C3"));
+  TEST_ASSERT_TRUE(cscNameLooksLikeCadenceSensor("CYCPLUS C3"));
+  TEST_ASSERT_TRUE(cscNameLooksLikeSpeedSensor("CYCPLUS S3"));
+  TEST_ASSERT_FALSE(cscNameLooksLikeSpeedSensor("CYCPLUS C3"));
+
+  const uint8_t cadence_pkt[] = {0x02, 0x0A, 0x00, 0x00, 0x04};
+  CscMeasurement meas = {};
+  TEST_ASSERT_TRUE(parseCscMeasurement(cadence_pkt, sizeof(cadence_pkt), meas));
+  TEST_ASSERT_FALSE(meas.wheel_present);
+  TEST_ASSERT_TRUE(meas.crank_present);
+  TEST_ASSERT_EQUAL_UINT16(10u, meas.cumulative_crank_revolutions);
+  TEST_ASSERT_EQUAL_UINT16(1024u, meas.last_crank_event_time);
+
+  CscMotionTracker tracker;
+  tracker.ingest(meas, 1000);
+  meas.cumulative_crank_revolutions = 11;
+  meas.last_crank_event_time = 1024 + 1024;
+  tracker.ingest(meas, 2000);
+  TEST_ASSERT_TRUE(tracker.cadenceValid());
+  TEST_ASSERT_EQUAL_UINT16(600u, tracker.cadenceX10());  // 60.0 rpm
+  tracker.poll(2000);
+  TEST_ASSERT_TRUE(tracker.cadenceValid());
+  tracker.poll(2000 + kCscStaleMs);
+  TEST_ASSERT_FALSE(tracker.cadenceValid());
+
+  const uint8_t speed_pkt[] = {0x01, 0x64, 0x00, 0x00, 0x00, 0x00, 0x04};
+  TEST_ASSERT_TRUE(parseCscMeasurement(speed_pkt, sizeof(speed_pkt), meas));
+  TEST_ASSERT_TRUE(meas.wheel_present);
+  TEST_ASSERT_FALSE(meas.crank_present);
+  TEST_ASSERT_EQUAL_UINT32(100u, meas.cumulative_wheel_revolutions);
+
+  tracker.reset();
+  tracker.ingest(meas, 1000);
+  CscWheelDelta delta = tracker.takeWheelDelta();
+  TEST_ASSERT_EQUAL_UINT8(0u, delta.revolutions);
+  meas.cumulative_wheel_revolutions = 102;
+  meas.last_wheel_event_time = 1024;
+  tracker.ingest(meas, 1500);
+  delta = tracker.takeWheelDelta();
+  TEST_ASSERT_EQUAL_UINT8(2u, delta.revolutions);
+  TEST_ASSERT_EQUAL_UINT32(500000u, delta.mean_interval_us);
+  TEST_ASSERT_TRUE(tracker.speedSourceActive(2000));
+  TEST_ASSERT_FALSE(tracker.speedSourceActive(1500 + kCscStaleMs));
+  TEST_ASSERT_EQUAL_UINT32(500000u, cscMeanIntervalUs(1024, 2));
+
+  tracker.ingest(meas, 1600);
+  tracker.onDisconnect();
+  TEST_ASSERT_TRUE(tracker.speedSourceActive(2000));
+  meas.cumulative_wheel_revolutions = 200;
+  meas.last_wheel_event_time = 3000;
+  tracker.ingest(meas, 2500);
+  delta = tracker.takeWheelDelta();
+  TEST_ASSERT_EQUAL_UINT8(0u, delta.revolutions);
+  meas.cumulative_wheel_revolutions = 201;
+  meas.last_wheel_event_time = 3000 + 1024;
+  tracker.ingest(meas, 2600);
+  delta = tracker.takeWheelDelta();
+  TEST_ASSERT_EQUAL_UINT8(1u, delta.revolutions);
+}
+
+void test_csc_bond_round_trip_and_telemetry_v2_fields() {
+  CscBondData bond = {};
+  bond.address[0] = 0x11;
+  bond.address[5] = 0x66;
+  bond.address_type = 1;
+  bond.flags = kCscBondFlagValid;
+  memcpy(bond.name, "CYCPLUS S3", 10);
+  uint8_t payload[kCscBondPayloadSize];
+  encodeCscBond(bond, payload);
+  CscBondData decoded = {};
+  TEST_ASSERT_TRUE(decodeCscBond(payload, sizeof(payload), decoded));
+  TEST_ASSERT_TRUE(cscBondIsValid(decoded));
+  TEST_ASSERT_EQUAL_UINT8(0x11, decoded.address[0]);
+  TEST_ASSERT_EQUAL_UINT8(0x66, decoded.address[5]);
+  TEST_ASSERT_EQUAL_STRING("CYCPLUS S3", decoded.name);
+
+  TelemetryBuildInput input;
+  input.cadence_x10 = 870;
+  input.csc_flags = kTelemetryCscFlagConnected | kTelemetryCscFlagCrankPresent |
+                    kTelemetryCscFlagCadenceValid;
+  input.last_crank_event_age_ms = 500;
+  TelemetryPacket packet = {};
+  fillTelemetryPacket(packet, input);
+  uint8_t encoded[kTelemetrySize];
+  encodeTelemetry(packet, encoded);
+  TelemetryPacket roundtrip = {};
+  TEST_ASSERT_TRUE(decodeTelemetry(encoded, sizeof(encoded), roundtrip));
+  TEST_ASSERT_EQUAL_UINT8(kTelemetryStructVersion, roundtrip.struct_version);
+  TEST_ASSERT_EQUAL_UINT16(870u, roundtrip.cadence_x10);
+  TEST_ASSERT_EQUAL_UINT8(input.csc_flags, roundtrip.csc_flags);
+  TEST_ASSERT_EQUAL_UINT32(500u, roundtrip.last_crank_event_age_ms);
 }
 
 int main(int, char**) {
@@ -3453,6 +3593,7 @@ int main(int, char**) {
   RUN_TEST(test_serial_console_parses_hall_commands);
   RUN_TEST(test_serial_console_parses_hall_analog_commands);
   RUN_TEST(test_serial_console_parses_gpio_commands);
+  RUN_TEST(test_serial_console_parses_csc_commands);
   RUN_TEST(test_error_log_keeps_16_and_snapshots_newest_four_in_order);
   RUN_TEST(test_ble_advertising_policy_timeout_and_movement_restart);
   RUN_TEST(test_power_manager_ble_always_advertise_overrides_power_save);
@@ -3460,6 +3601,7 @@ int main(int, char**) {
   RUN_TEST(test_page_carousel_mask_order_and_fallback);
   RUN_TEST(test_page_carousel_pinned_page);
   RUN_TEST(test_page_carousel_weather_pages);
+  RUN_TEST(test_page_carousel_cadence_page);
   RUN_TEST(test_display_power_dim_off_wake_disable_and_wrap);
   RUN_TEST(test_display_burn_in_guard_cycles_catches_up_and_wraps);
   RUN_TEST(test_battery_raw_conversion_and_calibration);
@@ -3527,5 +3669,7 @@ int main(int, char**) {
   RUN_TEST(test_companion_snapshot_fixture_roundtrip);
   RUN_TEST(test_companion_clock_and_header);
   RUN_TEST(test_protocol_codec_rejects_bad_length_and_version);
+  RUN_TEST(test_csc_parses_c3_cadence_and_s3_speed_and_computes_motion);
+  RUN_TEST(test_csc_bond_round_trip_and_telemetry_v2_fields);
   return UNITY_END();
 }

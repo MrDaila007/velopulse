@@ -620,6 +620,20 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         Serial.println("OK status");
         break;
 
+      case SerialCommand::kCscStatus:
+      case SerialCommand::kCscPair:
+      case SerialCommand::kCscForget:
+        Serial.println("CSC: BLE central client is Arduino-only");
+        break;
+
+      case SerialCommand::kSchedStats:
+      case SerialCommand::kWdtHang:
+      case SerialCommand::kReboot:
+      case SerialCommand::kTestOn:
+      case SerialCommand::kTestOff:
+        Serial.println("ERROR unsupported-command");
+        break;
+
       case SerialCommand::kUnknown:
         Serial.println("ERROR unknown-command");
         break;

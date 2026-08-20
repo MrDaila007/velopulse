@@ -166,6 +166,18 @@ abstract class AppLocalizations {
   /// **'Максимальная яркость: {percent}%'**
   String brightnessValue(int percent);
 
+  /// No description provided for @cadenceLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Каденс'**
+  String get cadenceLabel;
+
+  /// No description provided for @cadenceValue.
+  ///
+  /// In ru, this message translates to:
+  /// **'{rpm} об/мин'**
+  String cadenceValue(String rpm);
+
   /// No description provided for @cancel.
   ///
   /// In ru, this message translates to:
@@ -237,6 +249,36 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Подключение'**
   String get connectionTitle;
+
+  /// No description provided for @cscCrankChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'C3 каденс'**
+  String get cscCrankChip;
+
+  /// No description provided for @cscLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'CSC'**
+  String get cscLabel;
+
+  /// No description provided for @cscPairingChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'поиск'**
+  String get cscPairingChip;
+
+  /// No description provided for @cscWheelActiveChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'S3 скорость'**
+  String get cscWheelActiveChip;
+
+  /// No description provided for @cscWheelChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'S3 колесо'**
+  String get cscWheelChip;
 
   /// No description provided for @customValue.
   ///

@@ -110,6 +110,16 @@ DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot,
     case DisplayPage::kWeatherRain:
       formatWeatherRain(frame.lower, sizeof(frame.lower), snapshot);
       break;
+    case DisplayPage::kCadence:
+      if (snapshot.cadence_valid) {
+        snprintf(frame.lower, sizeof(frame.lower), "%s CAD %u.%u rpm", state,
+                 snapshot.cadence_x10 / 10u, snapshot.cadence_x10 % 10u);
+      } else if (snapshot.csc_connected) {
+        snprintf(frame.lower, sizeof(frame.lower), "%s CAD --", state);
+      } else {
+        snprintf(frame.lower, sizeof(frame.lower), "CAD --");
+      }
+      break;
     case DisplayPage::kTrip:
     default:
       snprintf(frame.lower, sizeof(frame.lower), "%s TRIP %lu.%02lu km", state,

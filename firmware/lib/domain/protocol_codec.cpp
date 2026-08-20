@@ -90,13 +90,18 @@ void encodeTelemetry(const TelemetryPacket& telemetry,
   writeU16(output + 32, telemetry.seq);
   output[34] = telemetry.sensor_state;
   output[35] = telemetry.power_state;
+  if (telemetry.struct_version >= kTelemetryStructVersion) {
+    writeU16(output + 36, telemetry.cadence_x10);
+    output[38] = telemetry.csc_flags;
+    output[39] = telemetry.reserved_csc;
+    writeU32(output + 40, telemetry.last_crank_event_age_ms);
+  }
 }
 
 bool decodeTelemetry(const uint8_t* input,
                      size_t length,
                      TelemetryPacket& telemetry) {
-  if (input == nullptr || length != kTelemetrySize ||
-      input[0] != kBleStructVersion) {
+  if (input == nullptr || length < kTelemetryV1Size || input[0] < 1u) {
     return false;
   }
 
@@ -117,6 +122,13 @@ bool decodeTelemetry(const uint8_t* input,
   decoded.seq = readU16(input + 32);
   decoded.sensor_state = input[34];
   decoded.power_state = input[35];
+  decoded.last_crank_event_age_ms = kTelemetryNoPulseAgeMs;
+  if (length >= kTelemetrySize) {
+    decoded.cadence_x10 = readU16(input + 36);
+    decoded.csc_flags = input[38];
+    decoded.reserved_csc = input[39];
+    decoded.last_crank_event_age_ms = readU32(input + 40);
+  }
   telemetry = decoded;
   return true;
 }

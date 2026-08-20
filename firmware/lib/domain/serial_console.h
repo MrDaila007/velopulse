@@ -35,6 +35,9 @@ enum class SerialCommand : uint8_t {
   kWdtHang,
   kTestOn,
   kTestOff,
+  kCscStatus,
+  kCscPair,
+  kCscForget,
   kUnknown,
 };
 

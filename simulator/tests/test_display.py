@@ -80,6 +80,10 @@ class DisplaySimulatorTest(unittest.TestCase):
                 self.assertIn(["TEXT", "1", str(speed_y + 1), "24.8"], commands)
                 self.assertIn(["FRAME", "108", "1", "12", "8"], commands)
 
+    def test_128x64_cadence_page(self):
+        commands = firmware_commands("cadence", 64)
+        self.assertIn(["TEXT", "0", "63", "MOV CAD 87.0 rpm"], commands)
+
     def test_ble_indicator_shown_only_when_connected(self):
         for display_height in DISPLAY_HEIGHTS:
             with self.subTest(display_height=display_height):

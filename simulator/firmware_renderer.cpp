@@ -80,6 +80,11 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
                   sizeof(snapshot.companion_weather_temp), "+18.5C");
     std::snprintf(snapshot.companion_weather_rain,
                   sizeof(snapshot.companion_weather_rain), "R40%%");
+  } else if (name == "cadence") {
+    page = DisplayPage::kCadence;
+    snapshot.cadence_valid = true;
+    snapshot.cadence_x10 = 870;
+    snapshot.csc_connected = true;
   } else if (name == "idle") {
     page = DisplayPage::kTrip;
     snapshot.trip.speed_x100 = 0;

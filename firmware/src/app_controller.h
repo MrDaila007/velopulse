@@ -89,6 +89,10 @@ class AppController {
   void printPowerStatus() const;
   void printSchedulerStats() const;
   void printStatus();
+  void printCscStatus(uint32_t now_ms);
+  void persistCscBondIfNeeded();
+  void applyCscWheelDeltas(uint32_t now_ms);
+  void syncDisplayPages(uint32_t now_ms);
   void processUsbTestLine(const char* line, uint32_t now_ms);
   void resetUsbTestSession(uint32_t now_ms);
   bool injectUsbTestPulse(uint32_t interval_us,
@@ -186,6 +190,7 @@ class AppController {
   TripSnapshot usb_test_backup_trip_ = {};
   uint64_t usb_test_backup_total_revolutions_ = 0;
   CompanionState companion_state_ = {};
+  uint8_t display_pages_mask_ = 0;
 };
 
 }  // namespace bike

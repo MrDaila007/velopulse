@@ -117,6 +117,15 @@ class DashboardScreen extends ConsumerWidget {
                           ? Icons.battery_alert
                           : Icons.battery_full,
                     ),
+                    _MetricCard(
+                      label: strings.cadenceLabel,
+                      value: telemetry.cadenceValid
+                          ? strings.cadenceValue(
+                              (telemetry.cadenceX10 / 10).toStringAsFixed(1),
+                            )
+                          : '—',
+                      icon: Icons.sync,
+                    ),
                   ],
                 ),
               ],
@@ -148,6 +157,23 @@ class DashboardScreen extends ConsumerWidget {
                     label: 'RSSI',
                     value: session.rssi == null ? '—' : '${session.rssi} dBm',
                   ),
+                  if (telemetry.cscPairing)
+                    _StatusChip(
+                      label: strings.cscLabel,
+                      value: strings.cscPairingChip,
+                    ),
+                  if (telemetry.cscCrankPresent)
+                    _StatusChip(
+                      label: strings.cscLabel,
+                      value: strings.cscCrankChip,
+                    ),
+                  if (telemetry.cscWheelPresent || telemetry.cscSpeedSource)
+                    _StatusChip(
+                      label: strings.cscLabel,
+                      value: telemetry.cscSpeedSource
+                          ? strings.cscWheelActiveChip
+                          : strings.cscWheelChip,
+                    ),
                 ],
               ),
             ),

@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "config.h"
+#include "csc_measurement.h"
 
 namespace bike {
 
@@ -14,6 +15,8 @@ constexpr uint16_t kAmbientCalibrationRecordVersion = 1;
 constexpr size_t kRecordHeaderSize = 16;
 constexpr size_t kOdometerPayloadSize = 16;
 constexpr size_t kAmbientCalibrationPayloadSize = 5;
+constexpr uint16_t kCscBondRecordVersion = 1;
+constexpr size_t kCscBondPayloadSize = 24;
 constexpr uint16_t kStorageCountersRecordVersion = 1;
 constexpr size_t kStorageCountersPayloadSize = 48;
 constexpr size_t kMaximumRecordSize = 64;
@@ -69,6 +72,10 @@ bool decodeAmbientCalibration(const uint8_t* input,
                               size_t length,
                               AmbientCalibrationData& calibration);
 
+void encodeCscBond(const CscBondData& bond,
+                   uint8_t output[kCscBondPayloadSize]);
+bool decodeCscBond(const uint8_t* input, size_t length, CscBondData& bond);
+
 enum class StorageIoResult : uint8_t {
   kOk = 0,
   kNotFound,
@@ -116,6 +123,8 @@ struct StoragePaths {
   const char* odometer_b = "/odo_b";
   const char* ambient_calibration_a = "/alc_a";
   const char* ambient_calibration_b = "/alc_b";
+  const char* csc_bond_a = "/csc_a";
+  const char* csc_bond_b = "/csc_b";
   const char* counters_a = "/cnt_a";
   const char* counters_b = "/cnt_b";
 };
@@ -169,6 +178,8 @@ class StorageManager {
   bool loadAmbientCalibration(AmbientCalibrationData& calibration,
                               StorageLoadInfo& info);
   bool saveAmbientCalibration(const AmbientCalibrationData& calibration);
+  bool loadCscBond(CscBondData& bond, StorageLoadInfo& info);
+  bool saveCscBond(const CscBondData& bond);
   bool saveStorageCounters();
 
   bool beginSaveOdometer(const OdometerData& odometer);
@@ -184,11 +195,18 @@ class StorageManager {
 
  private:
   struct Slot;
-  enum class PayloadKind : uint8_t { kConfig, kOdometer, kAmbientCalibration, kStorageCounters };
+  enum class PayloadKind : uint8_t {
+    kConfig,
+    kOdometer,
+    kAmbientCalibration,
+    kCscBond,
+    kStorageCounters
+  };
 
   void readConfigSlot(const char* path, Slot& slot);
   void readOdometerSlot(const char* path, Slot& slot);
   void readAmbientCalibrationSlot(const char* path, Slot& slot);
+  void readCscBondSlot(const char* path, Slot& slot);
   void readStorageCountersSlot(const char* path, Slot& slot);
   void loadStorageCounters();
   bool writeSlot(const char* path,

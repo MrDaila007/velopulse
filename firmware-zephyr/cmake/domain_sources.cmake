@@ -17,6 +17,7 @@ set(BIKECOMP_DOMAIN_SOURCES
   ${BIKECOMP_DOMAIN_DIR}/config_codec.cpp
   ${BIKECOMP_DOMAIN_DIR}/config_validator.cpp
   ${BIKECOMP_DOMAIN_DIR}/crc32.cpp
+  ${BIKECOMP_DOMAIN_DIR}/csc_measurement.cpp
   ${BIKECOMP_DOMAIN_DIR}/diagnostics.cpp
   ${BIKECOMP_DOMAIN_DIR}/display_burn_in.cpp
   ${BIKECOMP_DOMAIN_DIR}/display_formatter.cpp

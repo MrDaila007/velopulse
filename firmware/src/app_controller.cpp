@@ -279,6 +279,14 @@ void AppController::begin() {
   ble_seed.boot_count = boot_count;
   ble_seed.boot_ms = millis();
   ble_seed.open_pairing_always = (BIKECOMP_OPEN_PAIRING != 0);
+  StorageLoadInfo csc_info;
+  CscBondData csc_bond;
+  bool csc_ok = false;
+  if (fs_ok) {
+    csc_ok = storage_.loadCscBond(csc_bond, csc_info);
+  }
+  printLoadInfo("CscBond", csc_info, csc_ok);
+  if (csc_ok) ble_seed.csc_bond = csc_bond;
   const bool ble_ok = ble_.begin(config_, ble_seed);
   Serial.print("BLE GATT: ");
   Serial.println(ble_ok ? "OK" : "INIT FAILED");
@@ -875,6 +883,65 @@ void AppController::printStatus() {
   Serial.print(weather.valid ? weather.rain : "--");
   Serial.print(" weather_valid=");
   Serial.println(weather.valid ? 1 : 0);
+  printCscStatus(now_ms);
+}
+
+void AppController::printCscStatus(uint32_t now_ms) {
+  const CscSnapshot csc = ble_.cscSnapshot(now_ms);
+  Serial.print("CSC: connected=");
+  Serial.print(csc.connected ? 1 : 0);
+  Serial.print(" pairing=");
+  Serial.print(csc.pairing ? 1 : 0);
+  Serial.print(" bonded=");
+  Serial.print(csc.bonded ? 1 : 0);
+  Serial.print(" name=");
+  Serial.print(csc.name[0] != '\0' ? csc.name : "--");
+  Serial.print(" wheel=");
+  Serial.print(csc.wheel_present ? 1 : 0);
+  Serial.print(" crank=");
+  Serial.print(csc.crank_present ? 1 : 0);
+  Serial.print(" speed_src=");
+  Serial.print(csc.speed_source_active ? 1 : 0);
+  Serial.print(" cadence_x10=");
+  Serial.print(csc.cadence_x10);
+  Serial.print(" cadence_valid=");
+  Serial.println(csc.cadence_valid ? 1 : 0);
+}
+
+void AppController::persistCscBondIfNeeded() {
+  CscBondData bond;
+  if (!ble_.takePendingCscBond(bond)) return;
+  drainStorageSave();
+  const bool ok = storage_.mounted() && storage_.saveCscBond(bond);
+  Serial.print(ok ? "CSC: bond flash OK" : "CSC: bond flash ERROR");
+  Serial.println();
+}
+
+void AppController::applyCscWheelDeltas(uint32_t now_ms) {
+  const CscWheelDelta delta = ble_.takeCscWheelDelta();
+  if (delta.revolutions == 0 || delta.mean_interval_us == 0) return;
+  PulseDecision decision;
+  decision.accepted = true;
+  decision.interval_us = delta.mean_interval_us;
+  uint32_t timestamp_us = micros();
+  for (uint8_t i = 0; i < delta.revolutions; ++i) {
+    applyAcceptedPulse(decision, timestamp_us, now_ms);
+    timestamp_us += delta.mean_interval_us;
+  }
+}
+
+void AppController::syncDisplayPages(uint32_t now_ms) {
+  const CscSnapshot csc = ble_.cscSnapshot(now_ms);
+  uint8_t mask = config_.enabled_pages_mask;
+  if (csc.connected && csc.crank_present) {
+    mask = static_cast<uint8_t>(
+        mask | (1u << static_cast<uint8_t>(DisplayPage::kCadence)));
+  }
+  if (mask == display_pages_mask_) return;
+  display_pages_mask_ = mask;
+  DeviceConfig display_config = config_;
+  display_config.enabled_pages_mask = mask;
+  display_.applyRuntimeConfig(display_config, now_ms);
 }
 
 void AppController::applyAcceptedPulse(const PulseDecision& decision,
@@ -1307,6 +1374,22 @@ void AppController::processSerialConsole(uint32_t now_ms) {
         Serial.println("OK test-off");
         break;
 
+      case SerialCommand::kCscStatus:
+        printCscStatus(now_ms);
+        Serial.println("OK csc-status");
+        break;
+
+      case SerialCommand::kCscPair:
+        ble_.startCscPairing(90, now_ms);
+        Serial.println("OK csc-pair duration_s=90");
+        break;
+
+      case SerialCommand::kCscForget:
+        ble_.forgetCscBond();
+        persistCscBondIfNeeded();
+        Serial.println("OK csc-forget");
+        break;
+
       case SerialCommand::kUnknown:
         Serial.println("ERROR unknown-command");
         break;
@@ -1587,8 +1670,14 @@ void AppController::processPulses(uint32_t now_ms) {
   maybeLogGpioWatch(now_ms);
   maybeLogHallWatch(now_ms);
   maybeLogHallAnalog(now_ms);
+  ble_.serviceCsc(now_ms);
+  persistCscBondIfNeeded();
+  applyCscWheelDeltas(now_ms);
+
+  const bool suppress_hall = ble_.cscWheelSpeedSourceActive(now_ms);
   PulseEvent event;
   while (wheel_sensor_.pop(event)) {
+    if (suppress_hall) continue;
     const PulseDecision decision =
         pulse_filter_.process(event.timestamp_us, event.returned_passive);
     if (!decision.accepted) {
@@ -1635,11 +1724,16 @@ void AppController::updateDisplay(uint32_t now_ms) {
     odometer_save_.noteDisplayPower(display_.powerState());
   }
   maybePersistOdometer(now_ms);
+  syncDisplayPages(now_ms);
 
   DisplaySnapshot snapshot;
   snapshot.trip = trip_computer_.snapshot();
   snapshot.battery = battery_.snapshot();
   snapshot.ble_connected = ble_.bleConnected();
+  const CscSnapshot csc = ble_.cscSnapshot(now_ms);
+  snapshot.cadence_x10 = csc.cadence_x10;
+  snapshot.cadence_valid = csc.cadence_valid;
+  snapshot.csc_connected = csc.connected;
   const CompanionHeaderView companion = companion_state_.header(now_ms);
   if (companion.valid) {
     snprintf(snapshot.companion_header, sizeof(snapshot.companion_header), "%s",
@@ -1701,6 +1795,7 @@ void AppController::applyConfig(const DeviceConfig& new_config) {
       static_cast<uint32_t>(config_.stop_timeout_s) * 1000u);
   odometer_save_.configure(config_.odometer_save_interval_m);
   display_.applyRuntimeConfig(config_, millis());
+  display_pages_mask_ = 0;
   battery_.applyRuntimeConfig(config_, millis());
   configurePowerManager();
   if (config_.active_edge != previous_edge) {
@@ -1858,6 +1953,8 @@ void AppController::processPendingDangerousCommand(uint32_t now_ms) {
       applyConfig(defaults);
       ble_.publishAppliedConfig(config_, /*config_valid=*/true);
       ble_.openPairingWindow(kDefaultPairingWindowMs / 1000u, now_ms);
+      ble_.forgetCscBond();
+      persistCscBondIfNeeded();
       clear_bonds_after_result = true;
       break;
     }
@@ -1934,6 +2031,8 @@ void AppController::updateBle(uint32_t now_ms) {
   processPendingSafeCommand(now_ms);
   processPendingDangerousCommand(now_ms);
   processPendingCompanionWrite(now_ms);
+  ble_.serviceCsc(now_ms);
+  persistCscBondIfNeeded();
 
   const uint32_t overflow = wheel_sensor_.overflowCount();
   if (overflow != logged_isr_overflow_) {
@@ -1975,6 +2074,18 @@ void AppController::updateBle(uint32_t now_ms) {
   input.had_pulse = ride_state_.hasPulse();
   input.last_pulse_ms = ride_state_.lastPulseMs();
   input.now_ms = now_ms;
+  const CscSnapshot csc = ble_.cscSnapshot(now_ms);
+  input.cadence_x10 = csc.cadence_x10;
+  input.last_crank_event_age_ms = csc.last_crank_event_age_ms;
+  if (csc.connected) input.csc_flags |= kTelemetryCscFlagConnected;
+  if (csc.wheel_present) input.csc_flags |= kTelemetryCscFlagWheelPresent;
+  if (csc.crank_present) input.csc_flags |= kTelemetryCscFlagCrankPresent;
+  if (csc.cadence_valid) input.csc_flags |= kTelemetryCscFlagCadenceValid;
+  if (csc.pairing) input.csc_flags |= kTelemetryCscFlagPairing;
+  if (csc.speed_source_active) {
+    input.csc_flags |= kTelemetryCscFlagSpeedSource;
+    input.had_pulse = true;
+  }
   ble_.serviceTelemetry(input, now_ms);
   updateBoardStatusLed(ble_.bleAdvertising(), ble_.bleConnected(), now_ms);
 }

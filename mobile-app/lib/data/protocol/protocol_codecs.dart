@@ -111,6 +111,11 @@ abstract final class ProtocolCodecs {
       seq: data.getUint16(32, Endian.little),
       sensorState: SensorState.fromCode(data.getUint8(34)),
       powerState: PowerState.fromCode(data.getUint8(35)),
+      cadenceX10: bytes.length >= 44 ? data.getUint16(36, Endian.little) : 0,
+      cscFlags: bytes.length >= 44 ? data.getUint8(38) : 0,
+      lastCrankEventAgeMs: bytes.length >= 44
+          ? data.getUint32(40, Endian.little)
+          : 0xFFFFFFFF,
     );
   }
 
@@ -133,6 +138,16 @@ abstract final class ProtocolCodecs {
     data.setUint16(32, value.seq, Endian.little);
     data.setUint8(34, value.sensorState.code);
     data.setUint8(35, value.powerState.code);
+    if (value.structVersion >= 2) {
+      final v2 = Uint8List(44);
+      v2.setRange(0, 36, out);
+      final v2data = ByteData.sublistView(v2);
+      v2data.setUint16(36, value.cadenceX10, Endian.little);
+      v2data.setUint8(38, value.cscFlags);
+      v2data.setUint8(39, 0);
+      v2data.setUint32(40, value.lastCrankEventAgeMs, Endian.little);
+      return v2;
+    }
     return out;
   }
 

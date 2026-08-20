@@ -6,6 +6,7 @@
 #include "ble_telemetry.h"
 #include "companion_snapshot.h"
 #include "config.h"
+#include "csc_measurement.h"
 
 namespace bike {
 
@@ -32,6 +33,7 @@ struct BleBootSeed {
   uint16_t boot_count = 0;
   uint32_t boot_ms = 0;
   bool open_pairing_always = false;
+  CscBondData csc_bond;
 };
 
 class BleManager {
@@ -57,6 +59,14 @@ class BleManager {
   bool takePendingCompanionWrite(CompanionSnapshotPacket& out);
   void applyPowerSaveAdvertising(bool aggressive_power_save);
   void stopAdvertising();
+
+  void serviceCsc(uint32_t now_ms);
+  CscSnapshot cscSnapshot(uint32_t now_ms) const;
+  void startCscPairing(uint16_t duration_s, uint32_t now_ms);
+  void forgetCscBond();
+  bool takePendingCscBond(CscBondData& out);
+  CscWheelDelta takeCscWheelDelta();
+  bool cscWheelSpeedSourceActive(uint32_t now_ms) const;
 
   void clearBonds();
 

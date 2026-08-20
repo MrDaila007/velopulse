@@ -47,6 +47,9 @@ SerialCommand parseCommand(const char* value, size_t length) {
       {"wdt-hang", 8, SerialCommand::kWdtHang},
       {"test-on", 7, SerialCommand::kTestOn},
       {"test-off", 8, SerialCommand::kTestOff},
+      {"csc-status", 10, SerialCommand::kCscStatus},
+      {"csc-pair", 8, SerialCommand::kCscPair},
+      {"csc-forget", 10, SerialCommand::kCscForget},
   };
 
   for (const CommandName& candidate : kCommands) {

@@ -181,6 +181,9 @@ abstract class Telemetry with _$Telemetry {
     required int seq,
     required SensorState sensorState,
     required PowerState powerState,
+    @Default(0) int cadenceX10,
+    @Default(0) int cscFlags,
+    @Default(0xFFFFFFFF) int lastCrankEventAgeMs,
   }) = _Telemetry;
 
   factory Telemetry.fromJson(Map<String, Object?> json) =>
@@ -189,6 +192,12 @@ abstract class Telemetry with _$Telemetry {
   bool get displayOn => flags & 0x02 != 0;
   bool get charging => flags & 0x04 != 0;
   bool get lowBattery => flags & 0x10 != 0;
+  bool get cscConnected => cscFlags & 0x01 != 0;
+  bool get cscWheelPresent => cscFlags & 0x02 != 0;
+  bool get cscCrankPresent => cscFlags & 0x04 != 0;
+  bool get cadenceValid => cscFlags & 0x08 != 0;
+  bool get cscPairing => cscFlags & 0x10 != 0;
+  bool get cscSpeedSource => cscFlags & 0x20 != 0;
 }
 
 @freezed

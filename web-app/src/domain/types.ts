@@ -88,6 +88,9 @@ export interface Telemetry {
   seq: number;
   sensorState: SensorState;
   powerState: PowerState;
+  cadenceX10: number;
+  cscFlags: number;
+  lastCrankEventAgeMs: number;
 }
 
 export interface DeviceConfig {
@@ -306,6 +309,12 @@ export function telemetryFlags(t: Telemetry) {
     displayOn: (t.flags & 0x02) !== 0,
     charging: (t.flags & 0x04) !== 0,
     lowBattery: (t.flags & 0x10) !== 0,
+    cscConnected: (t.cscFlags & 0x01) !== 0,
+    cscWheelPresent: (t.cscFlags & 0x02) !== 0,
+    cscCrankPresent: (t.cscFlags & 0x04) !== 0,
+    cadenceValid: (t.cscFlags & 0x08) !== 0,
+    cscPairing: (t.cscFlags & 0x10) !== 0,
+    cscSpeedSource: (t.cscFlags & 0x20) !== 0,
   };
 }
 

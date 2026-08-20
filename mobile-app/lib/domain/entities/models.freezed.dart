@@ -314,7 +314,7 @@ as int,
 /// @nodoc
 mixin _$Telemetry {
 
- int get structVersion; int get flags; int get speedX100; int get avgSpeedX100; int get maxSpeedX100; int get tripDistanceCm; int get movingTimeS; int get odometerM; int get batteryMv; int get batteryPct; RideState get rideState; int get revolutions; int get lastPulseAgeMs; int get seq; SensorState get sensorState; PowerState get powerState;
+ int get structVersion; int get flags; int get speedX100; int get avgSpeedX100; int get maxSpeedX100; int get tripDistanceCm; int get movingTimeS; int get odometerM; int get batteryMv; int get batteryPct; RideState get rideState; int get revolutions; int get lastPulseAgeMs; int get seq; SensorState get sensorState; PowerState get powerState; int get cadenceX10; int get cscFlags; int get lastCrankEventAgeMs;
 /// Create a copy of Telemetry
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -327,16 +327,16 @@ $TelemetryCopyWith<Telemetry> get copyWith => _$TelemetryCopyWithImpl<Telemetry>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Telemetry&&(identical(other.structVersion, structVersion) || other.structVersion == structVersion)&&(identical(other.flags, flags) || other.flags == flags)&&(identical(other.speedX100, speedX100) || other.speedX100 == speedX100)&&(identical(other.avgSpeedX100, avgSpeedX100) || other.avgSpeedX100 == avgSpeedX100)&&(identical(other.maxSpeedX100, maxSpeedX100) || other.maxSpeedX100 == maxSpeedX100)&&(identical(other.tripDistanceCm, tripDistanceCm) || other.tripDistanceCm == tripDistanceCm)&&(identical(other.movingTimeS, movingTimeS) || other.movingTimeS == movingTimeS)&&(identical(other.odometerM, odometerM) || other.odometerM == odometerM)&&(identical(other.batteryMv, batteryMv) || other.batteryMv == batteryMv)&&(identical(other.batteryPct, batteryPct) || other.batteryPct == batteryPct)&&(identical(other.rideState, rideState) || other.rideState == rideState)&&(identical(other.revolutions, revolutions) || other.revolutions == revolutions)&&(identical(other.lastPulseAgeMs, lastPulseAgeMs) || other.lastPulseAgeMs == lastPulseAgeMs)&&(identical(other.seq, seq) || other.seq == seq)&&(identical(other.sensorState, sensorState) || other.sensorState == sensorState)&&(identical(other.powerState, powerState) || other.powerState == powerState));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Telemetry&&(identical(other.structVersion, structVersion) || other.structVersion == structVersion)&&(identical(other.flags, flags) || other.flags == flags)&&(identical(other.speedX100, speedX100) || other.speedX100 == speedX100)&&(identical(other.avgSpeedX100, avgSpeedX100) || other.avgSpeedX100 == avgSpeedX100)&&(identical(other.maxSpeedX100, maxSpeedX100) || other.maxSpeedX100 == maxSpeedX100)&&(identical(other.tripDistanceCm, tripDistanceCm) || other.tripDistanceCm == tripDistanceCm)&&(identical(other.movingTimeS, movingTimeS) || other.movingTimeS == movingTimeS)&&(identical(other.odometerM, odometerM) || other.odometerM == odometerM)&&(identical(other.batteryMv, batteryMv) || other.batteryMv == batteryMv)&&(identical(other.batteryPct, batteryPct) || other.batteryPct == batteryPct)&&(identical(other.rideState, rideState) || other.rideState == rideState)&&(identical(other.revolutions, revolutions) || other.revolutions == revolutions)&&(identical(other.lastPulseAgeMs, lastPulseAgeMs) || other.lastPulseAgeMs == lastPulseAgeMs)&&(identical(other.seq, seq) || other.seq == seq)&&(identical(other.sensorState, sensorState) || other.sensorState == sensorState)&&(identical(other.powerState, powerState) || other.powerState == powerState)&&(identical(other.cadenceX10, cadenceX10) || other.cadenceX10 == cadenceX10)&&(identical(other.cscFlags, cscFlags) || other.cscFlags == cscFlags)&&(identical(other.lastCrankEventAgeMs, lastCrankEventAgeMs) || other.lastCrankEventAgeMs == lastCrankEventAgeMs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,structVersion,flags,speedX100,avgSpeedX100,maxSpeedX100,tripDistanceCm,movingTimeS,odometerM,batteryMv,batteryPct,rideState,revolutions,lastPulseAgeMs,seq,sensorState,powerState);
+int get hashCode => Object.hash(runtimeType,structVersion,flags,speedX100,avgSpeedX100,maxSpeedX100,tripDistanceCm,movingTimeS,odometerM,batteryMv,batteryPct,rideState,revolutions,lastPulseAgeMs,seq,sensorState,powerState,cadenceX10,cscFlags,lastCrankEventAgeMs);
 
 @override
 String toString() {
-  return 'Telemetry(structVersion: $structVersion, flags: $flags, speedX100: $speedX100, avgSpeedX100: $avgSpeedX100, maxSpeedX100: $maxSpeedX100, tripDistanceCm: $tripDistanceCm, movingTimeS: $movingTimeS, odometerM: $odometerM, batteryMv: $batteryMv, batteryPct: $batteryPct, rideState: $rideState, revolutions: $revolutions, lastPulseAgeMs: $lastPulseAgeMs, seq: $seq, sensorState: $sensorState, powerState: $powerState)';
+  return 'Telemetry(structVersion: $structVersion, flags: $flags, speedX100: $speedX100, avgSpeedX100: $avgSpeedX100, maxSpeedX100: $maxSpeedX100, tripDistanceCm: $tripDistanceCm, movingTimeS: $movingTimeS, odometerM: $odometerM, batteryMv: $batteryMv, batteryPct: $batteryPct, rideState: $rideState, revolutions: $revolutions, lastPulseAgeMs: $lastPulseAgeMs, seq: $seq, sensorState: $sensorState, powerState: $powerState, cadenceX10: $cadenceX10, cscFlags: $cscFlags, lastCrankEventAgeMs: $lastCrankEventAgeMs)';
 }
 
 
@@ -347,7 +347,7 @@ abstract mixin class $TelemetryCopyWith<$Res>  {
   factory $TelemetryCopyWith(Telemetry value, $Res Function(Telemetry) _then) = _$TelemetryCopyWithImpl;
 @useResult
 $Res call({
- int structVersion, int flags, int speedX100, int avgSpeedX100, int maxSpeedX100, int tripDistanceCm, int movingTimeS, int odometerM, int batteryMv, int batteryPct, RideState rideState, int revolutions, int lastPulseAgeMs, int seq, SensorState sensorState, PowerState powerState
+ int structVersion, int flags, int speedX100, int avgSpeedX100, int maxSpeedX100, int tripDistanceCm, int movingTimeS, int odometerM, int batteryMv, int batteryPct, RideState rideState, int revolutions, int lastPulseAgeMs, int seq, SensorState sensorState, PowerState powerState, int cadenceX10, int cscFlags, int lastCrankEventAgeMs
 });
 
 
@@ -364,7 +364,7 @@ class _$TelemetryCopyWithImpl<$Res>
 
 /// Create a copy of Telemetry
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? structVersion = null,Object? flags = null,Object? speedX100 = null,Object? avgSpeedX100 = null,Object? maxSpeedX100 = null,Object? tripDistanceCm = null,Object? movingTimeS = null,Object? odometerM = null,Object? batteryMv = null,Object? batteryPct = null,Object? rideState = null,Object? revolutions = null,Object? lastPulseAgeMs = null,Object? seq = null,Object? sensorState = null,Object? powerState = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? structVersion = null,Object? flags = null,Object? speedX100 = null,Object? avgSpeedX100 = null,Object? maxSpeedX100 = null,Object? tripDistanceCm = null,Object? movingTimeS = null,Object? odometerM = null,Object? batteryMv = null,Object? batteryPct = null,Object? rideState = null,Object? revolutions = null,Object? lastPulseAgeMs = null,Object? seq = null,Object? sensorState = null,Object? powerState = null,Object? cadenceX10 = null,Object? cscFlags = null,Object? lastCrankEventAgeMs = null,}) {
   return _then(_self.copyWith(
 structVersion: null == structVersion ? _self.structVersion : structVersion // ignore: cast_nullable_to_non_nullable
 as int,flags: null == flags ? _self.flags : flags // ignore: cast_nullable_to_non_nullable
@@ -382,7 +382,10 @@ as int,lastPulseAgeMs: null == lastPulseAgeMs ? _self.lastPulseAgeMs : lastPulse
 as int,seq: null == seq ? _self.seq : seq // ignore: cast_nullable_to_non_nullable
 as int,sensorState: null == sensorState ? _self.sensorState : sensorState // ignore: cast_nullable_to_non_nullable
 as SensorState,powerState: null == powerState ? _self.powerState : powerState // ignore: cast_nullable_to_non_nullable
-as PowerState,
+as PowerState,cadenceX10: null == cadenceX10 ? _self.cadenceX10 : cadenceX10 // ignore: cast_nullable_to_non_nullable
+as int,cscFlags: null == cscFlags ? _self.cscFlags : cscFlags // ignore: cast_nullable_to_non_nullable
+as int,lastCrankEventAgeMs: null == lastCrankEventAgeMs ? _self.lastCrankEventAgeMs : lastCrankEventAgeMs // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 
@@ -467,10 +470,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int structVersion,  int flags,  int speedX100,  int avgSpeedX100,  int maxSpeedX100,  int tripDistanceCm,  int movingTimeS,  int odometerM,  int batteryMv,  int batteryPct,  RideState rideState,  int revolutions,  int lastPulseAgeMs,  int seq,  SensorState sensorState,  PowerState powerState)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int structVersion,  int flags,  int speedX100,  int avgSpeedX100,  int maxSpeedX100,  int tripDistanceCm,  int movingTimeS,  int odometerM,  int batteryMv,  int batteryPct,  RideState rideState,  int revolutions,  int lastPulseAgeMs,  int seq,  SensorState sensorState,  PowerState powerState,  int cadenceX10,  int cscFlags,  int lastCrankEventAgeMs)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Telemetry() when $default != null:
-return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX100,_that.maxSpeedX100,_that.tripDistanceCm,_that.movingTimeS,_that.odometerM,_that.batteryMv,_that.batteryPct,_that.rideState,_that.revolutions,_that.lastPulseAgeMs,_that.seq,_that.sensorState,_that.powerState);case _:
+return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX100,_that.maxSpeedX100,_that.tripDistanceCm,_that.movingTimeS,_that.odometerM,_that.batteryMv,_that.batteryPct,_that.rideState,_that.revolutions,_that.lastPulseAgeMs,_that.seq,_that.sensorState,_that.powerState,_that.cadenceX10,_that.cscFlags,_that.lastCrankEventAgeMs);case _:
   return orElse();
 
 }
@@ -488,10 +491,10 @@ return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX1
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int structVersion,  int flags,  int speedX100,  int avgSpeedX100,  int maxSpeedX100,  int tripDistanceCm,  int movingTimeS,  int odometerM,  int batteryMv,  int batteryPct,  RideState rideState,  int revolutions,  int lastPulseAgeMs,  int seq,  SensorState sensorState,  PowerState powerState)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int structVersion,  int flags,  int speedX100,  int avgSpeedX100,  int maxSpeedX100,  int tripDistanceCm,  int movingTimeS,  int odometerM,  int batteryMv,  int batteryPct,  RideState rideState,  int revolutions,  int lastPulseAgeMs,  int seq,  SensorState sensorState,  PowerState powerState,  int cadenceX10,  int cscFlags,  int lastCrankEventAgeMs)  $default,) {final _that = this;
 switch (_that) {
 case _Telemetry():
-return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX100,_that.maxSpeedX100,_that.tripDistanceCm,_that.movingTimeS,_that.odometerM,_that.batteryMv,_that.batteryPct,_that.rideState,_that.revolutions,_that.lastPulseAgeMs,_that.seq,_that.sensorState,_that.powerState);case _:
+return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX100,_that.maxSpeedX100,_that.tripDistanceCm,_that.movingTimeS,_that.odometerM,_that.batteryMv,_that.batteryPct,_that.rideState,_that.revolutions,_that.lastPulseAgeMs,_that.seq,_that.sensorState,_that.powerState,_that.cadenceX10,_that.cscFlags,_that.lastCrankEventAgeMs);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -508,10 +511,10 @@ return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX1
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int structVersion,  int flags,  int speedX100,  int avgSpeedX100,  int maxSpeedX100,  int tripDistanceCm,  int movingTimeS,  int odometerM,  int batteryMv,  int batteryPct,  RideState rideState,  int revolutions,  int lastPulseAgeMs,  int seq,  SensorState sensorState,  PowerState powerState)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int structVersion,  int flags,  int speedX100,  int avgSpeedX100,  int maxSpeedX100,  int tripDistanceCm,  int movingTimeS,  int odometerM,  int batteryMv,  int batteryPct,  RideState rideState,  int revolutions,  int lastPulseAgeMs,  int seq,  SensorState sensorState,  PowerState powerState,  int cadenceX10,  int cscFlags,  int lastCrankEventAgeMs)?  $default,) {final _that = this;
 switch (_that) {
 case _Telemetry() when $default != null:
-return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX100,_that.maxSpeedX100,_that.tripDistanceCm,_that.movingTimeS,_that.odometerM,_that.batteryMv,_that.batteryPct,_that.rideState,_that.revolutions,_that.lastPulseAgeMs,_that.seq,_that.sensorState,_that.powerState);case _:
+return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX100,_that.maxSpeedX100,_that.tripDistanceCm,_that.movingTimeS,_that.odometerM,_that.batteryMv,_that.batteryPct,_that.rideState,_that.revolutions,_that.lastPulseAgeMs,_that.seq,_that.sensorState,_that.powerState,_that.cadenceX10,_that.cscFlags,_that.lastCrankEventAgeMs);case _:
   return null;
 
 }
@@ -523,7 +526,7 @@ return $default(_that.structVersion,_that.flags,_that.speedX100,_that.avgSpeedX1
 @JsonSerializable()
 
 class _Telemetry extends Telemetry {
-  const _Telemetry({required this.structVersion, required this.flags, required this.speedX100, required this.avgSpeedX100, required this.maxSpeedX100, required this.tripDistanceCm, required this.movingTimeS, required this.odometerM, required this.batteryMv, required this.batteryPct, required this.rideState, required this.revolutions, required this.lastPulseAgeMs, required this.seq, required this.sensorState, required this.powerState}): super._();
+  const _Telemetry({required this.structVersion, required this.flags, required this.speedX100, required this.avgSpeedX100, required this.maxSpeedX100, required this.tripDistanceCm, required this.movingTimeS, required this.odometerM, required this.batteryMv, required this.batteryPct, required this.rideState, required this.revolutions, required this.lastPulseAgeMs, required this.seq, required this.sensorState, required this.powerState, this.cadenceX10 = 0, this.cscFlags = 0, this.lastCrankEventAgeMs = 4294967295}): super._();
   factory _Telemetry.fromJson(Map<String, dynamic> json) => _$TelemetryFromJson(json);
 
 @override final  int structVersion;
@@ -542,6 +545,9 @@ class _Telemetry extends Telemetry {
 @override final  int seq;
 @override final  SensorState sensorState;
 @override final  PowerState powerState;
+@override@JsonKey() final  int cadenceX10;
+@override@JsonKey() final  int cscFlags;
+@override@JsonKey() final  int lastCrankEventAgeMs;
 
 /// Create a copy of Telemetry
 /// with the given fields replaced by the non-null parameter values.
@@ -556,16 +562,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Telemetry&&(identical(other.structVersion, structVersion) || other.structVersion == structVersion)&&(identical(other.flags, flags) || other.flags == flags)&&(identical(other.speedX100, speedX100) || other.speedX100 == speedX100)&&(identical(other.avgSpeedX100, avgSpeedX100) || other.avgSpeedX100 == avgSpeedX100)&&(identical(other.maxSpeedX100, maxSpeedX100) || other.maxSpeedX100 == maxSpeedX100)&&(identical(other.tripDistanceCm, tripDistanceCm) || other.tripDistanceCm == tripDistanceCm)&&(identical(other.movingTimeS, movingTimeS) || other.movingTimeS == movingTimeS)&&(identical(other.odometerM, odometerM) || other.odometerM == odometerM)&&(identical(other.batteryMv, batteryMv) || other.batteryMv == batteryMv)&&(identical(other.batteryPct, batteryPct) || other.batteryPct == batteryPct)&&(identical(other.rideState, rideState) || other.rideState == rideState)&&(identical(other.revolutions, revolutions) || other.revolutions == revolutions)&&(identical(other.lastPulseAgeMs, lastPulseAgeMs) || other.lastPulseAgeMs == lastPulseAgeMs)&&(identical(other.seq, seq) || other.seq == seq)&&(identical(other.sensorState, sensorState) || other.sensorState == sensorState)&&(identical(other.powerState, powerState) || other.powerState == powerState));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Telemetry&&(identical(other.structVersion, structVersion) || other.structVersion == structVersion)&&(identical(other.flags, flags) || other.flags == flags)&&(identical(other.speedX100, speedX100) || other.speedX100 == speedX100)&&(identical(other.avgSpeedX100, avgSpeedX100) || other.avgSpeedX100 == avgSpeedX100)&&(identical(other.maxSpeedX100, maxSpeedX100) || other.maxSpeedX100 == maxSpeedX100)&&(identical(other.tripDistanceCm, tripDistanceCm) || other.tripDistanceCm == tripDistanceCm)&&(identical(other.movingTimeS, movingTimeS) || other.movingTimeS == movingTimeS)&&(identical(other.odometerM, odometerM) || other.odometerM == odometerM)&&(identical(other.batteryMv, batteryMv) || other.batteryMv == batteryMv)&&(identical(other.batteryPct, batteryPct) || other.batteryPct == batteryPct)&&(identical(other.rideState, rideState) || other.rideState == rideState)&&(identical(other.revolutions, revolutions) || other.revolutions == revolutions)&&(identical(other.lastPulseAgeMs, lastPulseAgeMs) || other.lastPulseAgeMs == lastPulseAgeMs)&&(identical(other.seq, seq) || other.seq == seq)&&(identical(other.sensorState, sensorState) || other.sensorState == sensorState)&&(identical(other.powerState, powerState) || other.powerState == powerState)&&(identical(other.cadenceX10, cadenceX10) || other.cadenceX10 == cadenceX10)&&(identical(other.cscFlags, cscFlags) || other.cscFlags == cscFlags)&&(identical(other.lastCrankEventAgeMs, lastCrankEventAgeMs) || other.lastCrankEventAgeMs == lastCrankEventAgeMs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,structVersion,flags,speedX100,avgSpeedX100,maxSpeedX100,tripDistanceCm,movingTimeS,odometerM,batteryMv,batteryPct,rideState,revolutions,lastPulseAgeMs,seq,sensorState,powerState);
+int get hashCode => Object.hash(runtimeType,structVersion,flags,speedX100,avgSpeedX100,maxSpeedX100,tripDistanceCm,movingTimeS,odometerM,batteryMv,batteryPct,rideState,revolutions,lastPulseAgeMs,seq,sensorState,powerState,cadenceX10,cscFlags,lastCrankEventAgeMs);
 
 @override
 String toString() {
-  return 'Telemetry(structVersion: $structVersion, flags: $flags, speedX100: $speedX100, avgSpeedX100: $avgSpeedX100, maxSpeedX100: $maxSpeedX100, tripDistanceCm: $tripDistanceCm, movingTimeS: $movingTimeS, odometerM: $odometerM, batteryMv: $batteryMv, batteryPct: $batteryPct, rideState: $rideState, revolutions: $revolutions, lastPulseAgeMs: $lastPulseAgeMs, seq: $seq, sensorState: $sensorState, powerState: $powerState)';
+  return 'Telemetry(structVersion: $structVersion, flags: $flags, speedX100: $speedX100, avgSpeedX100: $avgSpeedX100, maxSpeedX100: $maxSpeedX100, tripDistanceCm: $tripDistanceCm, movingTimeS: $movingTimeS, odometerM: $odometerM, batteryMv: $batteryMv, batteryPct: $batteryPct, rideState: $rideState, revolutions: $revolutions, lastPulseAgeMs: $lastPulseAgeMs, seq: $seq, sensorState: $sensorState, powerState: $powerState, cadenceX10: $cadenceX10, cscFlags: $cscFlags, lastCrankEventAgeMs: $lastCrankEventAgeMs)';
 }
 
 
@@ -576,7 +582,7 @@ abstract mixin class _$TelemetryCopyWith<$Res> implements $TelemetryCopyWith<$Re
   factory _$TelemetryCopyWith(_Telemetry value, $Res Function(_Telemetry) _then) = __$TelemetryCopyWithImpl;
 @override @useResult
 $Res call({
- int structVersion, int flags, int speedX100, int avgSpeedX100, int maxSpeedX100, int tripDistanceCm, int movingTimeS, int odometerM, int batteryMv, int batteryPct, RideState rideState, int revolutions, int lastPulseAgeMs, int seq, SensorState sensorState, PowerState powerState
+ int structVersion, int flags, int speedX100, int avgSpeedX100, int maxSpeedX100, int tripDistanceCm, int movingTimeS, int odometerM, int batteryMv, int batteryPct, RideState rideState, int revolutions, int lastPulseAgeMs, int seq, SensorState sensorState, PowerState powerState, int cadenceX10, int cscFlags, int lastCrankEventAgeMs
 });
 
 
@@ -593,7 +599,7 @@ class __$TelemetryCopyWithImpl<$Res>
 
 /// Create a copy of Telemetry
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? structVersion = null,Object? flags = null,Object? speedX100 = null,Object? avgSpeedX100 = null,Object? maxSpeedX100 = null,Object? tripDistanceCm = null,Object? movingTimeS = null,Object? odometerM = null,Object? batteryMv = null,Object? batteryPct = null,Object? rideState = null,Object? revolutions = null,Object? lastPulseAgeMs = null,Object? seq = null,Object? sensorState = null,Object? powerState = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? structVersion = null,Object? flags = null,Object? speedX100 = null,Object? avgSpeedX100 = null,Object? maxSpeedX100 = null,Object? tripDistanceCm = null,Object? movingTimeS = null,Object? odometerM = null,Object? batteryMv = null,Object? batteryPct = null,Object? rideState = null,Object? revolutions = null,Object? lastPulseAgeMs = null,Object? seq = null,Object? sensorState = null,Object? powerState = null,Object? cadenceX10 = null,Object? cscFlags = null,Object? lastCrankEventAgeMs = null,}) {
   return _then(_Telemetry(
 structVersion: null == structVersion ? _self.structVersion : structVersion // ignore: cast_nullable_to_non_nullable
 as int,flags: null == flags ? _self.flags : flags // ignore: cast_nullable_to_non_nullable
@@ -611,7 +617,10 @@ as int,lastPulseAgeMs: null == lastPulseAgeMs ? _self.lastPulseAgeMs : lastPulse
 as int,seq: null == seq ? _self.seq : seq // ignore: cast_nullable_to_non_nullable
 as int,sensorState: null == sensorState ? _self.sensorState : sensorState // ignore: cast_nullable_to_non_nullable
 as SensorState,powerState: null == powerState ? _self.powerState : powerState // ignore: cast_nullable_to_non_nullable
-as PowerState,
+as PowerState,cadenceX10: null == cadenceX10 ? _self.cadenceX10 : cadenceX10 // ignore: cast_nullable_to_non_nullable
+as int,cscFlags: null == cscFlags ? _self.cscFlags : cscFlags // ignore: cast_nullable_to_non_nullable
+as int,lastCrankEventAgeMs: null == lastCrankEventAgeMs ? _self.lastCrankEventAgeMs : lastCrankEventAgeMs // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

@@ -50,6 +50,14 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get cadenceLabel => 'Каденс';
+
+  @override
+  String cadenceValue(String rpm) {
+    return '$rpm об/мин';
+  }
+
+  @override
   String get cancel => 'Отмена';
 
   @override
@@ -92,6 +100,21 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get connectionTitle => 'Подключение';
+
+  @override
+  String get cscCrankChip => 'C3 каденс';
+
+  @override
+  String get cscLabel => 'CSC';
+
+  @override
+  String get cscPairingChip => 'поиск';
+
+  @override
+  String get cscWheelActiveChip => 'S3 скорость';
+
+  @override
+  String get cscWheelChip => 'S3 колесо';
 
   @override
   String get customValue => 'Пользовательский';

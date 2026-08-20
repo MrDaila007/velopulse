@@ -1,6 +1,6 @@
 #pragma once
 
-// Mirror of protocol/data-structures.md and protocol/uuids.md (protocol v1.1).
+// Mirror of protocol/data-structures.md and protocol/uuids.md (protocol v1.2).
 // Wire layouts are packed little-endian; Configuration encoding goes through
 // DeviceConfig + config_codec (single source of truth for the 48-byte config).
 
@@ -37,10 +37,12 @@ constexpr char kBleCompanionWriteUuid[] =
 
 constexpr uint8_t kBleStructVersion = 1;
 constexpr uint8_t kBleProtoMajor = 1;
-constexpr uint8_t kBleProtoMinor = 1;
+constexpr uint8_t kBleProtoMinor = 2;
 
 constexpr size_t kDeviceInfoSize = 48;
-constexpr size_t kTelemetrySize = 36;
+constexpr size_t kTelemetryV1Size = 36;
+constexpr size_t kTelemetrySize = 44;
+constexpr uint8_t kTelemetryStructVersion = 2;
 constexpr size_t kConfigurationSize = kDeviceConfigPayloadSize;  // 48
 constexpr size_t kCommandHeaderSize = 4;
 constexpr size_t kCommandMaxPayload = 16;
@@ -193,6 +195,14 @@ constexpr uint8_t kCommandFlagHasToken = 1u << 0;
 
 constexpr uint32_t kTelemetryNoPulseAgeMs = 0xFFFFFFFFu;
 
+// Telemetry v2 CSC flags (offset 38)
+constexpr uint8_t kTelemetryCscFlagConnected = 1u << 0;
+constexpr uint8_t kTelemetryCscFlagWheelPresent = 1u << 1;
+constexpr uint8_t kTelemetryCscFlagCrankPresent = 1u << 2;
+constexpr uint8_t kTelemetryCscFlagCadenceValid = 1u << 3;
+constexpr uint8_t kTelemetryCscFlagPairing = 1u << 4;
+constexpr uint8_t kTelemetryCscFlagSpeedSource = 1u << 5;
+
 #pragma pack(push, 1)
 
 struct DeviceInfoPacket {
@@ -226,6 +236,10 @@ struct TelemetryPacket {
   uint16_t seq;
   uint8_t sensor_state;
   uint8_t power_state;
+  uint16_t cadence_x10;
+  uint8_t csc_flags;
+  uint8_t reserved_csc;
+  uint32_t last_crank_event_age_ms;
 };
 
 // Wire layout only — encode/decode via DeviceConfig + config_codec.
@@ -308,6 +322,9 @@ static_assert(offsetof(DeviceInfoPacket, uptime_s) == 40, "DeviceInfo.uptime");
 static_assert(offsetof(TelemetryPacket, trip_distance_cm) == 8,
               "Telemetry.trip_distance_cm");
 static_assert(offsetof(TelemetryPacket, seq) == 32, "Telemetry.seq");
+static_assert(offsetof(TelemetryPacket, cadence_x10) == 36,
+              "Telemetry.cadence_x10");
+static_assert(kTelemetryV1Size == 36, "Telemetry v1 prefix size");
 static_assert(offsetof(ConfigurationPacket, wheel_circumference_mm) == 2,
               "Config.wheel_circumference_mm");
 static_assert(offsetof(ConfigurationPacket, page_order) == 24,

@@ -10,6 +10,13 @@
       }
     }
   },
+  "@cadenceValue": {
+    "placeholders": {
+      "rpm": {
+        "type": "String"
+      }
+    }
+  },
   "@appVersion": {
     "placeholders": {
       "version": {
@@ -137,6 +144,13 @@
   "bondUnknown": "сопряжение неизвестно",
   "bonded": "сопряжено",
   "brightnessValue": "Максимальная яркость: {percent}%",
+  "cadenceLabel": "Каденс",
+  "cadenceValue": "{rpm} об/мин",
+  "cscLabel": "CSC",
+  "cscPairingChip": "поиск",
+  "cscCrankChip": "C3 каденс",
+  "cscWheelChip": "S3 колесо",
+  "cscWheelActiveChip": "S3 скорость",
   "cancel": "Отмена",
   "commandDeviceBody": "Команда будет выполнена на подключённом устройстве.",
   "commandsRequireReady": "Для команд требуется готовое соединение с совместимым протоколом.",

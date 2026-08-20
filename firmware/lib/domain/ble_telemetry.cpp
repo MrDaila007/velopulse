@@ -88,7 +88,7 @@ uint32_t telemetryLastPulseAgeMs(const TelemetryBuildInput& input) {
 
 void fillTelemetryPacket(TelemetryPacket& out, const TelemetryBuildInput& input) {
   out = {};
-  out.struct_version = kBleStructVersion;
+  out.struct_version = kTelemetryStructVersion;
   out.flags = buildTelemetryFlags(input);
   out.speed_x100 = input.trip.speed_x100;
   out.avg_speed_x100 = input.trip.average_speed_x100;
@@ -103,6 +103,10 @@ void fillTelemetryPacket(TelemetryPacket& out, const TelemetryBuildInput& input)
   out.last_pulse_age_ms = telemetryLastPulseAgeMs(input);
   out.sensor_state = static_cast<uint8_t>(mapTelemetrySensorState(input));
   out.power_state = static_cast<uint8_t>(mapTelemetryPowerState(input));
+  out.cadence_x10 = input.cadence_x10;
+  out.csc_flags = input.csc_flags;
+  out.reserved_csc = 0;
+  out.last_crank_event_age_ms = input.last_crank_event_age_ms;
 }
 
 uint16_t nextTelemetrySeq(uint16_t seq) {

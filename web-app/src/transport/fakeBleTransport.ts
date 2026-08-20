@@ -66,6 +66,9 @@ export class FakeBleTransport implements BleTransport {
     seq: 42,
     sensorState: 'ok',
     powerState: 'active',
+    cadenceX10: 0,
+    cscFlags: 0,
+    lastCrankEventAgeMs: 0xffffffff,
   };
 
   constructor(profile: FakeRideProfile = 'moving') {
@@ -84,7 +87,7 @@ export class FakeBleTransport implements BleTransport {
     return {
       structVersion: 1,
       protoMajor: this.scenario === 'protocolMajor2' ? 2 : 1,
-      protoMinor: 1,
+      protoMinor: 2,
       hwRevision: 1,
       model: 'BIKECOMP-XIAO',
       fwVersion: '1.0.0-fake',

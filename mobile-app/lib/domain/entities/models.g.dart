@@ -65,6 +65,9 @@ _Telemetry _$TelemetryFromJson(Map<String, dynamic> json) => _Telemetry(
   seq: (json['seq'] as num).toInt(),
   sensorState: $enumDecode(_$SensorStateEnumMap, json['sensorState']),
   powerState: $enumDecode(_$PowerStateEnumMap, json['powerState']),
+  cadenceX10: (json['cadenceX10'] as num?)?.toInt() ?? 0,
+  cscFlags: (json['cscFlags'] as num?)?.toInt() ?? 0,
+  lastCrankEventAgeMs: (json['lastCrankEventAgeMs'] as num?)?.toInt() ?? 4294967295,
 );
 
 Map<String, dynamic> _$TelemetryToJson(_Telemetry instance) =>
@@ -85,6 +88,9 @@ Map<String, dynamic> _$TelemetryToJson(_Telemetry instance) =>
       'seq': instance.seq,
       'sensorState': _$SensorStateEnumMap[instance.sensorState]!,
       'powerState': _$PowerStateEnumMap[instance.powerState]!,
+      'cadenceX10': instance.cadenceX10,
+      'cscFlags': instance.cscFlags,
+      'lastCrankEventAgeMs': instance.lastCrankEventAgeMs,
     };
 
 const _$RideStateEnumMap = {

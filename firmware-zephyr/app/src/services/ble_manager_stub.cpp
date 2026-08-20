@@ -111,4 +111,30 @@ void BleManager::publishDangerousCommandResult(CommandId command_id,
   (void)result;
 }
 
+void BleManager::serviceCsc(uint32_t now_ms) { (void)now_ms; }
+
+CscSnapshot BleManager::cscSnapshot(uint32_t now_ms) const {
+  (void)now_ms;
+  return {};
+}
+
+void BleManager::startCscPairing(uint16_t duration_s, uint32_t now_ms) {
+  (void)duration_s;
+  (void)now_ms;
+}
+
+void BleManager::forgetCscBond() {}
+
+bool BleManager::takePendingCscBond(CscBondData& out) {
+  (void)out;
+  return false;
+}
+
+CscWheelDelta BleManager::takeCscWheelDelta() { return {}; }
+
+bool BleManager::cscWheelSpeedSourceActive(uint32_t now_ms) const {
+  (void)now_ms;
+  return false;
+}
+
 }  // namespace bike

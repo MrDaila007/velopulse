@@ -103,7 +103,7 @@ src/
 Web Serial @ 115200, те же ASCII-команды, что в [`serial_console`](../firmware/lib/domain/serial_console.cpp)
 и [`tools/serial_client.py`](../tools/serial_client.py).
 
-Пресеты: `status`, `dump-config`, `selftest`, `open-pairing`, `hall-status`, `ambient-raw`, `ambient-stop`, и др.
+Пресеты: `status`, `dump-config`, `selftest`, `open-pairing`, `hall-status`, `ambient-raw`, `ambient-stop`, `csc-status`, `csc-pair`, `csc-forget`, и др.
 
 ## Карта полей: BLE Config vs USB
 
@@ -116,7 +116,7 @@ Web Serial @ 115200, те же ASCII-команды, что в [`serial_console`
 | --- | --- | --- |
 | Колесо / скорость | `wheel_circumference_mm`, `units_imperial`, `max_speed_kmh`, `smoothing_*`, `stop_timeout_s` | — |
 | Датчик Холла | `debounce_ms`, `active_edge`, `sensor_invert` | `hall-status`, `hall-watch` |
-| Дисплей | `brightness_pct` (потолок LDR), таймауты, страницы 0–6 (`enabled_pages_mask` биты 5–6 = погода/дождь в карусели), `page_order`, `pinned_page` | — |
+| Дисплей | `brightness_pct` (потолок LDR), таймауты, страницы 0–7 (`enabled_pages_mask` биты 5–6 = погода, бит 7 = CAD при C3), `page_order`, `pinned_page` | — |
 | LDR калибровка | **не доступна** (только `brightness_pct`) | `ambient-raw` / `ambient-stop` — live raw/filtered/pct; пороги в `platformio.ini` или `ldr_calibrate.py` |
 | Питание | `low_battery_pct`, `batt_cal_*`, sleep/advertise, `odometer_save_interval_m` | `power-status` |
 | Устройство | `device_name` | — |
@@ -130,7 +130,7 @@ Web Serial @ 115200, те же ASCII-команды, что в [`serial_console`
 Реализовано:
 
 - Scan/connect FSM, version gate `protoMajor === 1`
-- Dashboard telemetry
+- Dashboard telemetry, включая каденс C3 и статус S3/CSC
 - Settings: все поля BLE Config 48 B (6 секций), черновик + conflict banner, LDR helper на дисплее
 - Companion sync (Open-Meteo, интервал 15 мин)
 - Maintenance: safe commands, sensor test, reboot (dangerous token), backup/restore, session log JSON

@@ -81,6 +81,21 @@ export function DashboardScreen() {
             <label>АКБ</label>
             <strong>{formatBattery(telemetry.batteryMv, telemetry.batteryPct)}</strong>
           </div>
+          <div className="stat">
+            <label>Каденс</label>
+            <strong>
+              {flags.cadenceValid ? `${(telemetry.cadenceX10 / 10).toFixed(1)} об/мин` : '—'}
+            </strong>
+          </div>
+        </div>
+        <div className="chips" style={{ marginTop: 12 }}>
+          {flags.cscPairing && <span className="chip">CSC поиск</span>}
+          {flags.cscCrankPresent && <span className="chip ok">C3 каденс</span>}
+          {(flags.cscWheelPresent || flags.cscSpeedSource) && (
+            <span className={`chip ${flags.cscSpeedSource ? 'ok' : ''}`}>
+              {flags.cscSpeedSource ? 'S3 скорость' : 'S3 колесо'}
+            </span>
+          )}
         </div>
         <div className="btn-row">
           <button

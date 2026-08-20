@@ -6,6 +6,8 @@
 #include "ble_telemetry.h"
 #include "companion_snapshot.h"
 #include "config.h"
+#include "csc_central.h"
+#include "csc_measurement.h"
 
 namespace bike {
 
@@ -34,6 +36,7 @@ struct BleBootSeed {
   uint32_t boot_ms = 0;
   // Release-safe default; prototype builds may define BIKECOMP_OPEN_PAIRING=1.
   bool open_pairing_always = false;
+  CscBondData csc_bond;
 };
 
 // Adafruit Bluefruit peripheral: Bike Computer Configuration Service GATT table
@@ -95,8 +98,17 @@ class BleManager {
   bool hasPendingCompanionWrite() const;
   bool takePendingCompanionWrite(CompanionSnapshotPacket& out);
 
+  void serviceCsc(uint32_t now_ms);
+  CscSnapshot cscSnapshot(uint32_t now_ms) const;
+  void startCscPairing(uint16_t duration_s, uint32_t now_ms);
+  void forgetCscBond();
+  bool takePendingCscBond(CscBondData& out);
+  CscWheelDelta takeCscWheelDelta();
+  bool cscWheelSpeedSourceActive(uint32_t now_ms) const;
+
  private:
   bool ok_ = false;
+  CscCentral csc_;
 };
 
 }  // namespace bike

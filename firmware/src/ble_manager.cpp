@@ -482,11 +482,12 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   resolveDeviceLocalName(config.device_name, serial_suffix, g_local_name,
                          sizeof(g_local_name));
 
-  // BikeComp GATT (1 service + 8 chars) plus Adafruit BLEDfu (1 + 3).
+  // BikeComp GATT (1 service + 8 chars) plus Adafruit BLEDfu (1 + 3),
+  // plus one CSC central connection for C3/S3 (or generic CSC).
   Bluefruit.configUuid128Count(16);
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
 
-  if (!Bluefruit.begin()) {
+  if (!Bluefruit.begin(1, 1)) {
     return false;
   }
 
@@ -517,6 +518,16 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   Serial.print("BLE ADV name: ");
   Serial.println(g_local_name);
   Serial.println("BLE DFU: Adafruit OTA enabled");
+
+  csc_.setBond(seed.csc_bond);
+  if (csc_.begin()) {
+    Serial.println(cscBondIsValid(seed.csc_bond)
+                       ? "CSC: central started, reconnecting"
+                       : "CSC: central started, pairing 90s");
+  } else {
+    Serial.println("CSC: central start failed");
+  }
+
   ok_ = true;
   return true;
 }
@@ -707,6 +718,31 @@ bool BleManager::takePendingCompanionWrite(CompanionSnapshotPacket& out) {
   out = g_pending_companion_write.packet;
   g_pending_companion_write.state = PendingCompanionWrite::State::kIdle;
   return true;
+}
+
+void BleManager::serviceCsc(uint32_t now_ms) {
+  if (!ok_) return;
+  csc_.service(now_ms);
+}
+
+CscSnapshot BleManager::cscSnapshot(uint32_t now_ms) const {
+  return csc_.snapshot(now_ms);
+}
+
+void BleManager::startCscPairing(uint16_t duration_s, uint32_t now_ms) {
+  csc_.startPairing(duration_s, now_ms);
+}
+
+void BleManager::forgetCscBond() { csc_.forgetBond(); }
+
+bool BleManager::takePendingCscBond(CscBondData& out) {
+  return csc_.takePendingBondSave(out);
+}
+
+CscWheelDelta BleManager::takeCscWheelDelta() { return csc_.takeWheelDelta(); }
+
+bool BleManager::cscWheelSpeedSourceActive(uint32_t now_ms) const {
+  return csc_.wheelSpeedSourceActive(now_ms);
 }
 
 }  // namespace bike

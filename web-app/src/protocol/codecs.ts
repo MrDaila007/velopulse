@@ -33,6 +33,7 @@ export class ProtocolCodecError extends Error {
 export const SIZES = {
   deviceInfo: 48,
   telemetry: 36,
+  telemetryV2: 44,
   config: 48,
   companion: 15,
   diagnosticPayload: 16,
@@ -127,11 +128,16 @@ export function decodeTelemetry(bytes: Uint8Array): Telemetry {
     seq: view.getUint16(32, true),
     sensorState: fromCode(SENSOR_STATE_CODES, view.getUint8(34), 'unknown' as SensorState),
     powerState: fromCode(POWER_STATE_CODES, view.getUint8(35), 'unknown' as PowerState),
+    cadenceX10: bytes.length >= SIZES.telemetryV2 ? view.getUint16(36, true) : 0,
+    cscFlags: bytes.length >= SIZES.telemetryV2 ? view.getUint8(38) : 0,
+    lastCrankEventAgeMs:
+      bytes.length >= SIZES.telemetryV2 ? view.getUint32(40, true) : 0xffffffff,
   };
 }
 
 export function encodeTelemetry(value: Telemetry): Uint8Array {
-  const out = new Uint8Array(SIZES.telemetry);
+  const size = value.structVersion >= 2 ? SIZES.telemetryV2 : SIZES.telemetry;
+  const out = new Uint8Array(size);
   const view = new DataView(out.buffer);
   view.setUint8(0, value.structVersion);
   view.setUint8(1, value.flags);
@@ -149,6 +155,12 @@ export function encodeTelemetry(value: Telemetry): Uint8Array {
   view.setUint16(32, value.seq, true);
   view.setUint8(34, SENSOR_STATE_CODES[value.sensorState]);
   view.setUint8(35, POWER_STATE_CODES[value.powerState]);
+  if (size >= SIZES.telemetryV2) {
+    view.setUint16(36, value.cadenceX10, true);
+    view.setUint8(38, value.cscFlags);
+    view.setUint8(39, 0);
+    view.setUint32(40, value.lastCrankEventAgeMs, true);
+  }
   return out;
 }
 

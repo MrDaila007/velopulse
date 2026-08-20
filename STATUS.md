@@ -1,6 +1,6 @@
 # Статус проекта
 
-Обновлено: 2026-08-14
+Обновлено: 2026-08-20
 
 ## Снимок веток
 
@@ -13,16 +13,16 @@
 | `cursor/peripheral-features-research-c36d` | Не влита | Research/backlog доки по периферии, вне текущей области |
 | `cursor/update-project-status-9eb0` | Не влита, устарела | Черновой docs-sync от 2026-08-08; заменён этим обновлением |
 
-Версии продукта — [`version.toml`](version.toml): BLE protocol `1.1`, firmware
-Arduino `0.2.0`, firmware Zephyr `0.2.0-zephyr`, mobile `1.1.0+5`. Публичные релизы:
+Версии продукта — [`version.toml`](version.toml): BLE protocol `1.2`, firmware
+Arduino `0.2.0`, firmware Zephyr `0.2.0-zephyr`, mobile `1.1.0+6`. Публичные релизы:
 `v0.2.0-beta.1/2/3`.
 
 ## Текущий этап
 
-Э4 — BLE-интеграция. Э4.1–4.14 программно реализованы: advertising, команды,
-encryption и 5-минутное pairing window синхронизированы с Android flow. Базовая
-интеграция Android-приложения с реальным XIAO подтверждена пользователем: новый APK
-обнаруживает BikeComp, подключается и работает. Полный hardware gate Э5 ещё открыт.
+Э4 — BLE-интеграция. Э4.1–4.15 программно реализованы: advertising, команды,
+encryption, pairing window и BLE CSC central (C3 каденс / S3 скорость, ADR-014).
+Базовая интеграция Android-приложения с реальным XIAO подтверждена пользователем.
+Полный hardware gate Э5 и полевая проверка Cycplus C3/S3 ещё открыты.
 
 ## Готово
 
@@ -157,6 +157,13 @@ encryption и 5-минутное pairing window синхронизированы
   (`GPREGRET=0xB1`) при записи DFU Control Point; первая заливка при мёртвом USB —
   `firmware/scripts/flash_stlink.sh`, дальше `firmware.zip` с телефона. Это не
   Nordic Secure DFU v1.1.
+- **BLE CSC central (Э4.15, ADR-014):** dual-role `Bluefruit.begin(1, 1)`. BikeComp
+  остаётся peripheral для приложения и одновременно central к одному датчику
+  CSC `0x1816`. CYCPLUS C3 даёт каденс (`cadence_x10`, OLED CAD); CYCPLUS S3 даёт
+  скорость/одометр через синтетические обороты и `wheel_circumference_mm`. Пока
+  S3 свежий (менее 4 с), импульсы Холла не считаются. Bond в `/csc_a` `/csc_b`,
+  Serial `csc-pair`/`csc-forget`/`csc-status`. ANT+ не используется (S140).
+  Telemetry v2 — 44 байта, протокол 1.2. Zephyr CSC central — заглушка.
   Pairing/bonding: LESC Just Works, Flash bond store Bluefruit, encrypted GATT
   permissions, release-default `BIKECOMP_OPEN_PAIRING=0`; новые pairing requests
   после 5 минут отклоняются disconnect + defensive bond revoke, сохранённые bonds
@@ -344,8 +351,8 @@ encryption и 5-минутное pairing window синхронизированы
 - Migration hook — заготовка identity v1→v2; реальное расширение payload потребует
   обновления `migrate_*` и, при изменении BLE-структуры, `protocol/`.
 - Zephyr-порт (`firmware-zephyr/`) не синхронизирован с этими изменениями: weather-
-  страницы, speed-gap guard/reboot, web-компаньон, ambient auto-calibration и
-  BLE-индикатор на экране реализованы только в Arduino-прошивке. Async flash
+  страницы, speed-gap guard/reboot, web-компаньон, ambient auto-calibration,
+  BLE-индикатор на экране и CSC central (C3/S3) реализованы только в Arduino-прошивке. Async flash
   writes (`StorageBackend::beginWrite`/`pollWrite`) теперь мигрированы на обеих
   сторонах Zephyr-порта: расшаренный `test/shared/memory_storage_backend.{h,cpp}`
   и реальный прошивочный бэкенд `firmware-zephyr/app/src/platform/

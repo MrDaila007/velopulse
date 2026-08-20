@@ -45,9 +45,9 @@ ZTEST(protocol, test_protocol_fixture_telemetry_v1_moving_and_paused) {
 
   uint8_t encoded[kTelemetrySize];
   encodeTelemetry(makeMovingTelemetry(), encoded);
-  zassert_mem_equal(moving_hex.data(), encoded, kTelemetrySize, "moving encode");
+  zassert_mem_equal(moving_hex.data(), encoded, moving_hex.size(), "moving encode");
   encodeTelemetry(makePausedTelemetry(), encoded);
-  zassert_mem_equal(paused_hex.data(), encoded, kTelemetrySize, "paused encode");
+  zassert_mem_equal(paused_hex.data(), encoded, paused_hex.size(), "paused encode");
 
   TelemetryPacket decoded = {};
   zassert_true(decodeTelemetry(moving_hex.data(), moving_hex.size(), decoded),

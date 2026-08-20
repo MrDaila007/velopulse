@@ -52,6 +52,10 @@
   (Неблокирующий parser с CR/LF, trim, bounded buffer и overflow recovery;
   `reset-odo` из архитектуры §12.4; config fields + wire payload, diagnostic mask;
   78/78 native, production build/upload и безопасный Serial smoke на XIAO.)
+- [x] 4.15 BLE CSC central (CYCPLUS C3/S3): `Bluefruit.begin(1,1)`, Measurement
+  `0x2A5B`, bond `/csc_a`/`/csc_b`, Serial `csc-*`, Telemetry v2. C3 → каденс;
+  S3 → скорость/одометр с подавлением Hall, пока датчик свежий. ANT+ нет
+  (ADR-014). Hardware pairing DoD остаётся открытым.
 
 ## DoD Э4
 

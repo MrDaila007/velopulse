@@ -82,7 +82,7 @@ void main() {
       'enabledPagesMask',
     );
     expectFieldInvalid(
-      DeviceConfig.defaults.copyWith(enabledPagesMask: 0x20),
+      DeviceConfig.defaults.copyWith(enabledPagesMask: 0x100),
       'enabledPagesMask',
     );
     expectFieldInvalid(

@@ -24,6 +24,7 @@ enum class DisplayPage : uint8_t {
   kOdometer = 4,
   kWeatherClock = 5,
   kWeatherRain = 6,
+  kCadence = 7,
 };
 
 struct TripSnapshot {
@@ -57,6 +58,9 @@ struct DisplaySnapshot {
   bool companion_weather_valid = false;
   bool companion_weather_stale = false;
   bool ble_connected = false;
+  uint16_t cadence_x10 = 0;
+  bool cadence_valid = false;
+  bool csc_connected = false;
 };
 
 struct DisplayFrame {

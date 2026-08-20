@@ -4,6 +4,28 @@ All notable changes to VeloPulse / BikeComp are documented here.
 Version numbers follow [`version.toml`](version.toml); git tags use `v` + semver
 (with optional `-beta.N` / `-alpha.N` pre-release suffix).
 
+## [Unreleased]
+
+### Firmware (Arduino) 0.2.0
+
+- **BLE CSC client:** dual-role central + peripheral. Pair a CYCPLUS C3 (cadence)
+  or S3 (speed) — or any CSC `0x1816` sensor. Bond in `/csc_a` `/csc_b`; Serial
+  `csc-pair` / `csc-forget` / `csc-status`.
+- **C3 cadence:** RPM on OLED page CAD and Telemetry v2 `cadence_x10`. Hall stays
+  the speed source.
+- **S3 speed:** wheel revolutions feed trip/odometer/speed using
+  `wheel_circumference_mm`. Fresh S3 data (under 4 s) suppresses Hall so distance
+  is not doubled; Hall resumes after disconnect or silence.
+
+### Protocol 1.2
+
+- Telemetry `struct_version = 2` is 44 bytes (v1 36-byte prefix remains valid).
+  `csc_flags` reports connection, C3 crank, S3 wheel, pairing, and live speed source.
+
+### Mobile / web
+
+- Dashboard shows cadence and C3/S3 status chips.
+
 ## [0.2.0-beta.3] — 2026-08-06
 
 Third **beta** release: fixes live speed and max speed stuck at zero while distance,

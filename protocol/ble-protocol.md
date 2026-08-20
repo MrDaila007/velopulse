@@ -1,6 +1,7 @@
 # BLE-протокол Bike Computer
 
-Версия протокола: **1.0** · Роли: устройство — **Peripheral**, приложение — **Central**
+Версия протокола: **1.2** · Роли: устройство — **Peripheral** (приложение) и
+**Central** (BLE CSC: CYCPLUS C3/S3); приложение — **Central** к BikeComp
 
 Связанные документы: [`uuids.md`](uuids.md) — реестр UUID,
 [`data-structures.md`](data-structures.md) — байтовые раскладки.
@@ -19,7 +20,7 @@
 ┌──────────────────────────── Bike Computer (Peripheral) ────────────────────────────┐
 │ Service 7C9A0001-…                                                                 │
 │  ├── 0002 Device Information   R          48 B   модель, версии, uptime, serial     │
-│  ├── 0003 Telemetry            R + N      36 B   скорость, дистанция, АКБ, статусы  │
+│  ├── 0003 Telemetry            R + N   36/44 B   скорость, дистанция, АКБ, CSC     │
 │  ├── 0004 Config Read          R + N      48 B   актуальная конфигурация            │
 │  ├── 0005 Config Write         W(resp)    48 B   новая конфигурация (транзакция)    │
 │  ├── 0006 Command              W(resp)   4-20 B  команды управления                 │
@@ -228,6 +229,25 @@ App                                          Device
 * Не поддерживает OTA/DFU в собственном сервисе — планируется штатный Nordic Secure DFU
   (зарезервирован UUID `…000A` под метаданные).
 * Не фрагментирует пакеты: все структуры умещаются в один ATT-пакет при MTU ≥ 51.
-* Не использует Bluetooth CSC Profile (стандартный профиль скорость/каденс). Причина —
-  требуется собственная конфигурация и диагностика; поддержка CSC как дополнительного
-  сервиса возможна в v1.1 для совместимости со сторонними приложениями.
+* Не использует Bluetooth CSC Profile как **peripheral** (BikeComp не публикует `0x1816`
+  для Strava/Zwift). Причина — ADR-013.
+
+## 10. BLE CSC central (протокол 1.2)
+
+BikeComp одновременно остаётся peripheral для приложения и подключается как central
+к одному датчику Cycling Speed and Cadence (`0x1816` / Measurement `0x2A5B`).
+
+| Датчик | Рекламное имя | CSC flags | Что считает BikeComp |
+| --- | --- | --- | --- |
+| CYCPLUS C3 | `CYCPLUS C3` | crank | каденс, OLED-страница CAD, `cadence_x10` |
+| CYCPLUS S3 | `CYCPLUS S3` | wheel | скорость, поездка и одометр (синтетические обороты) |
+
+Один физический Cycplus C3/S3 не умеет оба режима сразу: переключатель C/S меняет
+роль. Адрес BLE тот же, повторный pairing не нужен. ANT+ не используется
+(SoftDevice S140, см. ADR-014).
+
+Сопряжение CSC: 90 с после boot без bond, либо Serial `csc-pair`. Bond хранится в
+`/csc_a` `/csc_b`. `csc-forget` и factory reset стирают bond. Пока S3 — источник
+скорости, Hall не дублирует дистанцию; после 4 с тишины Hall снова активен.
+Окружность колеса для S3 берётся из `wheel_circumference_mm` BikeComp, не из
+настройки датчика.

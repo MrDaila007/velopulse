@@ -53,12 +53,12 @@ abstract final class ConfigValidator {
     zeroOrRange('deepSleepTimeoutS', 8, config.deepSleepTimeoutS, 60, 3600);
     range('brightnessPct', 10, config.brightnessPct, 1, 100);
     range('pageSwitchPeriodS', 11, config.pageSwitchPeriodS, 1, 60);
-    if (config.enabledPagesMask <= 0 || config.enabledPagesMask & ~0x1F != 0) {
+    if (config.enabledPagesMask <= 0 || config.enabledPagesMask & ~0xFF != 0) {
       issues.add(
         const ValidationIssue(
           'enabledPagesMask',
           12,
-          'Нужно включить минимум одну из пяти страниц',
+          'Нужно включить минимум одну страницу (биты 0–7)',
         ),
       );
     }
@@ -67,7 +67,7 @@ abstract final class ConfigValidator {
     range('smoothingWindow', 16, config.smoothingWindow, 2, 5);
     range('debounceMs', 17, config.debounceMs, 0, 50);
     range('activeEdge', 18, config.activeEdge, 0, 2);
-    range('pinnedPage', 19, config.pinnedPage, 0, 4);
+    range('pinnedPage', 19, config.pinnedPage, 0, 7);
     range('battCalScalePermille', 20, config.battCalScalePermille, 800, 1200);
     range('battCalOffsetMv', 22, config.battCalOffsetMv, -500, 500);
 

@@ -32,7 +32,7 @@ BOUNDARY_SCENARIOS = (
     "battery_full",
     "long_metric",
 )
-SCENARIOS = GOLDEN_SCENARIOS + ("moving",) + BOUNDARY_SCENARIOS
+SCENARIOS = GOLDEN_SCENARIOS + ("moving", "cadence") + BOUNDARY_SCENARIOS
 DISPLAY_HEIGHTS = (32, 64)
 
 

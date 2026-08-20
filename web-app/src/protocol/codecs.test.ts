@@ -73,6 +73,9 @@ function telemetryFromJson(j: Record<string, unknown>): Telemetry {
     seq: j.seq as number,
     sensorState: fromCode(SENSOR_STATE_CODES, j.sensor_state as number, 'unknown'),
     powerState: fromCode(POWER_STATE_CODES, j.power_state as number, 'unknown'),
+    cadenceX10: (j.cadence_x10 as number) ?? 0,
+    cscFlags: (j.csc_flags as number) ?? 0,
+    lastCrankEventAgeMs: (j.last_crank_event_age_ms as number) ?? 0xffffffff,
   };
 }
 

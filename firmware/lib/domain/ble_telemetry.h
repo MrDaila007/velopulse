@@ -31,6 +31,9 @@ struct TelemetryBuildInput {
   bool sensor_stuck = false;
   uint32_t last_pulse_ms = 0;
   uint32_t now_ms = 0;
+  uint16_t cadence_x10 = 0;
+  uint8_t csc_flags = 0;
+  uint32_t last_crank_event_age_ms = kTelemetryNoPulseAgeMs;
 };
 
 uint32_t telemetryPublishIntervalMs(TelemetryPublishMode mode);

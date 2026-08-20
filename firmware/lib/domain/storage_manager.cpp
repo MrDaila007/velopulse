@@ -135,6 +135,25 @@ bool decodeAmbientCalibration(const uint8_t* input,
   return true;
 }
 
+void encodeCscBond(const CscBondData& bond, uint8_t output[kCscBondPayloadSize]) {
+  memcpy(output, bond.address, kCscAddressSize);
+  output[6] = bond.address_type;
+  output[7] = bond.flags;
+  memcpy(output + 8, bond.name, kCscBondNameSize);
+}
+
+bool decodeCscBond(const uint8_t* input, size_t length, CscBondData& bond) {
+  if (input == nullptr || length != kCscBondPayloadSize) return false;
+  CscBondData decoded = {};
+  memcpy(decoded.address, input, kCscAddressSize);
+  decoded.address_type = input[6];
+  decoded.flags = input[7];
+  memcpy(decoded.name, input + 8, kCscBondNameSize);
+  decoded.name[kCscBondNameSize - 1] = '\0';
+  bond = decoded;
+  return true;
+}
+
 void encodeStorageCounters(const StorageCounters& counters,
                            uint8_t output[kStorageCountersPayloadSize]) {
   writeU32(output + 0, counters.writes);
@@ -310,6 +329,38 @@ void StorageManager::readAmbientCalibrationSlot(const char* path, Slot& slot) {
   slot.valid = true;
 }
 
+void StorageManager::readCscBondSlot(const char* path, Slot& slot) {
+  slot = Slot{};
+  uint8_t record[kMaximumRecordSize];
+  size_t record_length = 0;
+  const StorageIoResult result =
+      backend_.read(path, record, sizeof(record), record_length);
+  if (result == StorageIoResult::kNotFound) return;
+  slot.present = true;
+  if (result != StorageIoResult::kOk) {
+    ++counters_.read_errors;
+    return;
+  }
+
+  DecodedRecord decoded;
+  if (!decodeRecord(record, record_length, kCscBondRecordVersion,
+                    kCscBondPayloadSize, decoded)) {
+    ++counters_.read_errors;
+    return;
+  }
+
+  CscBondData bond;
+  if (!decodeCscBond(decoded.payload, decoded.header.payload_len, bond)) {
+    ++counters_.read_errors;
+    return;
+  }
+  encodeCscBond(bond, slot.payload);
+  slot.sequence = decoded.header.sequence;
+  slot.version = decoded.header.version;
+  slot.needs_migration = false;
+  slot.valid = true;
+}
+
 void StorageManager::readStorageCountersSlot(const char* path, Slot& slot) {
   slot = Slot{};
   uint8_t record[kMaximumRecordSize];
@@ -454,6 +505,10 @@ bool StorageManager::beginSavePayloadAsync(const char* path_a,
     case PayloadKind::kAmbientCalibration:
       readAmbientCalibrationSlot(path_a, a);
       readAmbientCalibrationSlot(path_b, b);
+      break;
+    case PayloadKind::kCscBond:
+      readCscBondSlot(path_a, a);
+      readCscBondSlot(path_b, b);
       break;
     case PayloadKind::kStorageCounters:
       readStorageCountersSlot(path_a, a);
@@ -701,6 +756,49 @@ bool StorageManager::saveAmbientCalibration(
   if (!beginSaveAmbientCalibration(calibration)) return false;
   if (!save_in_progress_) return true;
   return drainPendingSave() == StorageAsyncStatus::kOk;
+}
+
+bool StorageManager::loadCscBond(CscBondData& bond, StorageLoadInfo& info) {
+  info = StorageLoadInfo{};
+  if (!mounted_) return false;
+  Slot a;
+  Slot b;
+  readCscBondSlot(paths_.csc_bond_a, a);
+  readCscBondSlot(paths_.csc_bond_b, b);
+  const Slot* selected = nullptr;
+  if (a.valid && b.valid) {
+    selected = isNewer(b.sequence, a.sequence) ? &b : &a;
+  } else if (a.valid) {
+    selected = &a;
+  } else if (b.valid) {
+    selected = &b;
+  }
+  if (selected != nullptr) {
+    if (!decodeCscBond(selected->payload, kCscBondPayloadSize, bond)) {
+      return false;
+    }
+    info.source = selected == &a ? StorageSource::kSlotA : StorageSource::kSlotB;
+    info.sequence = selected->sequence;
+    info.from_version = selected->version;
+    info.recovered = selected == &a ? (b.present && !b.valid)
+                                    : (a.present && !a.valid);
+    return true;
+  }
+
+  bond = CscBondData{};
+  info.source = StorageSource::kDefaults;
+  info.recovered = a.present || b.present;
+  info.sequence = 0;
+  info.from_version = kCscBondRecordVersion;
+  return true;
+}
+
+bool StorageManager::saveCscBond(const CscBondData& bond) {
+  uint8_t payload[kCscBondPayloadSize];
+  encodeCscBond(bond, payload);
+  return savePayload(paths_.csc_bond_a, paths_.csc_bond_b, payload,
+                     sizeof(payload), kCscBondRecordVersion,
+                     PayloadKind::kCscBond, false);
 }
 
 bool StorageManager::beginSaveStorageCounters() {
