@@ -413,6 +413,10 @@ void test_storage_async_drain_pending_save_blocks_to_completion() {
   TEST_ASSERT_TRUE(storage.begin());
 
   backend.polls_to_complete = 2;
+  OdometerData odometer{1234u, 5u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
+
   TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
   TEST_ASSERT_TRUE(storage.saveInProgress());
   TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
@@ -444,6 +448,10 @@ void test_storage_async_write_error_propagates_through_poll() {
   TEST_ASSERT_TRUE(storage.begin());
 
   backend.polls_to_complete = 2;
+  OdometerData odometer{1234u, 5u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
+
   backend.write_ok = false;
   TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
   TEST_ASSERT_EQUAL(StorageAsyncStatus::kError, storage.drainPendingSave());
@@ -480,6 +488,11 @@ void test_storage_async_drain_gives_up_on_a_backend_that_never_completes() {
   MemoryStorageBackend backend;
   StorageManager storage(backend);
   TEST_ASSERT_TRUE(storage.begin());
+
+  backend.polls_to_complete = 2;
+  OdometerData odometer{1234u, 5u};
+  TEST_ASSERT_TRUE(storage.beginSaveOdometer(odometer));
+  TEST_ASSERT_EQUAL(StorageAsyncStatus::kOk, storage.drainPendingSave());
 
   backend.polls_to_complete = 100;  // exceeds the internal drain cap
   TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
@@ -1049,6 +1062,26 @@ void test_storage_counters_absent_record_defaults_without_flash_write() {
   TEST_ASSERT_EQUAL_UINT32(0u, storage.counters().writes);
   TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/cnt_a"));
   TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/cnt_b"));
+}
+
+void test_storage_counters_skip_persist_when_only_skipped_writes_changed() {
+  MemoryStorageBackend backend;
+  StorageManager storage(backend);
+  TEST_ASSERT_TRUE(storage.begin());
+
+  OdometerData odometer{1234u, 5u};
+  TEST_ASSERT_TRUE(storage.saveOdometer(odometer));
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().writes);
+  storage.markStorageCountersPersisted();
+
+  TEST_ASSERT_TRUE(storage.saveOdometer(odometer));
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().writes);
+  TEST_ASSERT_EQUAL_UINT32(1u, storage.counters().skipped_writes);
+  TEST_ASSERT_FALSE(storage.storageCountersNeedPersist());
+
+  TEST_ASSERT_TRUE(storage.beginSaveStorageCounters());
+  TEST_ASSERT_FALSE(storage.saveInProgress());
+  TEST_ASSERT_EQUAL_UINT32(0u, backend.files.count("/cnt_a"));
 }
 
 void test_storage_counters_persist_across_reboot() {
@@ -2031,26 +2064,13 @@ void test_display_formatter_ble_indicator() {
   TEST_ASSERT_TRUE(connected.ble_connected);
 }
 
-void test_odometer_save_distance_boundaries_and_five_km_count() {
+void test_odometer_save_distance_no_longer_triggers_while_moving() {
   OdometerSavePolicy policy;
   policy.configure(500);
   policy.markSaved(0);
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(499999u, 0));
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDistance,
-                    policy.evaluate(500000u, 0));
-
-  uint32_t saves = 0;
-  for (uint32_t step = 1; step <= 10; ++step) {
-    const uint64_t odometer_mm = static_cast<uint64_t>(step) * 500000ull;
-    const OdometerSaveTrigger trigger = policy.evaluate(odometer_mm, 0);
-    TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDistance, trigger);
-    policy.markSaved(odometer_mm);
-    policy.acknowledge(trigger);
-    ++saves;
-  }
-  TEST_ASSERT_EQUAL_UINT32(10u, saves);
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone,
-                    policy.evaluate(5000000ull, 0));
+  policy.noteRideState(RideState::kMoving, 1000);
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(500000u, 2000));
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(5000000ull, 3000));
 }
 
 void test_odometer_save_paused_settle_delay_and_cancel() {
@@ -2059,9 +2079,9 @@ void test_odometer_save_paused_settle_delay_and_cancel() {
   policy.markSaved(0);
   policy.noteRideState(RideState::kMoving, 1000);
   policy.noteRideState(RideState::kPaused, 2000);
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 31999));
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 181999));
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kPausedSettle,
-                    policy.evaluate(0, 32000));
+                    policy.evaluate(0, 182000));
 
   policy.acknowledge(OdometerSaveTrigger::kPausedSettle);
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 40000));
@@ -2072,14 +2092,10 @@ void test_odometer_save_paused_settle_delay_and_cancel() {
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 80000));
 }
 
-void test_odometer_save_display_off_deep_sleep_and_force() {
+void test_odometer_save_display_off_no_longer_triggers() {
   OdometerSavePolicy policy;
   policy.configure(500);
   policy.markSaved(1000);
-  policy.noteDisplayPower(DisplayPowerState::kBright);
-  policy.noteDisplayPower(DisplayPowerState::kOff);
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDisplayOff, policy.evaluate(1000, 0));
-  policy.acknowledge(OdometerSaveTrigger::kDisplayOff);
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(1000, 0));
 
   policy.requestDeepSleepSave();
@@ -2145,7 +2161,7 @@ void test_odometer_save_unchanged_skips_sequence_growth() {
   TEST_ASSERT_EQUAL_UINT32(2u, storage.lastOdometerSequence());
 }
 
-void test_odometer_save_flash_error_keeps_distance_retry() {
+void test_odometer_save_flash_error_keeps_paused_settle_retry() {
   MemoryStorageBackend backend;
   StorageManager storage(backend);
   TEST_ASSERT_TRUE(storage.begin());
@@ -2156,42 +2172,42 @@ void test_odometer_save_flash_error_keeps_distance_retry() {
   OdometerSavePolicy policy;
   policy.configure(500);
   policy.markSaved(0);
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDistance,
-                    policy.evaluate(500000u, 0));
+  policy.noteRideState(RideState::kMoving, 1000);
+  policy.noteRideState(RideState::kPaused, 2000);
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kPausedSettle,
+                    policy.evaluate(500000u, 182000));
 
   backend.write_ok = false;
   OdometerData data{500000u, 100u};
   TEST_ASSERT_FALSE(storage.saveOdometer(data));
-  // Distance baseline stays unsaved so the ride can continue and retry.
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDistance,
-                    policy.evaluate(500000u, 0));
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kPausedSettle,
+                    policy.evaluate(500000u, 182000));
 
   backend.write_ok = true;
   TEST_ASSERT_TRUE(storage.saveOdometer(data));
   policy.markSaved(500000u);
-  policy.acknowledge(OdometerSaveTrigger::kDistance);
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(500000u, 0));
+  policy.acknowledge(OdometerSaveTrigger::kPausedSettle);
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(500000u, 182000));
 }
 
 void test_odometer_save_flash_error_keeps_oneshot_pending() {
   // Mirrors AppController: acknowledge only after Flash success, otherwise
-  // one-shot triggers (display-off / critical) must remain pending for retry.
+  // one-shot triggers (critical battery) must remain pending for retry.
   OdometerSavePolicy policy;
   policy.configure(500);
   policy.markSaved(0);
 
-  policy.noteDisplayPower(DisplayPowerState::kBright);
-  policy.noteDisplayPower(DisplayPowerState::kOff);
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDisplayOff, policy.evaluate(0, 0));
-  // Flash failed → no acknowledge.
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDisplayOff, policy.evaluate(0, 0));
-  policy.acknowledge(OdometerSaveTrigger::kDisplayOff);
-  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 0));
-
   policy.noteBatteryPercent(5, true);
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kCriticalBattery, policy.evaluate(0, 0));
+  // Flash failed → no acknowledge.
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kCriticalBattery, policy.evaluate(0, 0));
   policy.acknowledge(OdometerSaveTrigger::kCriticalBattery);
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 0));
+
+  policy.requestDeepSleepSave();
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDeepSleep, policy.evaluate(0, 0));
+  TEST_ASSERT_EQUAL(OdometerSaveTrigger::kDeepSleep, policy.evaluate(0, 0));
+  policy.acknowledge(OdometerSaveTrigger::kDeepSleep);
   TEST_ASSERT_EQUAL(OdometerSaveTrigger::kNone, policy.evaluate(0, 0));
 }
 
@@ -3548,6 +3564,7 @@ int main(int, char**) {
   RUN_TEST(test_storage_counters_encode_decode_round_trip);
   RUN_TEST(test_ambient_calibration_defaults_without_flash_write_then_alternates_slots);
   RUN_TEST(test_storage_counters_absent_record_defaults_without_flash_write);
+  RUN_TEST(test_storage_counters_skip_persist_when_only_skipped_writes_changed);
   RUN_TEST(test_storage_counters_persist_across_reboot);
   RUN_TEST(test_storage_counters_recovers_from_corrupt_slot_and_keeps_read_error);
   RUN_TEST(test_migrate_config_v1_to_v2_preserves_fields);
@@ -3617,12 +3634,12 @@ int main(int, char**) {
   RUN_TEST(test_display_formatter_battery_and_value_limits);
   RUN_TEST(test_display_formatter_low_battery_warning);
   RUN_TEST(test_display_formatter_ble_indicator);
-  RUN_TEST(test_odometer_save_distance_boundaries_and_five_km_count);
+  RUN_TEST(test_odometer_save_distance_no_longer_triggers_while_moving);
   RUN_TEST(test_odometer_save_paused_settle_delay_and_cancel);
-  RUN_TEST(test_odometer_save_display_off_deep_sleep_and_force);
+  RUN_TEST(test_odometer_save_display_off_no_longer_triggers);
   RUN_TEST(test_odometer_save_critical_battery_once_and_usb_reboot);
   RUN_TEST(test_odometer_save_unchanged_skips_sequence_growth);
-  RUN_TEST(test_odometer_save_flash_error_keeps_distance_retry);
+  RUN_TEST(test_odometer_save_flash_error_keeps_paused_settle_retry);
   RUN_TEST(test_odometer_save_flash_error_keeps_oneshot_pending);
   RUN_TEST(test_ambient_calibration_save_throttles_changes_and_prioritizes_one_shots);
   RUN_TEST(test_ambient_calibration_save_one_shot_triggers_and_usb_disconnect);

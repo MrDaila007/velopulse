@@ -3,19 +3,18 @@
 #include <stdint.h>
 
 #include "config.h"
-#include "display_power.h"
 #include "types.h"
 
 namespace bike {
 
-constexpr uint32_t kOdometerPauseSaveDelayMs = 30000u;
+constexpr uint32_t kOdometerPauseSaveDelayMs = 180000u;  // 3 min after autopause
 constexpr uint8_t kCriticalBatterySavePercent = 5u;
 
 enum class OdometerSaveTrigger : uint8_t {
   kNone = 0,
-  kDistance,
+  kDistance,       // legacy; no longer emitted
   kPausedSettle,
-  kDisplayOff,
+  kDisplayOff,     // legacy; no longer emitted
   kDeepSleep,
   kForceSave,
   kCriticalBattery,
@@ -29,7 +28,6 @@ class OdometerSavePolicy {
   void markSaved(uint64_t odometer_mm);
 
   void noteRideState(RideState state, uint32_t now_ms);
-  void noteDisplayPower(DisplayPowerState state);
   void noteBatteryPercent(uint8_t percent, bool valid);
   void noteUsbPresent(bool usb_present);
 
@@ -51,9 +49,6 @@ class OdometerSavePolicy {
   uint32_t paused_since_ms_ = 0;
   bool pause_save_armed_ = false;
   bool pause_save_pending_ = false;
-
-  DisplayPowerState display_state_ = DisplayPowerState::kBright;
-  bool display_off_pending_ = false;
 
   bool critical_pending_ = false;
   bool critical_latched_ = false;

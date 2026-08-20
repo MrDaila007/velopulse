@@ -35,12 +35,6 @@ void OdometerSavePolicy::noteRideState(RideState state, uint32_t now_ms) {
   ride_state_ = state;
 }
 
-void OdometerSavePolicy::noteDisplayPower(DisplayPowerState state) {
-  if (state == display_state_) return;
-  if (state == DisplayPowerState::kOff) display_off_pending_ = true;
-  display_state_ = state;
-}
-
 void OdometerSavePolicy::noteBatteryPercent(uint8_t percent, bool valid) {
   if (!valid) return;
   if (percent <= kCriticalBatterySavePercent) {
@@ -71,23 +65,18 @@ void OdometerSavePolicy::requestRebootSave() { reboot_pending_ = true; }
 
 OdometerSaveTrigger OdometerSavePolicy::evaluate(uint64_t odometer_mm,
                                                  uint32_t now_ms) const {
+  (void)odometer_mm;
   if (force_pending_) return OdometerSaveTrigger::kForceSave;
   if (reboot_pending_) return OdometerSaveTrigger::kReboot;
   if (deep_sleep_pending_) return OdometerSaveTrigger::kDeepSleep;
   if (critical_pending_) return OdometerSaveTrigger::kCriticalBattery;
   if (usb_disconnect_pending_) return OdometerSaveTrigger::kUsbDisconnect;
-  if (display_off_pending_) return OdometerSaveTrigger::kDisplayOff;
 
   if (pause_save_pending_ ||
       (pause_save_armed_ && ride_state_ == RideState::kPaused &&
        static_cast<uint32_t>(now_ms - paused_since_ms_) >=
            kOdometerPauseSaveDelayMs)) {
     return OdometerSaveTrigger::kPausedSettle;
-  }
-
-  if (odometer_mm >= saved_odometer_mm_ &&
-      (odometer_mm - saved_odometer_mm_) >= interval_mm_) {
-    return OdometerSaveTrigger::kDistance;
   }
   return OdometerSaveTrigger::kNone;
 }
@@ -109,13 +98,11 @@ void OdometerSavePolicy::acknowledge(OdometerSaveTrigger trigger) {
     case OdometerSaveTrigger::kUsbDisconnect:
       usb_disconnect_pending_ = false;
       break;
-    case OdometerSaveTrigger::kDisplayOff:
-      display_off_pending_ = false;
-      break;
     case OdometerSaveTrigger::kPausedSettle:
       pause_save_pending_ = false;
       pause_save_armed_ = false;
       break;
+    case OdometerSaveTrigger::kDisplayOff:
     case OdometerSaveTrigger::kDistance:
     case OdometerSaveTrigger::kNone:
       break;

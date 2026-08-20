@@ -185,6 +185,8 @@ class StorageManager {
   bool beginSaveOdometer(const OdometerData& odometer);
   bool beginSaveAmbientCalibration(const AmbientCalibrationData& calibration);
   bool beginSaveStorageCounters();
+  bool storageCountersNeedPersist() const;
+  void markStorageCountersPersisted();
   StorageAsyncStatus pollSave();
   StorageAsyncStatus drainPendingSave();
   bool saveInProgress() const { return save_in_progress_; }
@@ -238,6 +240,7 @@ class StorageManager {
   StoragePaths paths_;
   bool mounted_ = false;
   StorageCounters counters_;
+  StorageCounters persisted_counters_;
   uint32_t last_odometer_sequence_ = 0;
   bool save_in_progress_ = false;
   bool pending_is_odometer_ = false;

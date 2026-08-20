@@ -179,8 +179,6 @@ void AppController::begin() {
   odometer_save_.noteBatteryPercent(battery_.snapshot().percent,
                                     battery_.snapshot().valid);
   ride_state_.reset(millis());
-  odometer_save_.noteRideState(ride_state_.state(), millis());
-  odometer_save_.noteDisplayPower(display_.powerState());
 
   configurePowerManager();
   applySchedulerPeriods(millis());
@@ -804,7 +802,6 @@ void AppController::processPulses(uint32_t now_ms) {
     ble_.noteMovement();
     display_.noteActivity(now_ms);
     power_manager_.noteActivity(now_ms);
-    odometer_save_.noteDisplayPower(display_.powerState());
     const RideState before_pulse = ride_state_.state();
     applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
     if (before_pulse != RideState::kMoving) {
@@ -849,7 +846,6 @@ void AppController::updateAmbient(uint32_t now_ms) {
 
 void AppController::updateDisplay(uint32_t now_ms) {
   if (display_.updatePower(now_ms)) {
-    odometer_save_.noteDisplayPower(display_.powerState());
   }
   maybePersistOdometer(now_ms);
 
@@ -1138,18 +1134,15 @@ void AppController::processPendingSafeCommand(uint32_t now_ms) {
     }
     case CommandId::kDisplayOn:
       display_.noteActivity(now_ms);
-      odometer_save_.noteDisplayPower(display_.powerState());
       break;
     case CommandId::kDisplayOff:
       display_.turnOff(now_ms);
-      odometer_save_.noteDisplayPower(display_.powerState());
       break;
     case CommandId::kDisplayTest:
       if (!display_.isOk()) {
         result.status = CommandStatus::kErrHardware;
       } else {
         display_.showTestPattern(command.params.display_test_pattern, now_ms);
-        odometer_save_.noteDisplayPower(display_.powerState());
       }
       break;
     case CommandId::kSensorTestStart:

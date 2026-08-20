@@ -259,8 +259,6 @@ void AppController::begin() {
   odometer_save_.noteBatteryPercent(battery_.snapshot().percent,
                                     battery_.snapshot().valid);
   ride_state_.reset(millis());
-  odometer_save_.noteRideState(ride_state_.state(), millis());
-  odometer_save_.noteDisplayPower(display_.powerState());
   configurePowerManager();
   applySchedulerPeriods(millis());
   if (deepSleepWakeFromSleep(resetreas)) {
@@ -951,7 +949,6 @@ void AppController::applyAcceptedPulse(const PulseDecision& decision,
     ble_.noteMovement();
     power_manager_.noteActivity(now_ms);
     display_.noteActivity(now_ms);
-    odometer_save_.noteDisplayPower(display_.powerState());
   }
   const RideState before_pulse = ride_state_.state();
   applyRideUpdate(ride_state_.onPulse(now_ms), now_ms);
@@ -1608,11 +1605,13 @@ void AppController::completeAmbientCalibrationSave(bool ok) {
 
 void AppController::persistStorageCounters() {
   if (!storage_.mounted() || storage_.saveInProgress()) return;
+  if (!storage_.storageCountersNeedPersist()) return;
   if (!storage_.beginSaveStorageCounters()) {
     Serial.println("Counters save: result=ERROR");
     return;
   }
   if (!storage_.saveInProgress()) {
+    storage_.markStorageCountersPersisted();
     Serial.println("Counters save: result=OK");
     return;
   }
@@ -1636,6 +1635,7 @@ void AppController::completePendingStorageSave(bool ok) {
       break;
     case PendingStorageSave::kStorageCounters:
       last_storage_save_ok_ = ok;
+      if (ok) storage_.markStorageCountersPersisted();
       Serial.print("Counters save: result=");
       Serial.println(ok ? "OK" : "ERROR");
       break;
@@ -1721,7 +1721,6 @@ void AppController::updateAmbient(uint32_t now_ms) {
 
 void AppController::updateDisplay(uint32_t now_ms) {
   if (!usb_test_mode_ && display_.updatePower(now_ms)) {
-    odometer_save_.noteDisplayPower(display_.powerState());
   }
   maybePersistOdometer(now_ms);
   syncDisplayPages(now_ms);
@@ -1871,18 +1870,15 @@ void AppController::processPendingSafeCommand(uint32_t now_ms) {
     }
     case CommandId::kDisplayOn:
       display_.noteActivity(now_ms);
-      odometer_save_.noteDisplayPower(display_.powerState());
       break;
     case CommandId::kDisplayOff:
       display_.turnOff(now_ms);
-      odometer_save_.noteDisplayPower(display_.powerState());
       break;
     case CommandId::kDisplayTest:
       if (!display_.isOk()) {
         result.status = CommandStatus::kErrHardware;
       } else {
         display_.showTestPattern(command.params.display_test_pattern, now_ms);
-        odometer_save_.noteDisplayPower(display_.powerState());
       }
       break;
     case CommandId::kSensorTestStart:

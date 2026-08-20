@@ -421,6 +421,31 @@ void StorageManager::loadStorageCounters() {
   // the wholesale overwrite below.
   restored.read_errors += read_errors_during;
   counters_ = restored;
+  persisted_counters_ = counters_;
+}
+
+bool StorageManager::storageCountersNeedPersist() const {
+  return counters_.writes != persisted_counters_.writes ||
+         counters_.write_errors != persisted_counters_.write_errors ||
+         counters_.read_errors != persisted_counters_.read_errors ||
+         counters_.config_slot_recoveries !=
+             persisted_counters_.config_slot_recoveries ||
+         counters_.odometer_slot_recoveries !=
+             persisted_counters_.odometer_slot_recoveries ||
+         counters_.ambient_calibration_slot_recoveries !=
+             persisted_counters_.ambient_calibration_slot_recoveries ||
+         counters_.config_defaults_restored !=
+             persisted_counters_.config_defaults_restored ||
+         counters_.odometer_defaults_restored !=
+             persisted_counters_.odometer_defaults_restored ||
+         counters_.ambient_calibration_defaults_restored !=
+             persisted_counters_.ambient_calibration_defaults_restored ||
+         counters_.config_migrations != persisted_counters_.config_migrations ||
+         counters_.odometer_migrations != persisted_counters_.odometer_migrations;
+}
+
+void StorageManager::markStorageCountersPersisted() {
+  persisted_counters_ = counters_;
 }
 
 bool StorageManager::beginWriteSlotAsync(const char* path,
@@ -802,6 +827,7 @@ bool StorageManager::saveCscBond(const CscBondData& bond) {
 }
 
 bool StorageManager::beginSaveStorageCounters() {
+  if (!storageCountersNeedPersist()) return true;
   // Snapshot before encoding: the eventual pollSave() completion will bump
   // counters_.writes as a side effect of the save itself, which must not
   // leak into this payload (it belongs to the *next* save).
@@ -814,8 +840,13 @@ bool StorageManager::beginSaveStorageCounters() {
 
 bool StorageManager::saveStorageCounters() {
   if (!beginSaveStorageCounters()) return false;
-  if (!save_in_progress_) return true;
-  return drainPendingSave() == StorageAsyncStatus::kOk;
+  if (!save_in_progress_) {
+    markStorageCountersPersisted();
+    return true;
+  }
+  const StorageAsyncStatus status = drainPendingSave();
+  if (status == StorageAsyncStatus::kOk) markStorageCountersPersisted();
+  return status == StorageAsyncStatus::kOk;
 }
 
 const char* storageSourceName(StorageSource source) {
