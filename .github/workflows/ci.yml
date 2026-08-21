@@ -12,8 +12,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      firmware: ${{ steps.filter.outputs.firmware }}
+      firmware_zephyr: ${{ steps.filter.outputs.firmware_zephyr }}
+      mobile_app: ${{ steps.filter.outputs.mobile_app }}
+      simulator: ${{ steps.filter.outputs.simulator }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed areas
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            firmware:
+              - 'firmware/**'
+              - 'protocol/fixtures/**'
+              - 'tools/sync_versions.py'
+              - 'version.toml'
+              - '.github/workflows/ci.yml'
+            firmware_zephyr:
+              - 'firmware-zephyr/**'
+              - 'firmware/include/**'
+              - 'firmware/lib/domain/**'
+              - 'protocol/fixtures/**'
+              - '.github/workflows/ci.yml'
+            mobile_app:
+              - 'mobile-app/**'
+              - 'tool/bootstrap-mobile.sh'
+              - 'tool/flutterw'
+              - 'protocol/fixtures/**'
+              - '.github/workflows/ci.yml'
+            simulator:
+              - 'simulator/**'
+              - 'firmware/include/**'
+              - 'firmware/lib/domain/**'
+              - '.github/workflows/ci.yml'
+
   firmware:
     name: Firmware
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -68,6 +113,8 @@ jobs:
 
   firmware-zephyr:
     name: Firmware Zephyr
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.firmware_zephyr == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -136,6 +183,8 @@ jobs:
 
   mobile-app:
     name: Mobile App
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.mobile_app == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -185,6 +234,8 @@ jobs:
 
   simulator:
     name: Simulator
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.simulator == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -216,3 +267,49 @@ jobs:
       - name: Run golden tests
         working-directory: simulator
         run: ./test.sh
+
+  ci:
+    name: CI
+    needs: [changes, firmware, firmware-zephyr, mobile-app, simulator]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs
+        env:
+          FIRMWARE: ${{ needs.changes.outputs.firmware }}
+          FIRMWARE_ZEPHYR: ${{ needs.changes.outputs.firmware_zephyr }}
+          MOBILE_APP: ${{ needs.changes.outputs.mobile_app }}
+          SIMULATOR: ${{ needs.changes.outputs.simulator }}
+          FIRMWARE_RESULT: ${{ needs.firmware.result }}
+          FIRMWARE_ZEPHYR_RESULT: ${{ needs.firmware-zephyr.result }}
+          MOBILE_APP_RESULT: ${{ needs.mobile-app.result }}
+          SIMULATOR_RESULT: ${{ needs.simulator.result }}
+        run: |
+          set -euo pipefail
+
+          require_success() {
+            local enabled="$1"
+            local result="$2"
+            local name="$3"
+            if [[ "$enabled" == "true" && "$result" != "success" ]]; then
+              echo "$name was required but finished with: $result"
+              exit 1
+            fi
+          }
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            require_success true "$FIRMWARE_RESULT" "Firmware"
+            require_success true "$FIRMWARE_ZEPHYR_RESULT" "Firmware Zephyr"
+            require_success true "$MOBILE_APP_RESULT" "Mobile App"
+            require_success true "$SIMULATOR_RESULT" "Simulator"
+            exit 0
+          fi
+
+          require_success "$FIRMWARE" "$FIRMWARE_RESULT" "Firmware"
+          require_success "$FIRMWARE_ZEPHYR" "$FIRMWARE_ZEPHYR_RESULT" "Firmware Zephyr"
+          require_success "$MOBILE_APP" "$MOBILE_APP_RESULT" "Mobile App"
+          require_success "$SIMULATOR" "$SIMULATOR_RESULT" "Simulator"
+
+          if [[ "$FIRMWARE" != "true" && "$FIRMWARE_ZEPHYR" != "true" && "$MOBILE_APP" != "true" && "$SIMULATOR" != "true" ]]; then
+            echo "No build areas changed; skipped firmware, mobile, and simulator jobs."
+          fi
