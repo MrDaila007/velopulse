@@ -9,8 +9,15 @@ constexpr int16_t kRightColumnX = 91;
 constexpr int16_t kBatteryIconFrameX = 107;
 constexpr int16_t kBatteryIconFillX = 109;
 constexpr int16_t kBatteryIconTipX = 119;
-constexpr int16_t kBleIndicatorX = 56;
-constexpr int16_t kBleIndicatorY = 7;
+constexpr int16_t kPhoneIconX = 42;
+constexpr int16_t kSensorIconX = 51;
+constexpr int16_t kConnectionIconY = 0;
+constexpr int16_t kCadenceColumnX128x64 = 74;
+constexpr int16_t kCadenceUnitsY128x64 = 17;
+constexpr int16_t kCadenceValueY128x64 = 47;
+constexpr int16_t kCadenceColumnX128x32 = 64;
+constexpr int16_t kCadenceUnitsY128x32 = 7;
+constexpr int16_t kCadenceValueY128x32 = 21;
 
 struct RightColumnLayout {
   int16_t battery_percent_y;
@@ -32,10 +39,14 @@ void drawBatteryIcon(DisplayCanvas& canvas, uint8_t fill_width) {
   }
 }
 
-void drawBatteryLabels(DisplayCanvas& canvas, const DisplayFrame& frame,
+void drawBatteryHeader(DisplayCanvas& canvas, const DisplayFrame& frame,
                        const RightColumnLayout& layout) {
   canvas.drawText(kRightColumnX, layout.battery_percent_y, frame.battery_percent);
   canvas.drawText(kRightColumnX, layout.battery_voltage_y, frame.battery_voltage);
+}
+
+void drawCompanionSidePanel(DisplayCanvas& canvas, const DisplayFrame& frame,
+                            const RightColumnLayout& layout) {
   if (frame.header[0] != '\0') {
     canvas.drawText(kRightColumnX, layout.clock_y, frame.header);
   }
@@ -47,9 +58,52 @@ void drawBatteryLabels(DisplayCanvas& canvas, const DisplayFrame& frame,
   }
 }
 
-void drawBleIndicator(DisplayCanvas& canvas, const DisplayFrame& frame) {
-  if (!frame.ble_connected) return;
-  canvas.drawText(kBleIndicatorX, kBleIndicatorY, "BLE");
+void drawCadenceColumn(DisplayCanvas& canvas, const DisplayFrame& frame,
+                       int16_t units_y, int16_t value_y, int16_t column_x) {
+  canvas.setFont(DisplayFont::kSmall);
+  canvas.drawText(column_x, units_y, "rpm");
+  canvas.setFont(DisplayFont::kSpeed);
+  canvas.drawText(column_x, value_y, frame.cadence);
+}
+
+void drawSideRegion(DisplayCanvas& canvas, const DisplayFrame& frame,
+                    DisplayProfile profile) {
+  if (frame.cadence_visible) {
+    if (profile == DisplayProfile::k128x64) {
+      drawCadenceColumn(canvas, frame, kCadenceUnitsY128x64,
+                        kCadenceValueY128x64, kCadenceColumnX128x64);
+    } else {
+      drawCadenceColumn(canvas, frame, kCadenceUnitsY128x32,
+                        kCadenceValueY128x32, kCadenceColumnX128x32);
+    }
+    return;
+  }
+  const RightColumnLayout& layout = profile == DisplayProfile::k128x64
+                                        ? kRightColumn128x64
+                                        : kRightColumn128x32;
+  canvas.setFont(DisplayFont::kSmall);
+  drawCompanionSidePanel(canvas, frame, layout);
+}
+
+void drawPhoneIcon(DisplayCanvas& canvas, int16_t x, int16_t y) {
+  canvas.drawFrame(x + 1, y, 5, 8);
+  canvas.drawBox(x + 2, y + 6, 3, 1);
+}
+
+void drawSensorIcon(DisplayCanvas& canvas, int16_t x, int16_t y) {
+  canvas.drawFrame(x, y + 1, 7, 5);
+  canvas.drawBox(x + 3, y + 3, 2, 2);
+  canvas.drawBox(x + 1, y + 2, 1, 1);
+  canvas.drawBox(x + 5, y + 2, 1, 1);
+}
+
+void drawConnectionIndicators(DisplayCanvas& canvas, const DisplayFrame& frame) {
+  if (frame.ble_connected) {
+    drawPhoneIcon(canvas, kPhoneIconX, kConnectionIconY);
+  }
+  if (frame.csc_connected) {
+    drawSensorIcon(canvas, kSensorIconX, kConnectionIconY);
+  }
 }
 
 class OffsetCanvas final : public DisplayCanvas {
@@ -82,9 +136,10 @@ void draw128x32(DisplayCanvas& canvas, const DisplayFrame& frame) {
   canvas.drawText(0, 21, frame.speed);
 
   canvas.setFont(DisplayFont::kSmall);
-  drawBleIndicator(canvas, frame);
-  drawBatteryLabels(canvas, frame, kRightColumn128x32);
+  drawConnectionIndicators(canvas, frame);
+  drawBatteryHeader(canvas, frame, kRightColumn128x32);
   drawBatteryIcon(canvas, frame.battery_fill_width);
+  drawSideRegion(canvas, frame, DisplayProfile::k128x32);
   canvas.drawText(88, 20, frame.units);
   if (frame.low_battery_warning) {
     canvas.drawBox(0, 22, 44, 10);
@@ -96,16 +151,13 @@ void draw128x32(DisplayCanvas& canvas, const DisplayFrame& frame) {
   }
 }
 
-void drawBattery128x64(DisplayCanvas& canvas, const DisplayFrame& frame) {
-  drawBatteryLabels(canvas, frame, kRightColumn128x64);
-  drawBatteryIcon(canvas, frame.battery_fill_width);
-}
-
 void draw128x64(DisplayCanvas& canvas, const DisplayFrame& frame) {
   canvas.setFont(DisplayFont::kSmall);
   canvas.drawText(0, 7, frame.units);
-  drawBleIndicator(canvas, frame);
-  drawBattery128x64(canvas, frame);
+  drawConnectionIndicators(canvas, frame);
+  drawBatteryHeader(canvas, frame, kRightColumn128x64);
+  drawBatteryIcon(canvas, frame.battery_fill_width);
+  drawSideRegion(canvas, frame, DisplayProfile::k128x64);
 
   canvas.setFont(DisplayFont::kSpeedLarge);
   canvas.drawText(0, 47, frame.speed);

@@ -104,6 +104,11 @@ bool makeScenario(const std::string& name, DisplaySnapshot& snapshot,
   } else if (name == "ble_connected") {
     page = DisplayPage::kTrip;
     snapshot.ble_connected = true;
+  } else if (name == "csc_connected") {
+    page = DisplayPage::kTrip;
+    snapshot.csc_connected = true;
+    snapshot.cadence_valid = true;
+    snapshot.cadence_x10 = 870;
   } else if (name == "speed_0") {
     page = DisplayPage::kTrip;
     snapshot.trip.speed_x100 = 0;

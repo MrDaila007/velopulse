@@ -75,6 +75,9 @@ struct DisplayFrame {
   uint8_t battery_fill_width = 0;
   bool low_battery_warning = false;
   bool ble_connected = false;
+  bool csc_connected = false;
+  bool cadence_visible = false;
+  char cadence[8] = {};
 };
 
 }  // namespace bike

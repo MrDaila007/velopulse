@@ -84,13 +84,41 @@ class DisplaySimulatorTest(unittest.TestCase):
         commands = firmware_commands("cadence", 64)
         self.assertIn(["TEXT", "0", "63", "MOV CAD 87.0 rpm"], commands)
 
-    def test_ble_indicator_shown_only_when_connected(self):
+    def test_connection_indicators_shown_only_when_connected(self):
+        phone_icon = ["FRAME", "43", "0", "5", "8"]
+        sensor_outer = ["FRAME", "51", "1", "7", "5"]
+        cadence_units = ["TEXT", "74", "17", "rpm"]
+        cadence_value = ["TEXT", "74", "47", "87.0"]
         for display_height in DISPLAY_HEIGHTS:
             with self.subTest(display_height=display_height):
-                connected = firmware_commands("ble_connected", display_height)
-                self.assertIn(["TEXT", "56", "7", "BLE"], connected)
+                phone = firmware_commands("ble_connected", display_height)
+                self.assertIn(phone_icon, phone)
+                self.assertNotIn(sensor_outer, phone)
+
+                sensor = firmware_commands("csc_connected", display_height)
+                self.assertIn(sensor_outer, sensor)
+                self.assertNotIn(phone_icon, sensor)
+                if display_height == 64:
+                    self.assertIn(cadence_units, sensor)
+                    self.assertIn(cadence_value, sensor)
+                else:
+                    self.assertIn(["TEXT", "64", "7", "rpm"], sensor)
+                    self.assertIn(["TEXT", "64", "21", "87.0"], sensor)
+
                 trip = firmware_commands("trip", display_height)
-                self.assertNotIn(["TEXT", "56", "7", "BLE"], trip)
+                self.assertNotIn(phone_icon, trip)
+                self.assertNotIn(sensor_outer, trip)
+                self.assertNotIn(cadence_units, trip)
+
+    def test_side_panel_shows_cadence_or_companion(self):
+        weather = firmware_commands("weather_rain", 64)
+        self.assertIn(["TEXT", "91", "37", "+18.5C"], weather)
+        self.assertNotIn(["TEXT", "74", "17", "rpm"], weather)
+
+        sensor = firmware_commands("csc_connected", 64)
+        self.assertIn(["TEXT", "74", "17", "rpm"], sensor)
+        self.assertIn(["TEXT", "74", "47", "87.0"], sensor)
+        self.assertNotIn(["TEXT", "91", "37", "+18.5C"], sensor)
 
     def test_all_scenarios_match_golden_pixels_for_both_profiles(self):
         for display_height in DISPLAY_HEIGHTS:

@@ -2012,10 +2012,16 @@ void test_display_formatter_all_pages_and_battery() {
   snapshot.cadence_x10 = 870;
   frame = DisplayFormatter::format(snapshot, DisplayPage::kCadence);
   TEST_ASSERT_EQUAL_STRING("MOV CAD 87.0 rpm", frame.lower);
+  TEST_ASSERT_TRUE(frame.cadence_visible);
+  TEST_ASSERT_EQUAL_STRING("87.0", frame.cadence);
   snapshot.cadence_valid = false;
   snapshot.csc_connected = true;
   frame = DisplayFormatter::format(snapshot, DisplayPage::kCadence);
   TEST_ASSERT_EQUAL_STRING("MOV CAD --", frame.lower);
+  TEST_ASSERT_FALSE(frame.cadence_visible);
+  snapshot.csc_connected = false;
+  frame = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
+  TEST_ASSERT_FALSE(frame.cadence_visible);
 }
 
 void test_display_formatter_battery_and_value_limits() {
@@ -2052,16 +2058,23 @@ void test_display_formatter_low_battery_warning() {
   TEST_ASSERT_TRUE(frame.low_battery_warning);
 }
 
-void test_display_formatter_ble_indicator() {
+void test_display_formatter_connection_indicators() {
   DisplaySnapshot snapshot;
   snapshot.trip.ride_state = RideState::kIdle;
 
   DisplayFrame disconnected = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
   TEST_ASSERT_FALSE(disconnected.ble_connected);
+  TEST_ASSERT_FALSE(disconnected.csc_connected);
 
   snapshot.ble_connected = true;
-  DisplayFrame connected = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
-  TEST_ASSERT_TRUE(connected.ble_connected);
+  DisplayFrame phone = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
+  TEST_ASSERT_TRUE(phone.ble_connected);
+  TEST_ASSERT_FALSE(phone.csc_connected);
+
+  snapshot.csc_connected = true;
+  DisplayFrame both = DisplayFormatter::format(snapshot, DisplayPage::kTrip);
+  TEST_ASSERT_TRUE(both.ble_connected);
+  TEST_ASSERT_TRUE(both.csc_connected);
 }
 
 void test_odometer_save_distance_no_longer_triggers_while_moving() {
@@ -3633,7 +3646,7 @@ int main(int, char**) {
   RUN_TEST(test_display_formatter_all_pages_and_battery);
   RUN_TEST(test_display_formatter_battery_and_value_limits);
   RUN_TEST(test_display_formatter_low_battery_warning);
-  RUN_TEST(test_display_formatter_ble_indicator);
+  RUN_TEST(test_display_formatter_connection_indicators);
   RUN_TEST(test_odometer_save_distance_no_longer_triggers_while_moving);
   RUN_TEST(test_odometer_save_paused_settle_delay_and_cancel);
   RUN_TEST(test_odometer_save_display_off_no_longer_triggers);

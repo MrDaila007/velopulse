@@ -56,6 +56,12 @@ DisplayFrame DisplayFormatter::format(const DisplaySnapshot& snapshot,
                                       bool low_battery_warning) {
   DisplayFrame frame;
   frame.ble_connected = snapshot.ble_connected;
+  frame.csc_connected = snapshot.csc_connected;
+  if (snapshot.cadence_valid) {
+    frame.cadence_visible = true;
+    snprintf(frame.cadence, sizeof(frame.cadence), "%u.%u",
+             snapshot.cadence_x10 / 10u, snapshot.cadence_x10 % 10u);
+  }
   const TripSnapshot& trip = snapshot.trip;
   snprintf(frame.speed, sizeof(frame.speed), "%u.%u", trip.speed_x100 / 100u,
            (trip.speed_x100 % 100u) / 10u);

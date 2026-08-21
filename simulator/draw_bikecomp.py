@@ -22,6 +22,7 @@ SCENARIO_ORDER = ("trip", "average", "maximum", "time", "odometer", "weather_clo
                   "weather_rain")
 GOLDEN_SCENARIOS = SCENARIO_ORDER + (
     "idle", "paused", "battery_unknown", "low_battery", "ble_connected",
+    "csc_connected",
 )
 BOUNDARY_SCENARIOS = (
     "speed_0",
