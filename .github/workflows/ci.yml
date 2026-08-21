@@ -36,24 +36,20 @@ jobs:
               - 'protocol/fixtures/**'
               - 'tools/sync_versions.py'
               - 'version.toml'
-              - '.github/workflows/ci.yml'
             firmware_zephyr:
               - 'firmware-zephyr/**'
               - 'firmware/include/**'
               - 'firmware/lib/domain/**'
               - 'protocol/fixtures/**'
-              - '.github/workflows/ci.yml'
             mobile_app:
               - 'mobile-app/**'
               - 'tool/bootstrap-mobile.sh'
               - 'tool/flutterw'
               - 'protocol/fixtures/**'
-              - '.github/workflows/ci.yml'
             simulator:
               - 'simulator/**'
               - 'firmware/include/**'
               - 'firmware/lib/domain/**'
-              - '.github/workflows/ci.yml'
 
   firmware:
     name: Firmware
