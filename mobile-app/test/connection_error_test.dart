@@ -63,6 +63,37 @@ void main() {
     );
   });
 
+  test(
+    'MTU request exception still reaches ready if the link stays up',
+    () async {
+      final (container, fake) = await connectWith(FakeBleScenario.mtuThrows);
+      addTearDown(() async {
+        container.dispose();
+        await fake.dispose();
+      });
+
+      final session = container.read(connectionControllerProvider);
+      expect(session.connection, isA<ConnectionReady>());
+      expect(fake.operationLog, contains('mtu:247'));
+      expect(fake.connected, isTrue);
+    },
+  );
+
+  test('MTU disconnect is recovered by a single reconnect path', () async {
+    final (container, fake) = await connectWith(
+      FakeBleScenario.disconnectOnMtu,
+    );
+    addTearDown(() async {
+      container.dispose();
+      await fake.dispose();
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final session = container.read(connectionControllerProvider);
+    expect(session.connection, isA<ConnectionReconnecting>());
+    expect((session.connection as ConnectionReconnecting).attempt, 1);
+  });
+
   test('MTU below 51 reaches read-only with domain data available', () async {
     final (container, fake) = await connectWith(FakeBleScenario.mtuTooSmall);
     addTearDown(() async {

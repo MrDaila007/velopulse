@@ -13,6 +13,8 @@ enum FakeBleScenario {
   normal,
   serviceMissing,
   mtuTooSmall,
+  mtuThrows,
+  disconnectOnMtu,
   protocolMajor2,
   pairingClosed,
   writeTimeout,
@@ -127,7 +129,15 @@ class FakeBleTransport implements BleTransport {
   @override
   Future<int> requestMtu(int mtu) async {
     operationLog.add('mtu:$mtu');
+    if (scenario == FakeBleScenario.disconnectOnMtu) {
+      _connected = false;
+      _linkController?.add(BleLinkState.disconnected);
+      throw StateError('Injected MTU disconnect');
+    }
     _requireConnected();
+    if (scenario == FakeBleScenario.mtuThrows) {
+      throw StateError('Injected MTU failure');
+    }
     return scenario == FakeBleScenario.mtuTooSmall ? 23 : 247;
   }
 

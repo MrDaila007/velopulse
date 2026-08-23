@@ -1,14 +1,27 @@
-/** Trip metrics pages (ordered via `page_order[5]`). */
-export const TRIP_PAGE_LABELS = ['Скорость', 'Поездка', 'Макс', 'Одометр', 'АКБ'] as const;
+/** Trip metrics pages (ordered via `page_order[5]`). Matches firmware DisplayPage 0–4. */
+export const TRIP_PAGE_LABELS = [
+  'Поездка',
+  'Средняя',
+  'Максимум',
+  'Время',
+  'Одометр',
+] as const;
 
-/** Companion carousel pages (`enabled_pages_mask` bits 5–6), see firmware DisplayPage. */
+/** Companion carousel pages (`enabled_pages_mask` bits 5–6). */
 export const WEATHER_PAGE_LABELS = ['Погода и часы', 'Дождь'] as const;
 
-export const TRIP_PAGE_COUNT = TRIP_PAGE_LABELS.length;
-export const DISPLAY_PAGE_COUNT = TRIP_PAGE_COUNT + WEATHER_PAGE_LABELS.length;
-export const VALID_ENABLED_PAGES_MASK = 0x7f;
+/** Cadence page (`enabled_pages_mask` bit 7). */
+export const CADENCE_PAGE_LABEL = 'Каденс (CAD)';
 
-export const PAGE_LABELS = [...TRIP_PAGE_LABELS, ...WEATHER_PAGE_LABELS] as const;
+export const TRIP_PAGE_COUNT = TRIP_PAGE_LABELS.length;
+export const DISPLAY_PAGE_COUNT = 8;
+export const VALID_ENABLED_PAGES_MASK = 0xff;
+
+export const PAGE_LABELS = [
+  ...TRIP_PAGE_LABELS,
+  ...WEATHER_PAGE_LABELS,
+  CADENCE_PAGE_LABEL,
+] as const;
 
 export function pageLabel(page: number): string {
   if (page >= 0 && page < PAGE_LABELS.length) return PAGE_LABELS[page]!;

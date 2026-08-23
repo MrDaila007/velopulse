@@ -67,7 +67,8 @@ _Telemetry _$TelemetryFromJson(Map<String, dynamic> json) => _Telemetry(
   powerState: $enumDecode(_$PowerStateEnumMap, json['powerState']),
   cadenceX10: (json['cadenceX10'] as num?)?.toInt() ?? 0,
   cscFlags: (json['cscFlags'] as num?)?.toInt() ?? 0,
-  lastCrankEventAgeMs: (json['lastCrankEventAgeMs'] as num?)?.toInt() ?? 4294967295,
+  lastCrankEventAgeMs:
+      (json['lastCrankEventAgeMs'] as num?)?.toInt() ?? 4294967295,
 );
 
 Map<String, dynamic> _$TelemetryToJson(_Telemetry instance) =>

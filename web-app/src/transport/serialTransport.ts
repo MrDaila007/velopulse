@@ -367,6 +367,9 @@ export const serialCommandPresets = [
   'ambient-raw',
   'ambient-stop',
   'hall-status',
+  'csc-status',
+  'csc-pair',
+  'csc-forget',
   'test-on',
   'test-off',
 ] as const;

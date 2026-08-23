@@ -18,6 +18,7 @@ class CscCentral {
 
   void startPairing(uint16_t duration_s, uint32_t now_ms);
   void forgetBond();
+  void setPhoneConnected(bool connected);
   void service(uint32_t now_ms);
 
   CscSnapshot snapshot(uint32_t now_ms) const;
@@ -38,6 +39,7 @@ class CscCentral {
   CscMotionTracker tracker_{};
   bool started_ = false;
   bool pairing_ = false;
+  bool phone_connected_ = false;
   bool bond_save_pending_ = false;
   uint32_t pairing_until_ms_ = 0;
 };

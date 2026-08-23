@@ -74,9 +74,9 @@ export function DisplaySection({ draft, fieldErrors, onChange }: SettingsSection
       </div>
 
       <InfoCallout tone="info">
-        Страницы <strong>Погода и часы</strong> и <strong>Дождь</strong> — отдельные экраны карусели
-        (биты 5–6 в <code>enabled_pages_mask</code>). Данные на них появятся после синхронизации
-        Companion (вкладка Companion → часы и погода).
+        Страницы <strong>Погода и часы</strong> и <strong>Дождь</strong> — карусель Companion
+        (биты 5–6). <strong>Каденс (CAD)</strong> — бит 7: нижняя строка OLED с RPM, когда C3
+        отдаёт каденс. Данные погоды появятся после синхронизации (вкладка Companion).
       </InfoCallout>
 
       <PageOrderEditor

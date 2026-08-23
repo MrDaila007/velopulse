@@ -178,6 +178,36 @@ abstract class AppLocalizations {
   /// **'{rpm} об/мин'**
   String cadenceValue(String rpm);
 
+  /// No description provided for @cscLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'CSC'**
+  String get cscLabel;
+
+  /// No description provided for @cscPairingChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'поиск'**
+  String get cscPairingChip;
+
+  /// No description provided for @cscCrankChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'C3 каденс'**
+  String get cscCrankChip;
+
+  /// No description provided for @cscWheelChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'S3 колесо'**
+  String get cscWheelChip;
+
+  /// No description provided for @cscWheelActiveChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'S3 скорость'**
+  String get cscWheelActiveChip;
+
   /// No description provided for @cancel.
   ///
   /// In ru, this message translates to:
@@ -249,36 +279,6 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Подключение'**
   String get connectionTitle;
-
-  /// No description provided for @cscCrankChip.
-  ///
-  /// In ru, this message translates to:
-  /// **'C3 каденс'**
-  String get cscCrankChip;
-
-  /// No description provided for @cscLabel.
-  ///
-  /// In ru, this message translates to:
-  /// **'CSC'**
-  String get cscLabel;
-
-  /// No description provided for @cscPairingChip.
-  ///
-  /// In ru, this message translates to:
-  /// **'поиск'**
-  String get cscPairingChip;
-
-  /// No description provided for @cscWheelActiveChip.
-  ///
-  /// In ru, this message translates to:
-  /// **'S3 скорость'**
-  String get cscWheelActiveChip;
-
-  /// No description provided for @cscWheelChip.
-  ///
-  /// In ru, this message translates to:
-  /// **'S3 колесо'**
-  String get cscWheelChip;
 
   /// No description provided for @customValue.
   ///
@@ -1251,6 +1251,204 @@ abstract class AppLocalizations {
   /// In ru, this message translates to:
   /// **'Сохранено: {timestamp}'**
   String firmwareBackupSavedAt(Object timestamp);
+
+  /// No description provided for @sensorSection.
+  ///
+  /// In ru, this message translates to:
+  /// **'Датчик Холла'**
+  String get sensorSection;
+
+  /// No description provided for @displaySection.
+  ///
+  /// In ru, this message translates to:
+  /// **'Дисплей'**
+  String get displaySection;
+
+  /// No description provided for @deviceSection.
+  ///
+  /// In ru, this message translates to:
+  /// **'Устройство'**
+  String get deviceSection;
+
+  /// No description provided for @maxSpeedLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Макс. скорость, км/ч'**
+  String get maxSpeedLabel;
+
+  /// No description provided for @smoothingWindowLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Окно сглаживания'**
+  String get smoothingWindowLabel;
+
+  /// No description provided for @smoothingEnabledLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сглаживание скорости'**
+  String get smoothingEnabledLabel;
+
+  /// No description provided for @debounceLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Debounce, мс'**
+  String get debounceLabel;
+
+  /// No description provided for @activeEdgeLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Активный фронт'**
+  String get activeEdgeLabel;
+
+  /// No description provided for @activeEdgeFalling.
+  ///
+  /// In ru, this message translates to:
+  /// **'FALLING (по умолчанию)'**
+  String get activeEdgeFalling;
+
+  /// No description provided for @activeEdgeRising.
+  ///
+  /// In ru, this message translates to:
+  /// **'RISING'**
+  String get activeEdgeRising;
+
+  /// No description provided for @activeEdgeChange.
+  ///
+  /// In ru, this message translates to:
+  /// **'CHANGE (оба фронта)'**
+  String get activeEdgeChange;
+
+  /// No description provided for @sensorInvertLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Инвертировать датчик'**
+  String get sensorInvertLabel;
+
+  /// No description provided for @displayAutoOffLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Автоотключение дисплея'**
+  String get displayAutoOffLabel;
+
+  /// No description provided for @autoPageSwitchLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Автосмена страниц'**
+  String get autoPageSwitchLabel;
+
+  /// No description provided for @bleAlwaysAdvertiseLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Всегда рекламировать BLE'**
+  String get bleAlwaysAdvertiseLabel;
+
+  /// No description provided for @enabledPagesLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Включённые страницы'**
+  String get enabledPagesLabel;
+
+  /// No description provided for @enabledPagesHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Биты 5–6 — погода; бит 7 — CAD при датчике каденса'**
+  String get enabledPagesHint;
+
+  /// No description provided for @tripPageOrderLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Порядок страниц поездки'**
+  String get tripPageOrderLabel;
+
+  /// No description provided for @pinnedPageLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Закреплённая страница'**
+  String get pinnedPageLabel;
+
+  /// No description provided for @lowBatteryPctLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Низкий заряд АКБ, %'**
+  String get lowBatteryPctLabel;
+
+  /// No description provided for @battCalScaleLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Калибровка АКБ, масштаб ‰'**
+  String get battCalScaleLabel;
+
+  /// No description provided for @battCalOffsetLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Калибровка АКБ, смещение мВ'**
+  String get battCalOffsetLabel;
+
+  /// No description provided for @odometerSaveIntervalLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Интервал сохранения одометра, м'**
+  String get odometerSaveIntervalLabel;
+
+  /// No description provided for @deviceNameLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Имя устройства (BLE)'**
+  String get deviceNameLabel;
+
+  /// No description provided for @deviceNameHelper.
+  ///
+  /// In ru, this message translates to:
+  /// **'3–15 символов: A–Z, 0–9, пробел, - или _'**
+  String get deviceNameHelper;
+
+  /// No description provided for @deviceNameRestartHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Новое имя вступит в силу после перезапуска рекламы BLE.'**
+  String get deviceNameRestartHint;
+
+  /// No description provided for @cscSensorTitle.
+  ///
+  /// In ru, this message translates to:
+  /// **'BLE-датчик CSC'**
+  String get cscSensorTitle;
+
+  /// No description provided for @cscNotConnected.
+  ///
+  /// In ru, this message translates to:
+  /// **'нет связи'**
+  String get cscNotConnected;
+
+  /// No description provided for @cscConnectedChip.
+  ///
+  /// In ru, this message translates to:
+  /// **'подключён'**
+  String get cscConnectedChip;
+
+  /// No description provided for @cscSpeedSourceLabel.
+  ///
+  /// In ru, this message translates to:
+  /// **'Источник скорости'**
+  String get cscSpeedSourceLabel;
+
+  /// No description provided for @cscSpeedSourceHall.
+  ///
+  /// In ru, this message translates to:
+  /// **'Hall'**
+  String get cscSpeedSourceHall;
+
+  /// No description provided for @cscSpeedSourceS3.
+  ///
+  /// In ru, this message translates to:
+  /// **'S3'**
+  String get cscSpeedSourceS3;
+
+  /// No description provided for @cscPairHint.
+  ///
+  /// In ru, this message translates to:
+  /// **'Сопряжение датчика — на устройстве: USB-команда csc-pair или кнопка на датчике.'**
+  String get cscPairHint;
 }
 
 class _AppLocalizationsDelegate

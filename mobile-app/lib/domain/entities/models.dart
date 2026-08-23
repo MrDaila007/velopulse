@@ -237,6 +237,7 @@ abstract class DeviceConfig with _$DeviceConfig {
   bool get displayAutoOff => flags & 0x04 != 0;
   bool get bleAlwaysAdvertise => flags & 0x08 != 0;
   bool get unitsImperial => flags & 0x10 != 0;
+  bool get sensorInvert => flags & 0x20 != 0;
   bool get powerSaveMode => flags & 0x40 != 0;
   bool get deepSleepEnabled => flags & 0x80 != 0;
 

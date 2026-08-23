@@ -54,7 +54,7 @@ export function PageOrderEditor({
     <div className="page-order-editor">
       <ConfigField
         label="Включённые страницы"
-        hint="Страницы погоды дублируют Companion в нижней строке карусели (биты 5–6)"
+        hint="Биты 5–6 — погода/дождь из Companion; бит 7 — страница CAD при датчике каденса"
       >
         <div className="page-checkboxes">
           {PAGE_LABELS.map((label, page) => (

@@ -171,8 +171,22 @@ void CscCentral::forgetBond() {
   stopScanning();
 }
 
+void CscCentral::setPhoneConnected(bool connected) {
+  phone_connected_ = connected;
+  if (connected) {
+    stopScanning();
+    Serial.println("CSC: scan paused (phone connected)");
+    return;
+  }
+  if (!g_csc_connected && (cscBondIsValid(bond_) || pairing_)) {
+    startScanning();
+    Serial.println("CSC: scan resumed (phone gone)");
+  }
+}
+
 void CscCentral::startScanning() {
   if (!started_) return;
+  if (phone_connected_) return;
   if (Bluefruit.Scanner.isRunning()) return;
   if (Bluefruit.Central.connected()) return;
   Bluefruit.Scanner.start(0);
@@ -223,7 +237,8 @@ void CscCentral::service(uint32_t now_ms) {
     Serial.println("CSC: bond saved");
   }
 
-  if (!g_csc_connected && (cscBondIsValid(bond_) || pairingActive(now_ms))) {
+  if (!g_csc_connected && !phone_connected_ &&
+      (cscBondIsValid(bond_) || pairingActive(now_ms))) {
     startScanning();
   }
 }

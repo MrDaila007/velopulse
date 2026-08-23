@@ -6,9 +6,11 @@ import '../../application/providers.dart';
 import '../../core/result.dart';
 import '../../domain/entities/models.dart';
 import '../../domain/services/tire_presets.dart';
+import '../../l10n/app_localizations.dart';
 import '../widgets/app_version_footer.dart';
 import '../widgets/companion_settings_card.dart';
-import '../../l10n/app_localizations.dart';
+import '../widgets/csc_status_card.dart';
+import '../widgets/page_order_editor.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -63,275 +65,118 @@ class SettingsScreen extends ConsumerWidget {
         !state.isWriting &&
         !session.commandInFlight;
 
-    return ListView(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-      children: <Widget>[
-        Text(
-          strings.settingsTab,
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          writable ? strings.draftDescription : strings.writeBlockedDescription,
-        ),
-        if (state.hasConflict) ...<Widget>[
-          const SizedBox(height: 12),
-          Card(
-            color: Theme.of(context).colorScheme.errorContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(strings.draftConflict),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: <Widget>[
-                      FilledButton(
-                        onPressed: () =>
-                            controller.resolveConflict(keepDraft: true),
-                        child: Text(strings.applyDraftAction),
-                      ),
-                      TextButton(
-                        onPressed: () =>
-                            controller.resolveConflict(keepDraft: false),
-                        child: Text(strings.discardAction),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            strings.settingsTab,
+            style: Theme.of(context).textTheme.headlineSmall,
           ),
-        ],
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  strings.wheelUnitsSection,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  initialValue:
-                      TirePresets.values.values.contains(
-                        draft.wheelCircumferenceMm,
-                      )
-                      ? draft.wheelCircumferenceMm
-                      : null,
-                  decoration: InputDecoration(labelText: strings.tireSizeLabel),
-                  hint: Text(strings.customValue),
-                  items: TirePresets.values.entries
-                      .map(
-                        (entry) => DropdownMenuItem<int>(
-                          value: entry.value,
-                          child: Text(
-                            strings.tirePresetValue(entry.value, entry.key),
-                          ),
+          const SizedBox(height: 8),
+          Text(
+            writable
+                ? strings.draftDescription
+                : strings.writeBlockedDescription,
+          ),
+          if (state.hasConflict) ...<Widget>[
+            const SizedBox(height: 12),
+            Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(strings.draftConflict),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: <Widget>[
+                        FilledButton(
+                          onPressed: () =>
+                              controller.resolveConflict(keepDraft: true),
+                          child: Text(strings.applyDraftAction),
                         ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (value) {
-                    if (value != null) {
-                      controller.update(
-                        draft.copyWith(wheelCircumferenceMm: value),
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                _IntegerField(
-                  key: ValueKey('wheel-${draft.wheelCircumferenceMm}'),
-                  label: strings.wheelCircumferenceLabel,
-                  value: draft.wheelCircumferenceMm,
-                  error: state.fieldErrors['wheelCircumferenceMm'],
-                  onChanged: (value) => controller.update(
-                    draft.copyWith(wheelCircumferenceMm: value),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SegmentedButton<bool>(
-                  segments: <ButtonSegment<bool>>[
-                    ButtonSegment<bool>(
-                      value: false,
-                      label: Text(strings.metricUnits),
-                    ),
-                    ButtonSegment<bool>(
-                      value: true,
-                      label: Text(strings.imperialUnits),
+                        TextButton(
+                          onPressed: () =>
+                              controller.resolveConflict(keepDraft: false),
+                          child: Text(strings.discardAction),
+                        ),
+                      ],
                     ),
                   ],
-                  selected: <bool>{draft.unitsImperial},
-                  onSelectionChanged: (selection) =>
-                      controller.update(draft.withFlag(0x10, selection.first)),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  strings.displayStopSection,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(strings.brightnessValue(draft.brightnessPct)),
-                const SizedBox(height: 4),
-                Text(
-                  strings.ambientBrightnessHelper,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                Slider(
-                  value: draft.brightnessPct.clamp(0, 100).toDouble(),
-                  min: 0,
-                  max: 100,
-                  divisions: 20,
-                  label: '${draft.brightnessPct}%',
-                  onChanged: (value) => controller.update(
-                    draft.copyWith(brightnessPct: value.round()),
-                  ),
-                ),
-                if (state.fieldErrors['brightnessPct'] case final error?)
-                  Text(
-                    error,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                _IntegerField(
-                  key: ValueKey('stop-${draft.stopTimeoutS}'),
-                  label: strings.stopTimeoutLabel,
-                  value: draft.stopTimeoutS,
-                  error: state.fieldErrors['stopTimeoutS'],
-                  onChanged: (value) =>
-                      controller.update(draft.copyWith(stopTimeoutS: value)),
-                ),
-                const SizedBox(height: 12),
-                _IntegerField(
-                  key: ValueKey('display-${draft.displayTimeoutS}'),
-                  label: strings.displayTimeoutLabel,
-                  helper: strings.neverHelper,
-                  value: draft.displayTimeoutS,
-                  error: state.fieldErrors['displayTimeoutS'],
-                  onChanged: (value) =>
-                      controller.update(draft.copyWith(displayTimeoutS: value)),
-                ),
-                const SizedBox(height: 12),
-                _IntegerField(
-                  key: ValueKey('page-${draft.pageSwitchPeriodS}'),
-                  label: strings.pageSwitchLabel,
-                  value: draft.pageSwitchPeriodS,
-                  error: state.fieldErrors['pageSwitchPeriodS'],
-                  onChanged: (value) => controller.update(
-                    draft.copyWith(pageSwitchPeriodS: value),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const CompanionSettingsCard(),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  strings.powerSection,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(strings.powerSaveModeLabel),
-                  value: draft.powerSaveMode,
-                  onChanged: (value) =>
-                      controller.update(draft.withFlag(0x40, value)),
-                ),
-                if (session.deviceInfo?.deepSleepSupported ?? false)
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(strings.deepSleepEnabledLabel),
-                    value: draft.deepSleepEnabled,
-                    onChanged: (value) =>
-                        controller.update(draft.withFlag(0x80, value)),
-                  ),
-                const SizedBox(height: 8),
-                _IntegerField(
-                  key: ValueKey('deep-sleep-${draft.deepSleepTimeoutS}'),
-                  label: strings.deepSleepTimeoutLabel,
-                  helper: strings.neverHelper,
-                  value: draft.deepSleepTimeoutS,
-                  error: state.fieldErrors['deepSleepTimeoutS'],
-                  onChanged: (value) => controller.update(
-                    draft.copyWith(deepSleepTimeoutS: value),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (state.fieldErrors.isNotEmpty)
-          Text(
-            strings.fixErrors(state.fieldErrors.length),
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        const SizedBox(height: 8),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: canSave
-                    ? () async {
-                        final result = await controller.save();
-                        if (!context.mounted) return;
-                        if (result is Failure<void>) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(result.error.toString())),
-                          );
-                        }
-                      }
-                    : null,
-                icon: state.isWriting
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined),
-                label: Text(
-                  state.isWriting ? strings.savingAction : strings.saveAction,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            OutlinedButton(
-              onPressed: () => _confirmDefaults(context, controller, draft),
-              child: Text(strings.defaultsShortAction),
-            ),
           ],
-        ),
-        if (!state.isDirty) ...<Widget>[
+          const SizedBox(height: 16),
+          _WheelSection(draft: draft, state: state, controller: controller),
+          const SizedBox(height: 12),
+          _SensorSection(draft: draft, state: state, controller: controller),
+          const SizedBox(height: 12),
+          _DisplaySection(draft: draft, state: state, controller: controller),
+          const SizedBox(height: 12),
+          CscStatusCard(telemetry: session.telemetry),
+          const SizedBox(height: 12),
+          const CompanionSettingsCard(),
+          const SizedBox(height: 12),
+          _PowerSection(
+            draft: draft,
+            state: state,
+            controller: controller,
+            deepSleepSupported: session.deviceInfo?.deepSleepSupported ?? false,
+          ),
+          const SizedBox(height: 12),
+          _DeviceSection(draft: draft, state: state, controller: controller),
+          const SizedBox(height: 16),
+          if (state.fieldErrors.isNotEmpty)
+            Text(
+              strings.fixErrors(state.fieldErrors.length),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           const SizedBox(height: 8),
-          Text(strings.noUnsavedChanges, textAlign: TextAlign.center),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: canSave
+                      ? () async {
+                          final result = await controller.save();
+                          if (!context.mounted) return;
+                          if (result is Failure<void>) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(result.error.toString())),
+                            );
+                          }
+                        }
+                      : null,
+                  icon: state.isWriting
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(
+                    state.isWriting ? strings.savingAction : strings.saveAction,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton(
+                onPressed: () => _confirmDefaults(context, controller, draft),
+                child: Text(strings.defaultsShortAction),
+              ),
+            ],
+          ),
+          if (!state.isDirty) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(strings.noUnsavedChanges, textAlign: TextAlign.center),
+          ],
+          const AppVersionFooter(),
         ],
-        const AppVersionFooter(),
-      ],
+      ),
     );
   }
 
@@ -414,10 +259,424 @@ class SettingsScreen extends ConsumerWidget {
     if (current.pageSwitchPeriodS != defaults.pageSwitchPeriodS) {
       changes.add(strings.pagePeriodChange);
     }
+    if (current.deviceName != defaults.deviceName) {
+      changes.add(strings.deviceNameLabel);
+    }
     if (changes.isEmpty) {
       changes.add(strings.visibleSameHiddenRestored);
     }
     return changes;
+  }
+}
+
+class _WheelSection extends StatelessWidget {
+  const _WheelSection({
+    required this.draft,
+    required this.state,
+    required this.controller,
+  });
+
+  final DeviceConfig draft;
+  final ConfigDraftState state;
+  final ConfigDraftController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    return Card(
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        title: Text(strings.wheelUnitsSection),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: <Widget>[
+          DropdownButtonFormField<int>(
+            initialValue:
+                TirePresets.values.values.contains(draft.wheelCircumferenceMm)
+                ? draft.wheelCircumferenceMm
+                : null,
+            decoration: InputDecoration(labelText: strings.tireSizeLabel),
+            hint: Text(strings.customValue),
+            items: TirePresets.values.entries
+                .map(
+                  (entry) => DropdownMenuItem<int>(
+                    value: entry.value,
+                    child: Text(
+                      strings.tirePresetValue(entry.value, entry.key),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) {
+              if (value != null) {
+                controller.update(draft.copyWith(wheelCircumferenceMm: value));
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          _IntegerField(
+            key: ValueKey('wheel-${draft.wheelCircumferenceMm}'),
+            label: strings.wheelCircumferenceLabel,
+            value: draft.wheelCircumferenceMm,
+            error: state.fieldErrors['wheelCircumferenceMm'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(wheelCircumferenceMm: value)),
+          ),
+          const SizedBox(height: 12),
+          SegmentedButton<bool>(
+            segments: <ButtonSegment<bool>>[
+              ButtonSegment<bool>(
+                value: false,
+                label: Text(strings.metricUnits),
+              ),
+              ButtonSegment<bool>(
+                value: true,
+                label: Text(strings.imperialUnits),
+              ),
+            ],
+            selected: <bool>{draft.unitsImperial},
+            onSelectionChanged: (selection) =>
+                controller.update(draft.withFlag(0x10, selection.first)),
+          ),
+          const SizedBox(height: 12),
+          _IntegerField(
+            key: ValueKey('max-speed-${draft.maxSpeedKmh}'),
+            label: strings.maxSpeedLabel,
+            value: draft.maxSpeedKmh,
+            error: state.fieldErrors['maxSpeedKmh'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(maxSpeedKmh: value)),
+          ),
+          const SizedBox(height: 12),
+          _IntegerField(
+            key: ValueKey('smoothing-${draft.smoothingWindow}'),
+            label: strings.smoothingWindowLabel,
+            value: draft.smoothingWindow,
+            error: state.fieldErrors['smoothingWindow'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(smoothingWindow: value)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(strings.smoothingEnabledLabel),
+            value: draft.smoothingEnabled,
+            onChanged: (value) =>
+                controller.update(draft.withFlag(0x01, value)),
+          ),
+          _IntegerField(
+            key: ValueKey('stop-${draft.stopTimeoutS}'),
+            label: strings.stopTimeoutLabel,
+            value: draft.stopTimeoutS,
+            error: state.fieldErrors['stopTimeoutS'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(stopTimeoutS: value)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SensorSection extends StatelessWidget {
+  const _SensorSection({
+    required this.draft,
+    required this.state,
+    required this.controller,
+  });
+
+  final DeviceConfig draft;
+  final ConfigDraftState state;
+  final ConfigDraftController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    return Card(
+      child: ExpansionTile(
+        title: Text(strings.sensorSection),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: <Widget>[
+          _IntegerField(
+            key: ValueKey('debounce-${draft.debounceMs}'),
+            label: strings.debounceLabel,
+            value: draft.debounceMs,
+            error: state.fieldErrors['debounceMs'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(debounceMs: value)),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            initialValue: draft.activeEdge,
+            decoration: InputDecoration(
+              labelText: strings.activeEdgeLabel,
+              errorText: state.fieldErrors['activeEdge'],
+            ),
+            items: <DropdownMenuItem<int>>[
+              DropdownMenuItem<int>(
+                value: 0,
+                child: Text(strings.activeEdgeFalling),
+              ),
+              DropdownMenuItem<int>(
+                value: 1,
+                child: Text(strings.activeEdgeRising),
+              ),
+              DropdownMenuItem<int>(
+                value: 2,
+                child: Text(strings.activeEdgeChange),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                controller.update(draft.copyWith(activeEdge: value));
+              }
+            },
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(strings.sensorInvertLabel),
+            value: draft.sensorInvert,
+            onChanged: (value) =>
+                controller.update(draft.withFlag(0x20, value)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DisplaySection extends StatelessWidget {
+  const _DisplaySection({
+    required this.draft,
+    required this.state,
+    required this.controller,
+  });
+
+  final DeviceConfig draft;
+  final ConfigDraftState state;
+  final ConfigDraftController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    return Card(
+      child: ExpansionTile(
+        title: Text(strings.displaySection),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: <Widget>[
+          Text(strings.brightnessValue(draft.brightnessPct)),
+          const SizedBox(height: 4),
+          Text(
+            strings.ambientBrightnessHelper,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          Slider(
+            value: draft.brightnessPct.clamp(1, 100).toDouble(),
+            min: 1,
+            max: 100,
+            divisions: 99,
+            label: '${draft.brightnessPct}%',
+            onChanged: (value) =>
+                controller.update(draft.copyWith(brightnessPct: value.round())),
+          ),
+          if (state.fieldErrors['brightnessPct'] case final error?)
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          _IntegerField(
+            key: ValueKey('display-${draft.displayTimeoutS}'),
+            label: strings.displayTimeoutLabel,
+            helper: strings.neverHelper,
+            value: draft.displayTimeoutS,
+            error: state.fieldErrors['displayTimeoutS'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(displayTimeoutS: value)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(strings.displayAutoOffLabel),
+            value: draft.displayAutoOff,
+            onChanged: (value) =>
+                controller.update(draft.withFlag(0x04, value)),
+          ),
+          _IntegerField(
+            key: ValueKey('page-${draft.pageSwitchPeriodS}'),
+            label: strings.pageSwitchLabel,
+            value: draft.pageSwitchPeriodS,
+            error: state.fieldErrors['pageSwitchPeriodS'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(pageSwitchPeriodS: value)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(strings.autoPageSwitchLabel),
+            value: draft.autoPageSwitch,
+            onChanged: (value) =>
+                controller.update(draft.withFlag(0x02, value)),
+          ),
+          PageOrderEditor(
+            enabledMask: draft.enabledPagesMask,
+            pageOrder: draft.pageOrder,
+            pinnedPage: draft.pinnedPage,
+            enabledPagesLabel: strings.enabledPagesLabel,
+            enabledPagesHint: strings.enabledPagesHint,
+            tripPageOrderLabel: strings.tripPageOrderLabel,
+            pinnedPageLabel: strings.pinnedPageLabel,
+            onUpdate: (update) => controller.update(
+              draft.copyWith(
+                enabledPagesMask: update.enabledMask,
+                pageOrder: update.pageOrder,
+                pinnedPage: update.pinnedPage,
+              ),
+            ),
+          ),
+          if (state.fieldErrors['enabledPagesMask'] case final error?)
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          if (state.fieldErrors['pageOrder'] case final error?)
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PowerSection extends StatelessWidget {
+  const _PowerSection({
+    required this.draft,
+    required this.state,
+    required this.controller,
+    required this.deepSleepSupported,
+  });
+
+  final DeviceConfig draft;
+  final ConfigDraftState state;
+  final ConfigDraftController controller;
+  final bool deepSleepSupported;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    return Card(
+      child: ExpansionTile(
+        title: Text(strings.powerSection),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: <Widget>[
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(strings.powerSaveModeLabel),
+            value: draft.powerSaveMode,
+            onChanged: (value) =>
+                controller.update(draft.withFlag(0x40, value)),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(strings.bleAlwaysAdvertiseLabel),
+            value: draft.bleAlwaysAdvertise,
+            onChanged: (value) =>
+                controller.update(draft.withFlag(0x08, value)),
+          ),
+          if (deepSleepSupported)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(strings.deepSleepEnabledLabel),
+              value: draft.deepSleepEnabled,
+              onChanged: (value) =>
+                  controller.update(draft.withFlag(0x80, value)),
+            ),
+          _IntegerField(
+            key: ValueKey('deep-sleep-${draft.deepSleepTimeoutS}'),
+            label: strings.deepSleepTimeoutLabel,
+            helper: strings.neverHelper,
+            value: draft.deepSleepTimeoutS,
+            error: state.fieldErrors['deepSleepTimeoutS'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(deepSleepTimeoutS: value)),
+          ),
+          const SizedBox(height: 12),
+          _IntegerField(
+            key: ValueKey('low-batt-${draft.lowBatteryPct}'),
+            label: strings.lowBatteryPctLabel,
+            value: draft.lowBatteryPct,
+            error: state.fieldErrors['lowBatteryPct'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(lowBatteryPct: value)),
+          ),
+          const SizedBox(height: 12),
+          _IntegerField(
+            key: ValueKey('odo-save-${draft.odometerSaveIntervalM}'),
+            label: strings.odometerSaveIntervalLabel,
+            value: draft.odometerSaveIntervalM,
+            error: state.fieldErrors['odometerSaveIntervalM'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(odometerSaveIntervalM: value)),
+          ),
+          const SizedBox(height: 12),
+          _IntegerField(
+            key: ValueKey('batt-scale-${draft.battCalScalePermille}'),
+            label: strings.battCalScaleLabel,
+            value: draft.battCalScalePermille,
+            error: state.fieldErrors['battCalScalePermille'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(battCalScalePermille: value)),
+          ),
+          const SizedBox(height: 12),
+          _IntegerField(
+            key: ValueKey('batt-offset-${draft.battCalOffsetMv}'),
+            label: strings.battCalOffsetLabel,
+            value: draft.battCalOffsetMv,
+            error: state.fieldErrors['battCalOffsetMv'],
+            onChanged: (value) =>
+                controller.update(draft.copyWith(battCalOffsetMv: value)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceSection extends StatelessWidget {
+  const _DeviceSection({
+    required this.draft,
+    required this.state,
+    required this.controller,
+  });
+
+  final DeviceConfig draft;
+  final ConfigDraftState state;
+  final ConfigDraftController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    return Card(
+      child: ExpansionTile(
+        title: Text(strings.deviceSection),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: <Widget>[
+          Text(
+            strings.deviceNameRestartHint,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            initialValue: draft.deviceName,
+            maxLength: 15,
+            decoration: InputDecoration(
+              labelText: strings.deviceNameLabel,
+              helperText: strings.deviceNameHelper,
+              errorText: state.fieldErrors['deviceName'],
+            ),
+            onChanged: (value) =>
+                controller.update(draft.copyWith(deviceName: value)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

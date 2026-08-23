@@ -348,6 +348,11 @@ class ConnectionController extends _$ConnectionController {
       await connected.future.timeout(const Duration(seconds: 12));
       await _synchronize(device);
     } on Object catch (error) {
+      if (_explicitDisconnect ||
+          _handlingUnexpectedDisconnect ||
+          state.connection is ConnectionReconnecting) {
+        return;
+      }
       await _disposeRepository();
       await _cancelLink();
       final appError = error is AppError ? error : AppErrors.unknown(error);
@@ -367,7 +372,16 @@ class ConnectionController extends _$ConnectionController {
     state = state.copyWith(
       connection: const ConnectionState.synchronizing(SyncStage.mtu),
     );
-    final mtu = await _transport.requestMtu(247);
+    var mtu = 247;
+    try {
+      mtu = await _transport.requestMtu(247);
+    } on Object {
+      if (_handlingUnexpectedDisconnect ||
+          state.connection is ConnectionReconnecting) {
+        throw AppErrors.connectionLost;
+      }
+      // Keep the session if the link survived a flaky Exchange MTU.
+    }
     final readOnly = mtu < 51;
 
     state = state.copyWith(
@@ -488,6 +502,10 @@ class ConnectionController extends _$ConnectionController {
 
   Future<void> _handleUnexpectedDisconnect() async {
     if (_explicitDisconnect || _handlingUnexpectedDisconnect) return;
+    if (state.connection is ConnectionReconnecting ||
+        state.connection is ConnectionFailed) {
+      return;
+    }
     _handlingUnexpectedDisconnect = true;
     try {
       await _disposeRepository();

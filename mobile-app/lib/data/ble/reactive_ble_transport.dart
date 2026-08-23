@@ -7,11 +7,17 @@ import 'ble_discovery_filter.dart';
 import 'ble_transport.dart';
 
 class ReactiveBleTransport implements BleTransport {
-  ReactiveBleTransport({FlutterReactiveBle? ble})
-    : _ble = ble ?? FlutterReactiveBle();
+  ReactiveBleTransport({
+    FlutterReactiveBle? ble,
+    this.mtuSettleDelay = const Duration(milliseconds: 1000),
+    this.mtuRetryDelay = const Duration(milliseconds: 400),
+  }) : _ble = ble ?? FlutterReactiveBle();
 
   final FlutterReactiveBle _ble;
+  final Duration mtuSettleDelay;
+  final Duration mtuRetryDelay;
   String? _deviceId;
+  bool _linkUp = false;
   StreamSubscription<ConnectionStateUpdate>? _connectionSubscription;
   StreamSubscription<DiscoveredDevice>? _scanSubscription;
   StreamController<BleScanResult>? _scanController;
@@ -105,6 +111,7 @@ class ReactiveBleTransport implements BleTransport {
     final controller = StreamController<BleLinkState>.broadcast();
     _connectionController = controller;
     controller.add(BleLinkState.connecting);
+    _linkUp = false;
     _connectionSubscription = _ble
         .connectToAdvertisingDevice(
           id: deviceId,
@@ -119,14 +126,19 @@ class ReactiveBleTransport implements BleTransport {
           connectionTimeout: const Duration(seconds: 15),
         )
         .listen(
-          (update) => controller.add(switch (update.connectionState) {
-            DeviceConnectionState.connecting => BleLinkState.connecting,
-            DeviceConnectionState.connected => BleLinkState.connected,
-            DeviceConnectionState.disconnecting => BleLinkState.disconnecting,
-            DeviceConnectionState.disconnected => BleLinkState.disconnected,
-          }),
+          (update) {
+            final link = switch (update.connectionState) {
+              DeviceConnectionState.connecting => BleLinkState.connecting,
+              DeviceConnectionState.connected => BleLinkState.connected,
+              DeviceConnectionState.disconnecting => BleLinkState.disconnecting,
+              DeviceConnectionState.disconnected => BleLinkState.disconnected,
+            };
+            _linkUp = link == BleLinkState.connected;
+            controller.add(link);
+          },
           onError: controller.addError,
           onDone: () {
+            _linkUp = false;
             if (!controller.isClosed) controller.add(BleLinkState.disconnected);
           },
         );
@@ -138,6 +150,7 @@ class ReactiveBleTransport implements BleTransport {
   Future<void> disconnect() async {
     await _connectionSubscription?.cancel();
     _connectionSubscription = null;
+    _linkUp = false;
     final controller = _connectionController;
     _connectionController = null;
     if (controller != null && !controller.isClosed) {
@@ -161,8 +174,35 @@ class ReactiveBleTransport implements BleTransport {
       );
 
   @override
-  Future<int> requestMtu(int mtu) =>
-      _ble.requestMtu(deviceId: _connectedDeviceId, mtu: mtu);
+  Future<int> requestMtu(int mtu) async {
+    // Samsung (and some nRF dual-role setups) drop the link if Exchange MTU
+    // races encryption, vendor auto-MTU, or a concurrent CSC scanner.
+    if (mtuSettleDelay > Duration.zero) {
+      await Future<void>.delayed(mtuSettleDelay);
+    }
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (!_linkUp) {
+        throw lastError ?? StateError('BLE device disconnected during MTU');
+      }
+      try {
+        return await _ble
+            .requestMtu(deviceId: _connectedDeviceId, mtu: mtu)
+            .timeout(const Duration(seconds: 8));
+      } on Object catch (error) {
+        lastError = error;
+        if (!_linkUp) rethrow;
+        if (attempt == 0 && mtuRetryDelay > Duration.zero) {
+          await Future<void>.delayed(mtuRetryDelay);
+        }
+      }
+    }
+    if (!_linkUp) {
+      throw lastError ?? StateError('BLE device disconnected during MTU');
+    }
+    // Still connected: the stack often already negotiated a usable ATT MTU.
+    return mtu;
+  }
 
   @override
   Future<BleDiscovery> discoverServices() async {

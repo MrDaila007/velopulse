@@ -87,10 +87,9 @@ config, companion — совпадают побайтово).
   (`0x23`), `openPairingWindow` (`0x40`) объявлены в `DeviceCommandId`, но нигде не вызываются
   из UI.
 - **ConfigProfileCodec** / экспорт-импорт JSON-профиля конфигурации с diff — отсутствует.
-- Экраны 6–10 из плана (полные sensor/power/display settings, diagnostics, device info) —
-  не выделены отдельно; их содержимое частично влито в один экран «Настройки»
-  (`settings_screen.dart`: колесо/шины, единицы, яркость/тайм-ауты дисплея, power save,
-  deep sleep, page switch — всё на одном экране с draft/dirty/conflict-логикой).
+- Экраны 6–10 из плана (diagnostics, device info отдельным экраном, JSON-профиль) —
+  не выделены; BLE Config 48 B полностью доступен на «Настройки» секциями
+  колесо / датчик / дисплей (страницы 0–7, CAD) / питание / устройство.
   `MagnetPassIndicator` и лог интервалов импульсов не реализованы; тест датчика на экране
   «Обслуживание» ограничен счётчиком оборотов, состоянием и возрастом импульса.
 - Диагностика/self-test/version screen отдельным экраном нет — только `getDiagnostic()` при
@@ -104,8 +103,8 @@ config, companion — совпадают побайтово).
 | --- | --- | --- |
 | `/scan` | `ScanScreen` | Автосканирование при простое/ошибке, список найденных устройств (имя, RSSI, bond-статус), последнее устройство + reconnect, forget |
 | `/connecting` | `ConnectingScreen` | Прогресс по `SyncStage` (mtu → discovery → deviceInfo → pairing → subscriptions), авто-редирект на `/dashboard` при `ready`/`readOnly` |
-| `/dashboard` | `DashboardScreen` | Скорость крупно, 6 метрик (trip/avg/max/moving time/odometer/battery), статус-чипы (ride/sensor/link/RSSI), быстрые действия |
-| `/settings` | `SettingsScreen` | Один экран: окружность колеса + пресеты шин, единицы, яркость/тайм-ауты, power save, deep sleep, page switch, `CompanionSettingsCard` (время/погода) |
+| `/dashboard` | `DashboardScreen` | Скорость крупно, метрики (trip/avg/max/moving time/odometer/battery/cadence), статус-чипы, карточка CSC, быстрые действия |
+| `/settings` | `SettingsScreen` | BLE Config 48 B по секциям: колесо, датчик Холла, дисплей (страницы 0–7 включая CAD), питание, имя устройства; `CscStatusCard`; `CompanionSettingsCard`; draft/dirty/conflict |
 | `/maintenance` | `MaintenanceScreen` | Reset trip, OLED on/off, display test (3 паттерна), force save, экспорт лога, firmware backup/restore, sensor test с таймером 60 с |
 
 `BikeCompShell` — общий `Scaffold` с `ConnectionBadge`, кнопкой disconnect и
@@ -121,9 +120,10 @@ failed/bluetoothOff/permissionRequired/incompatibleProtocol`). Ключевые 
 
 - Автоподключение к «запомненному» устройству прямо во время скана (`scan()`,
   `providers.dart:272-296`).
-- Синхронизация (`_synchronize`): MTU (247, `readOnly` если `<51`) → discovery всех required
-  характеристик → device info → проверка `protoMajor == 1` → bonding/pairing window → config →
-  сохранение драфта → подписки → telemetry → `ready`.
+- Синхронизация (`_synchronize`): пауза ~1 с после connect, затем MTU 247 с одним
+  повтором (`readOnly` если `<51`; сбой Exchange MTU при живом линке не рвёт сессию) →
+  discovery всех required характеристик → device info → проверка `protoMajor == 1` →
+  bonding/pairing window → config → сохранение драфта → подписки → telemetry → `ready`.
 - Реконнект с экспоненциальной задержкой `[1, 2, 4, 8, 15]` c, только пока приложение на
   переднем плане и не было явного `disconnect()`.
 - `BikeComputerRepositoryImpl` — единственная точка доступа к устройству; `writeConfig`

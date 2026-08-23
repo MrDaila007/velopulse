@@ -130,10 +130,10 @@ Web Serial @ 115200, те же ASCII-команды, что в [`serial_console`
 Реализовано:
 
 - Scan/connect FSM, version gate `protoMajor === 1`
-- Dashboard telemetry, включая каденс C3 и статус S3/CSC
-- Settings: все поля BLE Config 48 B (6 секций), черновик + conflict banner, LDR helper на дисплее
+- Dashboard telemetry, включая каденс C3, источник скорости Hall/S3 и статус CSC
+- Settings: все поля BLE Config 48 B (страницы OLED 0–7, включая CAD), черновик + conflict banner
 - Companion sync (Open-Meteo, интервал 15 мин)
 - Maintenance: safe commands, sensor test, reboot (dangerous token), backup/restore, session log JSON
-- Debug: USB serial, live LDR panel, raw BLE
+- Debug: USB serial (`csc-status` / `csc-pair` / `csc-forget`), live LDR panel, raw BLE
 
 Не входит в v1 web MVP: OTA/DFU, ride history, замена Flutter-приложения.

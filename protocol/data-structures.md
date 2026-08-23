@@ -155,6 +155,22 @@
 | 10 | u8 | `brightness_pct` | 1…100 | 60 | §7.4 |
 | 11 | u8 | `page_switch_period_s` | 1…60 | 4 | §6.2 |
 | 12 | u8 | `enabled_pages_mask` | биты 0…7, ≥1 бит | `0x1F` | §6.3 |
+
+`enabled_pages_mask` соответствует `DisplayPage` прошивки:
+
+| Бит | Страница | OLED |
+| --- | --- | --- |
+| 0 | trip | Поездка |
+| 1 | average | Средняя |
+| 2 | maximum | Максимум |
+| 3 | moving time | Время |
+| 4 | odometer | Одометр |
+| 5 | weather clock | Погода и часы (Companion) |
+| 6 | weather rain | Дождь (Companion) |
+| 7 | cadence | Каденс CAD (C3) |
+
+`page_order[5]` задаёт порядок **только страниц 0–4**. Страницы 5–7, если включены в маске,
+добавляются каруселью после них.
 | 13 | u8 | `low_battery_pct` | 5…50 | 20 | §8.3 |
 | 14 | u16 | `odometer_save_interval_m` | 100…5000 | 500 | §9.2 |
 | 16 | u8 | `smoothing_window` | 2…5 | 3 | §4.5 |

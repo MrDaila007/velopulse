@@ -114,4 +114,103 @@ void main() {
     expect(capturedServices, isEmpty);
     await platformConnection.close();
   });
+
+  Future<ReactiveBleTransport> connectForMtu(
+    _MockReactiveBle ble,
+    StreamController<ConnectionStateUpdate> platformConnection,
+  ) async {
+    when(
+      () => ble.connectToAdvertisingDevice(
+        id: 'AA:BB:CC:DD:EE:FF',
+        withServices: any(named: 'withServices'),
+        prescanDuration: const Duration(seconds: 8),
+        servicesWithCharacteristicsToDiscover: any(
+          named: 'servicesWithCharacteristicsToDiscover',
+        ),
+        connectionTimeout: const Duration(seconds: 15),
+      ),
+    ).thenAnswer((_) => platformConnection.stream);
+    final transport = ReactiveBleTransport(
+      ble: ble,
+      mtuSettleDelay: Duration.zero,
+      mtuRetryDelay: Duration.zero,
+    );
+    transport.connect('AA:BB:CC:DD:EE:FF').listen((_) {});
+    platformConnection.add(
+      const ConnectionStateUpdate(
+        deviceId: 'AA:BB:CC:DD:EE:FF',
+        connectionState: DeviceConnectionState.connected,
+        failure: null,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    return transport;
+  }
+
+  test('requestMtu retries once after a transient platform failure', () async {
+    final ble = _MockReactiveBle();
+    final platformConnection =
+        StreamController<ConnectionStateUpdate>.broadcast();
+    addTearDown(platformConnection.close);
+    var calls = 0;
+    when(
+      () => ble.requestMtu(
+        deviceId: any(named: 'deviceId'),
+        mtu: any(named: 'mtu'),
+      ),
+    ).thenAnswer((_) async {
+      calls++;
+      if (calls == 1) throw StateError('transient MTU');
+      return 247;
+    });
+    final transport = await connectForMtu(ble, platformConnection);
+
+    expect(await transport.requestMtu(247), 247);
+    expect(calls, 2);
+  });
+
+  test(
+    'requestMtu keeps the session if both attempts fail while connected',
+    () async {
+      final ble = _MockReactiveBle();
+      final platformConnection =
+          StreamController<ConnectionStateUpdate>.broadcast();
+      addTearDown(platformConnection.close);
+      when(
+        () => ble.requestMtu(
+          deviceId: any(named: 'deviceId'),
+          mtu: any(named: 'mtu'),
+        ),
+      ).thenThrow(StateError('MTU rejected'));
+      final transport = await connectForMtu(ble, platformConnection);
+
+      expect(await transport.requestMtu(247), 247);
+    },
+  );
+
+  test('requestMtu fails when the link drops during negotiation', () async {
+    final ble = _MockReactiveBle();
+    final platformConnection =
+        StreamController<ConnectionStateUpdate>.broadcast();
+    addTearDown(platformConnection.close);
+    final transport = await connectForMtu(ble, platformConnection);
+    when(
+      () => ble.requestMtu(
+        deviceId: any(named: 'deviceId'),
+        mtu: any(named: 'mtu'),
+      ),
+    ).thenAnswer((_) async {
+      platformConnection.add(
+        const ConnectionStateUpdate(
+          deviceId: 'AA:BB:CC:DD:EE:FF',
+          connectionState: DeviceConnectionState.disconnected,
+          failure: null,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      throw StateError('GATT 133');
+    });
+
+    await expectLater(transport.requestMtu(247), throwsA(isA<StateError>()));
+  });
 }

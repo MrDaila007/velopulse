@@ -58,6 +58,21 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get cscLabel => 'CSC';
+
+  @override
+  String get cscPairingChip => 'поиск';
+
+  @override
+  String get cscCrankChip => 'C3 каденс';
+
+  @override
+  String get cscWheelChip => 'S3 колесо';
+
+  @override
+  String get cscWheelActiveChip => 'S3 скорость';
+
+  @override
   String get cancel => 'Отмена';
 
   @override
@@ -100,21 +115,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get connectionTitle => 'Подключение';
-
-  @override
-  String get cscCrankChip => 'C3 каденс';
-
-  @override
-  String get cscLabel => 'CSC';
-
-  @override
-  String get cscPairingChip => 'поиск';
-
-  @override
-  String get cscWheelActiveChip => 'S3 скорость';
-
-  @override
-  String get cscWheelChip => 'S3 колесо';
 
   @override
   String get customValue => 'Пользовательский';
@@ -657,4 +657,106 @@ class AppLocalizationsRu extends AppLocalizations {
   String firmwareBackupSavedAt(Object timestamp) {
     return 'Сохранено: $timestamp';
   }
+
+  @override
+  String get sensorSection => 'Датчик Холла';
+
+  @override
+  String get displaySection => 'Дисплей';
+
+  @override
+  String get deviceSection => 'Устройство';
+
+  @override
+  String get maxSpeedLabel => 'Макс. скорость, км/ч';
+
+  @override
+  String get smoothingWindowLabel => 'Окно сглаживания';
+
+  @override
+  String get smoothingEnabledLabel => 'Сглаживание скорости';
+
+  @override
+  String get debounceLabel => 'Debounce, мс';
+
+  @override
+  String get activeEdgeLabel => 'Активный фронт';
+
+  @override
+  String get activeEdgeFalling => 'FALLING (по умолчанию)';
+
+  @override
+  String get activeEdgeRising => 'RISING';
+
+  @override
+  String get activeEdgeChange => 'CHANGE (оба фронта)';
+
+  @override
+  String get sensorInvertLabel => 'Инвертировать датчик';
+
+  @override
+  String get displayAutoOffLabel => 'Автоотключение дисплея';
+
+  @override
+  String get autoPageSwitchLabel => 'Автосмена страниц';
+
+  @override
+  String get bleAlwaysAdvertiseLabel => 'Всегда рекламировать BLE';
+
+  @override
+  String get enabledPagesLabel => 'Включённые страницы';
+
+  @override
+  String get enabledPagesHint =>
+      'Биты 5–6 — погода; бит 7 — CAD при датчике каденса';
+
+  @override
+  String get tripPageOrderLabel => 'Порядок страниц поездки';
+
+  @override
+  String get pinnedPageLabel => 'Закреплённая страница';
+
+  @override
+  String get lowBatteryPctLabel => 'Низкий заряд АКБ, %';
+
+  @override
+  String get battCalScaleLabel => 'Калибровка АКБ, масштаб ‰';
+
+  @override
+  String get battCalOffsetLabel => 'Калибровка АКБ, смещение мВ';
+
+  @override
+  String get odometerSaveIntervalLabel => 'Интервал сохранения одометра, м';
+
+  @override
+  String get deviceNameLabel => 'Имя устройства (BLE)';
+
+  @override
+  String get deviceNameHelper => '3–15 символов: A–Z, 0–9, пробел, - или _';
+
+  @override
+  String get deviceNameRestartHint =>
+      'Новое имя вступит в силу после перезапуска рекламы BLE.';
+
+  @override
+  String get cscSensorTitle => 'BLE-датчик CSC';
+
+  @override
+  String get cscNotConnected => 'нет связи';
+
+  @override
+  String get cscConnectedChip => 'подключён';
+
+  @override
+  String get cscSpeedSourceLabel => 'Источник скорости';
+
+  @override
+  String get cscSpeedSourceHall => 'Hall';
+
+  @override
+  String get cscSpeedSourceS3 => 'S3';
+
+  @override
+  String get cscPairHint =>
+      'Сопряжение датчика — на устройстве: USB-команда csc-pair или кнопка на датчике.';
 }

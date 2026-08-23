@@ -7,6 +7,7 @@ import '../../application/providers.dart';
 import '../../domain/entities/models.dart';
 import '../../domain/services/unit_formatter.dart';
 import '../../l10n/app_localizations.dart';
+import '../widgets/csc_status_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -157,6 +158,12 @@ class DashboardScreen extends ConsumerWidget {
                     label: 'RSSI',
                     value: session.rssi == null ? '—' : '${session.rssi} dBm',
                   ),
+                  _StatusChip(
+                    label: strings.cscSpeedSourceLabel,
+                    value: telemetry.cscSpeedSource
+                        ? strings.cscSpeedSourceS3
+                        : strings.cscSpeedSourceHall,
+                  ),
                   if (telemetry.cscPairing)
                     _StatusChip(
                       label: strings.cscLabel,
@@ -178,6 +185,8 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          CscStatusCard(telemetry: telemetry),
           const SizedBox(height: 16),
           Text(
             strings.quickActions,

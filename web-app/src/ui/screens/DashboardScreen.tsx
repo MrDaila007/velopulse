@@ -51,6 +51,9 @@ export function DashboardScreen() {
             {flags.charging ? 'зарядка' : 'АКБ'}
           </span>
           <span className="chip">{flags.displayOn ? 'дисплей вкл' : 'дисплей выкл'}</span>
+          <span className={`chip ${flags.cscSpeedSource ? 'ok' : ''}`}>
+            {flags.cscSpeedSource ? 'S3 скорость' : 'Hall скорость'}
+          </span>
         </div>
       </section>
 
@@ -88,15 +91,32 @@ export function DashboardScreen() {
             </strong>
           </div>
         </div>
-        <div className="chips" style={{ marginTop: 12 }}>
-          {flags.cscPairing && <span className="chip">CSC поиск</span>}
+      </section>
+
+      <section className="panel">
+        <h3>BLE-датчик CSC</h3>
+        <div className="chips">
+          <span className={`chip ${flags.cscConnected ? 'ok' : ''}`}>
+            {flags.cscConnected ? 'подключён' : 'нет связи'}
+          </span>
+          {flags.cscPairing && <span className="chip">поиск</span>}
           {flags.cscCrankPresent && <span className="chip ok">C3 каденс</span>}
           {(flags.cscWheelPresent || flags.cscSpeedSource) && (
             <span className={`chip ${flags.cscSpeedSource ? 'ok' : ''}`}>
               {flags.cscSpeedSource ? 'S3 скорость' : 'S3 колесо'}
             </span>
           )}
+          <span className={`chip ${flags.cscSpeedSource ? 'ok' : ''}`}>
+            источник скорости: {flags.cscSpeedSource ? 'S3' : 'Hall'}
+          </span>
         </div>
+        <p className="muted" style={{ marginTop: 8 }}>
+          Сопряжение датчика — на устройстве: USB-команды <code>csc-pair</code> /{' '}
+          <code>csc-forget</code> во вкладке «Отладка», либо кнопка на датчике.
+        </p>
+      </section>
+
+      <section className="panel">
         <div className="btn-row">
           <button
             type="button"

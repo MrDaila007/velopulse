@@ -77,6 +77,7 @@ struct PendingCompanionWrite {
 };
 
 PendingCompanionWrite g_pending_companion_write = {};
+CscCentral* g_csc = nullptr;
 
 void startAdvertising();
 
@@ -316,7 +317,15 @@ void onPairComplete(uint16_t conn_hdl, uint8_t auth_status) {
   Bluefruit.disconnect(conn_hdl);
 }
 
-void onDisconnect(uint16_t conn_hdl, uint8_t) {
+void onPhoneConnect(uint16_t) {
+  Serial.println("BLE: phone connected");
+  if (g_csc != nullptr) g_csc->setPhoneConnected(true);
+}
+
+void onDisconnect(uint16_t conn_hdl, uint8_t reason) {
+  Serial.print("BLE: phone disconnect reason=0x");
+  Serial.println(reason, HEX);
+  if (g_csc != nullptr) g_csc->setPhoneConnected(false);
   g_sensor_test_active = false;
   safeCommandQueueFinish(g_pending_safe_command);
   dangerousCommandQueueFinish(g_pending_dangerous_command);
@@ -501,6 +510,7 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   Bluefruit.setEventCallback(onBleEvent);
   Bluefruit.Security.setPairCompleteCallback(onPairComplete);
   Bluefruit.setTxPower(4);
+  Bluefruit.Periph.setConnectCallback(onPhoneConnect);
   Bluefruit.Periph.setDisconnectCallback(onDisconnect);
   Bluefruit.Periph.setConnInterval(12, 48);
   Bluefruit.Security.setIOCaps(false, false, false);
@@ -520,6 +530,7 @@ bool BleManager::begin(const DeviceConfig& config, const BleBootSeed& seed) {
   Serial.println("BLE DFU: Adafruit OTA enabled");
 
   csc_.setBond(seed.csc_bond);
+  g_csc = &csc_;
   if (csc_.begin()) {
     Serial.println(cscBondIsValid(seed.csc_bond)
                        ? "CSC: central started, reconnecting"

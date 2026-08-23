@@ -78,6 +78,37 @@ void main() {
     await fake.dispose();
   });
 
+  testWidgets('connected settings expose sensor display and cadence pages', (
+    tester,
+  ) async {
+    final fake = FakeBleTransport();
+    addTearDown(fake.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [bleTransportProvider.overrideWithValue(fake)],
+        child: const BikeCompApp(),
+      ),
+    );
+    await ensureFakeDeviceVisible(tester);
+    await tester.tap(find.text('Подключить'));
+    for (var frame = 0; frame < 10; frame++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    await tester.tap(find.text('Настройки'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Колесо и единицы'), findsOneWidget);
+    expect(find.text('Датчик Холла'), findsOneWidget);
+    expect(find.text('Дисплей'), findsOneWidget);
+    expect(find.text('Устройство'), findsOneWidget);
+    expect(find.text('BLE-датчик CSC'), findsWidgets);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await fake.dispose();
+  });
+
   testWidgets('maintenance offers all three OLED test patterns', (
     tester,
   ) async {
